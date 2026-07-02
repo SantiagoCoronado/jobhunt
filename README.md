@@ -26,6 +26,8 @@ highest-signal listings.
 
 ```bash
 cd ~/projects/jobhunt
+./setup.sh                       # one command: venv + deps + scaffolds config/notify.yaml
+# ...or manually:
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -53,12 +55,37 @@ Local CRM instead of Notion:
 python -m src.crm.viewer      # http://localhost:5000
 ```
 
-## Schedule it (Windows 11 + WSL)
+## Run it on a second machine (macOS / Linux)
 
-In-WSL cron dies when the VM idles, so trigger from Windows Task Scheduler:
+The repo is portable and the `.claude/` skills travel with it. Local state (`data/`,
+`applications/`, `config/notify.yaml`) is git-ignored and stays per-machine, so **Notion is
+the shared CRM**.
+
+```bash
+git clone https://github.com/SantiagoCoronado/jobhunt.git
+cd jobhunt
+./setup.sh                       # venv + deps + scaffolds config/notify.yaml
+# paste your Gmail app password into config/notify.yaml (git-ignored, never committed)
+./run.sh --force                 # first discovery run on this machine
+```
+Recommended split: keep the **scheduled** daily run on one always-on machine; use the other
+as an **interactive** client (`/match`, `/tailor`, `/notion-sync` by hand) to avoid double
+emails and double Notion syncs. Sync code changes with plain `git pull` / `git push`.
+
+## Schedule it
+
+Run `./run.sh` daily; its built-in ~18h guard collapses duplicate triggers into one real run.
+
+**Windows 11 + WSL** (in-WSL cron dies when the VM idles, so trigger from Task Scheduler):
 - Program: `wsl.exe`
-- Arguments: `-d Ubuntu -e bash -lc "/home/kenpachi/projects/jobhunt/run.sh"`
+- Arguments: `-d Ubuntu -e bash -lc "$HOME/projects/jobhunt/run.sh"`
 - Trigger: daily 08:00 (tick "Wake the computer to run this task")
+
+**macOS** (launchd; runs on the next wake if the Mac was asleep at 08:00):
+```bash
+./mac/install-schedule.sh        # installs ~/Library/LaunchAgents/com.jobhunt.daily.plist
+launchctl start com.jobhunt.daily   # optional: test the job right now
+```
 
 ## Ground rules (baked into the agents)
 
