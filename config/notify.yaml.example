@@ -1,0 +1,11 @@
+# Copy to notify.yaml and fill in. Uses Apprise URL syntax (https://github.com/caronc/apprise).
+# Leave apprise_urls empty to just print the digest to the terminal.
+
+min_score: 70
+apprise_urls:
+  # Telegram (create a bot via @BotFather, get your chat_id):
+  # - "tgram://BOT_TOKEN/CHAT_ID"
+  # ntfy.sh (free push to phone; pick a hard-to-guess topic):
+  # - "ntfy://ntfy.sh/your-secret-topic-name"
+  # Email via Gmail App Password:
+  # - "mailto://user:app-password@gmail.com"

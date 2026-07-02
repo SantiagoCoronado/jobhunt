@@ -1,0 +1,71 @@
+# Which sources to pull. Aggregators need no setup and are ON by default.
+# ATS tokens below were verified live on 2026-07-01 (each returns real open jobs).
+
+# Aggregators (no tokens needed)
+remoteok:
+  enabled: true                    # attribution required (we keep the RemoteOK URL)
+remotive:
+  enabled: true
+  limit: 100
+  categories: [software-dev]       # ToS: <=~4 calls/day
+weworkremotely:
+  enabled: true
+  categories:
+    - remote-back-end-programming-jobs
+    - remote-full-stack-programming-jobs
+    - remote-front-end-programming-jobs
+    - remote-devops-sysadmin-jobs
+hackernews:
+  enabled: true                    # monthly "Who is Hiring" thread
+getonbrd:                          # LatAm / Mexico
+  enabled: true
+  per_page: 100
+  queries:
+    - "remote backend"
+    - "machine learning"
+    - "data engineer"
+    - "ai engineer"
+    - "full stack"
+    - "founding engineer"
+    - "llm"
+    - "python"
+    - "react"
+    - "node"
+    - "typescript"
+    - "solutions engineer"
+
+jobicy:
+  enabled: true
+  count: 100
+  tags: [python, javascript, engineering]
+arbeitnow:
+  enabled: true
+  pages: 3
+  remote_only: true
+himalayas:
+  enabled: true
+  limit: 100
+recruitee:                         # per-company (Recruitee ATS); add slugs then flip enabled
+  enabled: false
+  companies: []
+smartrecruiters:                   # per-company; list endpoint has no description (title-only match)
+  enabled: false
+  companies: []
+
+# Company ATS boards (verified tokens). AI-forward + remote/LatAm-friendly first.
+greenhouse:
+  enabled: true
+  tokens: [anthropic, gitlab, vercel, mercury, clara, nubank, planetscale, scaleai, bitso, netlify, lovable, brex, cresta, fal, assemblyai, warp, labelbox, prisma, clickhouse, grafanalabs, tailscale, descript, cockroachlabs, knock, typeface, imbue, bold, hightouch, fivetran, webflow, galileo, turing, backblaze]
+lever:
+  enabled: true
+  companies: [mistral, kavak, yuno, neon, xepelin, fintual, dlocal, anyscale]
+ashby:
+  enabled: true
+  clients: [openai, harvey, elevenlabs, cohere, ramp, plaid, notion, replit, baseten, deepgram, writer, supabase, sentry, perplexity, linear, render, posthog, zapier, airbyte, railway, sierra, resend, belvo, reka, pinecone, gorgias, weaviate, modal, browserbase, temporal, abridge, crusoe, langchain, synthesia, kueski, decagon, braintrust, tavus, cerebras, langfuse, vapi, bland, openevidence, mercor, workos, stytch, coder, 1password, runpod, poolside, suno, doppler, cognition, gamma, inngest, zed, windmill, infisical, prefect, astronomer, nomic, distyl, cluely, clickup, character, artisan, julius, granola, andela, vellum, motherduck, sardine]
+workable:
+  enabled: false                   # EXPERIMENTAL schema varies
+  accounts: []
+
+# Grey-zone gap filler (OFF by default, read the README before enabling)
+# jobspy:  # scrapes Indeed/LinkedIn; breaks often, ToS risk, needs proxies for LinkedIn
+#   enabled: false

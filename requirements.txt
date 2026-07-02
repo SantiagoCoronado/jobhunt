@@ -1,0 +1,11 @@
+# Core (needed for discovery + DB + CRM viewer)
+requests
+feedparser
+PyYAML
+flask
+
+# Optional
+rapidfuzz         # nicer fuzzy dedupe (not required)
+apprise           # notifications (Telegram/ntfy/email digests)
+rendercv[full]    # render tailored resume YAML -> ATS-friendly PDF (pulls the Typst renderer + fonts)
+# python-jobspy   # grey-zone Indeed/LinkedIn gap filler, read README before enabling

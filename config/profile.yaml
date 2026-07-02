@@ -1,0 +1,93 @@
+# Your target profile: the matcher scores every job against this.
+# Built from your resumes; adjust anything that shifts.
+
+name: "Santiago Daniel Coronado Sroka"
+target_titles:
+  # Family A: hands-on AI / full-stack engineering
+  - "Applied AI Engineer"
+  - "AI Engineer"
+  - "Forward-Deployed Engineer"
+  - "Founding Engineer"
+  - "Full-Stack Engineer"
+  - "Software Engineer (AI products)"
+  # Family B: AI deployment / enablement / strategy (client-facing or internal)
+  - "Deployment Strategist"
+  - "AI Solutions Architect / Engineer"
+  - "AI Enablement Lead / Director"
+  - "AI Transformation / Adoption Lead"
+  - "Applied AI Strategist"
+  - "Field / Forward-Deployed Engineer"
+  - "GTM Engineer"
+  - "Technical Program or Product (AI)"
+
+seniority: "senior to director"    # founder-level; fits IC senior/staff AND lead/director/strategist scope
+
+# Skills you can defend in an interview (drives keyword prescore + honest gap analysis)
+must_have_skills:
+  - python
+  - javascript
+  - typescript
+  - react
+  - node.js
+  - llm
+  - prompt engineering
+  - rag
+  - ai agents
+  - aws
+  - sql
+  - rest apis
+nice_to_have_skills:
+  - embeddings
+  - vector databases
+  - function calling
+  - docker
+  - etl
+  - firebase
+  - swift
+  - java
+  - workflow automation
+  - langchain
+  # Family B (deployment / enablement / strategy) signals:
+  - ai agents
+  - solutions architecture
+  - ai deployment
+  - ai enablement
+  - ai adoption
+  - stakeholder management
+  - enterprise
+  - gtm
+  - product strategy
+
+# Hard filters
+locations:
+  - Remote (worldwide)
+  - Hybrid Mexico City
+  - Mexico City
+  - Mexico
+  - LATAM
+  - Americas
+  - United States           # TN Visa eligible
+timezones:
+  - "Any if fully remote; hybrid must be Mexico City (GMT-6)"
+min_salary_usd: 65000        # minimum acceptable annual base
+dealbreakers:
+  - "on-site or hybrid outside Mexico City"
+  - "unpaid"
+  - "base salary shown and below 65,000 USD"   # only a dealbreaker when pay is actually listed
+  - "requires US citizens only"   # you are TN-eligible, not a citizen, so flag these
+
+notes: >
+  Founder-engineer based in Mexico City, open to TWO role families:
+  (A) hands-on AI / full-stack engineering (AI products, agents, RAG, internal tooling); and
+  (B) AI deployment / enablement / strategy: Deployment Strategist, Solutions Architect or Engineer,
+  AI Enablement or Transformation Director/Lead/Manager, Applied AI Strategist, forward-deployed or
+  field engineering, GTM engineering. Score BOTH families as in-scope. For family B, weight his
+  founder background, 0-to-1 product building, client and stakeholder management, and real
+  AI-deployment work (built LLM workflows and a RAG "company brain," ran client AI consulting) as
+  strong positives, and do NOT penalize a Director/Lead/Manager/Strategist title as "not engineering"
+  or as a seniority-over mismatch. He fits IC senior/staff AND lead/director scope. Comfortable fully
+  remote (worldwide) or hybrid in Mexico City; not open to relocating for on-site. Bilingual (ES/EN);
+  TN-visa eligible for U.S. employment. Salary rule: only reject on pay when a base salary is shown
+  and is below 65k; if pay is not listed, keep the role in play, especially for a strong fit or a
+  notably cool company. Two roles he flagged as ideal: ElevenLabs "Deployment Strategist Lead, Mexico"
+  and Backblaze "AI Enablement Director, LATAM."
