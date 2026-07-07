@@ -9,7 +9,8 @@ Tailor my application for job id **$ARGUMENTS**.
 1. Load the job: run `python -m src.query job $ARGUMENTS` with Bash.
 2. Delegate to the **resume-tailor** subagent with that job, `resume/master_resume.yaml`, and
    `config/profile.yaml`. It writes the tailored resume, cover letter, and match report into
-   `applications/<company>-$ARGUMENTS/`.
+   `applications/<company>-$ARGUMENTS/`, then renders the one-page .docx (house design)
+   via `python -m src.render_docx applications/<company>-$ARGUMENTS/tailored_resume.yaml --pdf`.
 3. Summarize: the fit, the ATS keywords woven in, and, honestly, any requirement I'm missing
    that I should be ready to speak to.
 

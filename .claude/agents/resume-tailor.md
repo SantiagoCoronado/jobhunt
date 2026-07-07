@@ -31,12 +31,30 @@ candidate's `resume/master_resume.yaml` (single source of truth), and `config/pr
    real name/contact. Tie each paragraph to a real JD requirement.
 5. Write `applications/<company>-<id>/match_report.md`, the gap report + the ATS keywords you
    wove in + any honest gaps the candidate should be ready to address.
-6. If `rendercv` is installed, render the PDF with Bash:
-   `rendercv render applications/<company>-<id>/tailored_resume.yaml`.
-   Keep it to ONE page. If it spills, compress via `design.text.font_size`/`leading` and
-   `section_titles`/`entries`/`highlights` spacing, NEVER `design.page.*_margin` (page-margin
-   overrides crash the engineeringresumes Typst template; see the working block in
-   `applications/easyaudit-ai-393/tailored_resume.yaml`).
+6. Render the resume with Bash:
+   `python -m src.render_docx applications/<company>-<id>/tailored_resume.yaml --pdf`
+   This produces a .docx in the canonical house design (Arial, navy #1F3864 accents,
+   underlined CAPS section headers, compact one-page layout) plus a PDF when LibreOffice
+   is available. `--fit auto` (the default) picks the loosest spacing level that fits ONE
+   page and prints the estimated page fill.
+   - If it warns that content exceeds one page even at fit level 3, TRIM bullets (drop the
+     weakest, least job-relevant ones) rather than compressing further.
+   - Aim for 90-100% page fill: a resume filling only 3/4 of a page reads thin, so prefer
+     fit level 0-1 with enough content over heavy compression of sparse content.
+   - The renderer consumes the same RenderCV-style YAML schema as the master resume; any
+     `design:` block in the YAML is ignored by the docx renderer.
+7. **Full-width lines pass (minimize white space, no slop).** Re-run with `--audit`:
+   `python -m src.render_docx <yaml> --audit`. It flags every paragraph whose LAST line is
+   less than 70% full (each dangling line wastes visible white space). For each flagged block,
+   using ONLY real master-resume content:
+   - Prefer CUTTING: tighten wording by roughly the reported char count so the paragraph ends
+     exactly at a line boundary (drop filler adjectives, redundant clauses, weak detail).
+   - Or EXTEND with real, relevant substance from the master resume (a concrete tool, metric,
+     or scope detail that exists there) to fill the line.
+   - Merge one-line bullets that are under ~55% width into a sibling bullet.
+   - NEVER pad with generic phrases to fill space; truthfulness and signal density win over
+     geometry. If neither an honest cut nor an honest extension works, leave the block as is.
+   Iterate render -> audit until the audit is clean or only justified exceptions remain.
 
 ## FINAL TRUTHFULNESS PASS
 Re-read every bullet. Flag any that could read as exaggerated or fabricated and revise to a

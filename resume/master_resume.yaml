@@ -52,6 +52,16 @@ cv:
           - "Integrated REST APIs to sync front-end and back-end data, reducing user-facing errors by 90%."
 
     projects:
+      - name: "Plutus (Self-Hosted Investment Research & Discovery Platform)"
+        date: "2026"
+        highlights:
+          - "Built Plutus, a self-hosted investment research, autonomous discovery, and portfolio tracking platform for stocks, crypto, and forex (research and analysis only, no trade execution): a FastAPI and SQLAlchemy 2 / Alembic backend on PostgreSQL 16 with TimescaleDB, Celery and Redis workers running idempotent nightly market-data ingestion across multiple provider APIs, and a React 18, TypeScript, Vite, and Tailwind frontend, shipped as a Dockerized multi-service stack."
+          - "Engineered an autonomous discovery engine (standing user mandates that trigger scheduled, vectorized signal scans and produce a ranked, evidence-backed candidate inbox with alerts) plus an LLM research agent that drafts candidate memos and converts natural-language strategy into backtestable rules, exposed through an MCP (Model Context Protocol) control plane, alongside a rule-based screener and VectorBT / Backtrader backtesting."
+      - name: "Kairos (Open-Source Personal Command Center)"
+        date: "2026"
+        highlights:
+          - "Built and open-sourced Kairos, a local-first macOS command center (CRM, tasks, quarterly OKRs) in Electron + TypeScript on SQLite, with a keyboard-driven command palette, natural-language quick capture, and one-way Markdown export."
+          - "Integrated Claude on two surfaces from one codebase: an in-app agent (Claude Agent SDK) and a standalone MCP (Model Context Protocol) server expose the same 18 tools via a single typed tool-definition layer, letting both the app and Claude Code operate on live user data."
       - name: "Pragma AI (Co-Founder)"
         date: "2026 – Present"
         highlights:
@@ -68,9 +78,9 @@ cv:
 
     skills:
       - label: "AI & LLM"
-        details: "Anthropic API, OpenAI API, Prompt Engineering, AI Agents (Tool-Use / Function Calling), RAG, Embeddings & Vector Databases, LLM Workflow Automation, AI-Assisted Content Generation"
+        details: "Anthropic API, OpenAI API, Claude Agent SDK, MCP (Model Context Protocol), Prompt Engineering, AI Agents (Tool-Use / Function Calling), RAG, Embeddings & Vector Databases, LLM Workflow Automation, AI-Assisted Content Generation"
       - label: "Software & Cloud"
-        details: "Python, JavaScript, TypeScript, Node.js, React, Swift, Java, SQL, NoSQL, REST APIs, AWS (EC2, RDS), Firebase, Heroku, Vercel, Supabase, Turso, Docker, Git"
+        details: "Python, FastAPI, JavaScript, TypeScript, Node.js, React, Vite, Tailwind CSS, Electron, Swift, Java, SQL, NoSQL, PostgreSQL, TimescaleDB, Redis, SQLAlchemy, Celery, REST APIs, AWS (EC2, RDS), Firebase, Heroku, Vercel, Supabase, Turso, Docker, Git"
       - label: "Data & Tooling"
         details: "Real-time ETL, Multi-platform API Integration, Time-series Data, Workflow Automation, System Monitoring, Google Apps Script; Claude Code, Cursor, Windsurf, VS Code"
       - label: "Product & Leadership"

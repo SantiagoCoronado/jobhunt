@@ -22,10 +22,22 @@ SQLite is canonical; Notion is a convenience mirror.
 - **Zero em-dashes** (Unicode U+2014) in ANY generated text (resumes, cover letters, notes, reports). Canonical rule. Use commas/colons/periods.
 
 ## Resume rendering
-Theme is `engineeringresumes` (RenderCV, installed in `.venv`; keep it current, v2.3 had bugs).
-To fit one page, compress with `text.font_size`/`leading` + `section_titles`/`entries`/`highlights`
-spacing. Do NOT set `design.page.*_margin`, it crashes this theme's Typst template ("cannot
-multiply dictionary with integer"). Working example: `applications/easyaudit-ai-393/tailored_resume.yaml`.
+Canonical renderer (docx, house design):
+
+```
+python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
+```
+
+- Emits .docx replicating the reference design: Arial, navy `#1F3864` accents, underlined CAPS
+  section headers, 0.38in/0.7in margins, right-tab dates, compact spacing.
+- `--fit auto` (default) picks the loosest spacing level that fits ONE page and prints page fill.
+  If even level 3 overflows, trim bullets; do not compress further. Target 90-100% fill.
+- `--pdf` converts via LibreOffice (`soffice`) when installed; otherwise export from Word.
+- `--audit` flags paragraphs whose last line is <70% full (trailing white space). Fix by cutting
+  or extending REAL content per the reported char counts; never pad with filler.
+- Reference look: `resume/originals/CV Santiago Coronado - English latest.docx`.
+- RenderCV `engineeringresumes` is legacy, use only if explicitly asked. Known bug: setting
+  `design.page.*_margin` crashes its Typst template.
 
 ## Commands
 `/discover` `/match` `/tailor <id>` `/followups` `/notion-sync`, see `.claude/commands/`.

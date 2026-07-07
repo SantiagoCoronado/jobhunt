@@ -3,9 +3,10 @@ requests
 feedparser
 PyYAML
 flask
+python-docx       # canonical resume renderer (src/render_docx.py, house design docx)
 
 # Optional
 rapidfuzz         # nicer fuzzy dedupe (not required)
 apprise           # notifications (Telegram/ntfy/email digests)
-rendercv[full]    # render tailored resume YAML -> ATS-friendly PDF (pulls the Typst renderer + fonts)
+rendercv[full]    # LEGACY renderer, only if explicitly requested (src/render_docx.py is canonical)
 # python-jobspy   # grey-zone Indeed/LinkedIn gap filler, read README before enabling

@@ -1,0 +1,129 @@
+"""Render a cover_letter.md into a clean, house-styled .docx.
+
+Matches the resume package look (Arial, navy #1F3864 accent) but with letter-appropriate
+margins and spacing. The first blank-line-separated block is treated as the letterhead
+(line 1 = name, remaining lines = contact info merged into one line); every following
+block is a body paragraph.
+
+Usage:
+    python -m src.render_cover_letter <cover_letter.md>
+
+Produces <cover_letter.docx> next to the source. Convert to PDF with scripts/export_pdf.sh.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
+
+NAVY = "1F3864"
+GREY = "444444"
+FONT = "Arial"
+
+
+def _run(p, text, size, color="000000", bold=False, italic=False):
+    r = p.add_run(text)
+    r.font.name = FONT
+    r.font.size = Pt(size)
+    r.font.bold = bold
+    r.font.italic = italic
+    r.font.color.rgb = RGBColor.from_string(color)
+    # ensure the east-asian/complex-script font is Arial too, so nothing falls back
+    rpr = r._element.get_or_add_rPr()
+    fonts = rpr.find(qn("w:rFonts"))
+    if fonts is None:
+        fonts = OxmlElement("w:rFonts")
+        rpr.append(fonts)
+    for attr in ("w:ascii", "w:hAnsi", "w:cs"):
+        fonts.set(qn(attr), FONT)
+    return r
+
+
+def _bottom_border(p, color=NAVY, size=6):
+    """Draw a thin bottom rule under paragraph p (size in eighths of a point)."""
+    ppr = p._p.get_or_add_pPr()
+    borders = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), str(size))
+    bottom.set(qn("w:space"), "4")
+    bottom.set(qn("w:color"), color)
+    borders.append(bottom)
+    ppr.append(borders)
+
+
+def render(md_path: Path) -> Path:
+    raw = md_path.read_text(encoding="utf-8")
+    if "—" in raw:
+        print("WARNING: em-dash (U+2014) found in source; house rule forbids it.", file=sys.stderr)
+
+    # Split into blank-line-separated blocks; join wrapped lines within a block.
+    blocks: list[str] = []
+    for chunk in raw.replace("\r\n", "\n").split("\n\n"):
+        lines = [ln.strip() for ln in chunk.split("\n") if ln.strip()]
+        if lines:
+            blocks.append(lines)
+
+    if not blocks:
+        raise SystemExit(f"empty cover letter: {md_path}")
+
+    doc = Document()
+    sect = doc.sections[0]
+    sect.top_margin = sect.bottom_margin = Inches(0.9)
+    sect.left_margin = sect.right_margin = Inches(0.9)
+
+    # --- letterhead ---
+    head = blocks[0]
+    name = head[0]
+    contact = "  |  ".join(head[1:]) if len(head) > 1 else ""
+
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(1)
+    _run(p, name, 16, NAVY, bold=True)
+
+    if contact:
+        pc = doc.add_paragraph()
+        pc.paragraph_format.space_after = Pt(6)
+        _run(pc, contact, 9.5, GREY)
+        _bottom_border(pc)
+    else:
+        _bottom_border(p)
+
+    # small gap after the rule
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
+
+    # --- body ---
+    for block in blocks[1:]:
+        text = " ".join(block)
+        p = doc.add_paragraph()
+        pf = p.paragraph_format
+        pf.space_after = Pt(9)
+        pf.line_spacing = 1.15
+        pf.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        _run(p, text, 10.5, "000000")
+
+    out = md_path.with_suffix(".docx")
+    doc.save(str(out))
+    return out
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2:
+        print(__doc__)
+        return 2
+    md_path = Path(argv[1])
+    if not md_path.is_file():
+        print(f"not found: {md_path}", file=sys.stderr)
+        return 1
+    out = render(md_path)
+    print(f"wrote {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
