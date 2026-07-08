@@ -10,3 +10,5 @@ applications/*/
 !applications/.gitkeep
 config/notify.yaml
 .env
+# browser-automation scratch (Claude in Chrome / Playwright MCP)
+.playwright-mcp/

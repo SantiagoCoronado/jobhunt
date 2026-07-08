@@ -3,7 +3,7 @@
 Because your engine is Claude Code (not a local model), scoring works like this:
   1. `python -m src.match export`  -> writes data/pending_match.json (keyword-prescored,
      top-N unscored jobs) for the LLM to judge.
-  2. The /match command (or job-matcher subagent) reads that file, scores each job
+  2. The /jh-match command (or job-matcher subagent) reads that file, scores each job
      against config/profile.yaml, and writes data/scores.json.
   3. `python -m src.match ingest`  -> writes scores back into the DB and shortlists winners.
 
@@ -14,12 +14,15 @@ from __future__ import annotations
 import argparse
 import json
 
+from pathlib import Path
+
 from .config import load_yaml, ROOT
 from .db import connect
 from .models import normalize_text, now_iso
 
 PENDING = ROOT / "data" / "pending_match.json"
 SCORES = ROOT / "data" / "scores.json"
+MATCH_DIR = ROOT / "data" / "match"   # chunked scaled-scoring handoff (see export --chunk)
 
 
 def _profile_skills() -> list[str]:
@@ -34,10 +37,28 @@ def _keyword_score(text: str, skills: list[str]) -> int:
     return int(100 * hits / max(len(skills), 1))
 
 
-def export(limit: int) -> None:
+def _triage_bucket(verdict: str | None) -> int:
+    """Pull the coarse Haiku triage fit bucket (0-3) out of match_verdict; -1 if none."""
+    if not verdict:
+        return -1
+    try:
+        b = json.loads(verdict).get("bucket")
+        return b if isinstance(b, int) else -1
+    except Exception:  # noqa: BLE001
+        return -1
+
+
+def export(limit: int, min_bucket: int | None = None, chunk: int | None = None) -> None:
+    """Write the scoring queue. Rows are triage survivors (kept, unscored, discovered).
+
+    Ordered by triage fit bucket (best first), then keyword prescore. Two modes:
+      - default: top `limit` into data/pending_match.json (the /jh-match single-batch flow).
+      - `chunk`: split into data/match/chunk_NNN.json for a fanned-out scoring workflow;
+        `min_bucket` filters to survivors at/above that bucket (e.g. 3 = strong only).
+    """
     skills = _profile_skills()
     conn = connect()
-    # cross-source dedupe: one row per canonical_key, prefer the lowest id
+    # cross-source dedupe: one row per canonical_key
     rows = conn.execute(
         """
         SELECT * FROM jobs
@@ -46,32 +67,62 @@ def export(limit: int) -> None:
         """
     ).fetchall()
 
-    scored = []
+    items = []
     for r in rows:
         blob = f"{r['title']} {r['title']} {r['description']}"  # title double-weighted
-        scored.append((r, _keyword_score(blob, skills)))
-    scored.sort(key=lambda x: x[1], reverse=True)
+        items.append((r, _keyword_score(blob, skills), _triage_bucket(r["match_verdict"])))
+    if min_bucket is not None:
+        items = [it for it in items if it[2] >= min_bucket]
+    items.sort(key=lambda x: (x[2], x[1]), reverse=True)  # bucket first, then prescore
 
-    out = [{
-        "id": r["id"],
-        "company": r["company"],
-        "title": r["title"],
-        "location": r["location"],
-        "url": r["url"],
-        "keyword_prescore": ks,
-        "description": (r["description"] or "")[:3000],
-    } for r, ks in scored[:limit]]
+    cap = limit if (limit and limit > 0) else None
 
+    def rec(r, ks, bucket):
+        return {
+            "id": r["id"], "company": r["company"], "title": r["title"],
+            "location": r["location"], "url": r["url"],
+            "keyword_prescore": ks, "triage_bucket": bucket,
+            "description": (r["description"] or "")[:3000],
+        }
+
+    if chunk:
+        MATCH_DIR.mkdir(parents=True, exist_ok=True)
+        for old in list(MATCH_DIR.glob("chunk_*.json")) + list(MATCH_DIR.glob("scores_*.json")):
+            old.unlink()
+        sel = items[:cap] if cap else items
+        n = 0
+        for i in range(0, len(sel), chunk):
+            part = [rec(*it) for it in sel[i:i + chunk]]
+            (MATCH_DIR / f"chunk_{n:03d}.json").write_text(
+                json.dumps(part, indent=2, ensure_ascii=False))
+            n += 1
+        by = {b: sum(1 for it in sel if it[2] == b) for b in (3, 2, 1, 0, -1)}
+        print(f"Exported {len(sel)} jobs -> {n} chunk(s) of <= {chunk} in {MATCH_DIR}")
+        print(f"  buckets: strong={by[3]} good={by[2]} plausible={by[1]} weak={by[0]} none={by[-1]}")
+        return
+
+    out = [rec(*it) for it in (items[:cap] if cap else items)]
     PENDING.parent.mkdir(exist_ok=True)
     PENDING.write_text(json.dumps(out, indent=2))
     print(f"Exported {len(out)} jobs -> {PENDING}")
-    print("Now run the /match command in Claude Code to score them.")
+    print("Now run /jh-match in Claude Code to score them.")
 
 
-def ingest(shortlist_threshold: int) -> None:
-    if not SCORES.exists():
-        raise SystemExit(f"No scores file at {SCORES}. Run /match in Claude Code first.")
-    data = json.loads(SCORES.read_text())
+def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
+    if scores_dir:
+        files = sorted(Path(scores_dir).glob("scores_*.json"))
+        if not files:
+            raise SystemExit(f"No scores_*.json in {scores_dir}. Run the scoring workflow first.")
+        data = []
+        for f in files:
+            try:
+                data += json.loads(f.read_text())
+            except Exception as e:  # noqa: BLE001, one bad file shouldn't sink the batch
+                print(f"  ! skip {f.name}: {e}")
+    else:
+        if not SCORES.exists():
+            raise SystemExit(f"No scores file at {SCORES}. Run /jh-match in Claude Code first.")
+        data = json.loads(SCORES.read_text())
     conn = connect()
     now = now_iso()
     n = short = 0
@@ -93,10 +144,15 @@ def ingest(shortlist_threshold: int) -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    e = sub.add_parser("export"); e.add_argument("--limit", type=int, default=40)
-    i = sub.add_parser("ingest"); i.add_argument("--threshold", type=int, default=70)
+    e = sub.add_parser("export")
+    e.add_argument("--limit", type=int, default=40)   # 0 = no cap (use with --chunk)
+    e.add_argument("--min-bucket", type=int, default=None, dest="min_bucket")
+    e.add_argument("--chunk", type=int, default=None)
+    i = sub.add_parser("ingest")
+    i.add_argument("--threshold", type=int, default=70)
+    i.add_argument("--dir", default=None, dest="scores_dir")  # merge data/match/scores_*.json
     args = ap.parse_args()
     if args.cmd == "export":
-        export(args.limit)
+        export(args.limit, args.min_bucket, args.chunk)
     else:
-        ingest(args.threshold)
+        ingest(args.threshold, args.scores_dir)

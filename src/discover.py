@@ -13,9 +13,14 @@ from .models import now_iso
 
 # adapter module name -> friendly label
 ADAPTERS = [
+    # ATS boards
     "greenhouse", "lever", "ashby", "workable",
+    "personio", "bamboohr", "workday",
+    # Aggregators
     "remoteok", "remotive", "weworkremotely", "hackernews", "getonbrd",
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",
+    "adzuna", "themuse", "findwork", "careerjet", "torre",
+    "consider", "workatastartup",
 ]
 
 
@@ -54,7 +59,7 @@ def main() -> None:
         print(f"  ✓ {name:15s} {new:4d} new  {seen:4d} seen  ({len(jobs)} pulled)")
 
     print(f"\nDone. {total_new} new jobs added, {total_seen} already known.")
-    print("Next:  python -m src.match export   then run the /match command in Claude Code.")
+    print("Next:  python -m src.match export   then run /jh-match in Claude Code.")
 
 
 def _upsert(conn, job, now) -> str:

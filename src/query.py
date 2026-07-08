@@ -1,8 +1,8 @@
 """Read-only DB queries used by the Claude Code commands.
 
-  python -m src.query job <id>     # one job as JSON (for /tailor)
-  python -m src.query crm          # all trackable jobs as JSON (for /notion-sync)
-  python -m src.query followups    # jobs due for follow-up (for /followups)
+  python -m src.query job <id>     # one job as JSON (for /jh-tailor)
+  python -m src.query crm          # all trackable jobs as JSON (for /jh-notion-sync)
+  python -m src.query followups    # jobs due for follow-up (for /jh-followups)
 """
 from __future__ import annotations
 

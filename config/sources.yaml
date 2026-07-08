@@ -66,6 +66,80 @@ workable:
   enabled: false                   # EXPERIMENTAL schema varies
   accounts: []
 
+# ---------------------------------------------------------------------------
+# New sources (docs/new-sources.md). Keys live in .env (copy .env.example).
+# ---------------------------------------------------------------------------
+
+# Aggregators (on by default; keyed ones skip cleanly until their key is in .env)
+adzuna:                            # Mexico + 12 countries; needs ADZUNA_APP_ID / ADZUNA_APP_KEY
+  enabled: true
+  country: mx
+  pages: 2
+  results_per_page: 50
+  queries:
+    - "ai engineer"
+    - "machine learning"
+    - "backend"
+    - "full stack"
+    - "founding engineer"
+    - "data engineer"
+    - "python"
+themuse:                           # US/global tech; works anon, THEMUSE_API_KEY optional
+  enabled: true
+  pages: 3
+  locations: ["Flexible / Remote"]
+  categories:
+    - "Software Engineering"
+    - "Data Science"
+    - "Data and Analytics"
+findwork:                          # remote/tech; needs FINDWORK_TOKEN
+  enabled: true
+  remote: true
+  pages: 2
+  search:
+    - "ai engineer"
+    - "machine learning"
+    - "backend"
+    - "full stack"
+torre:                             # remote-LATAM depth (grey-zone public JSON, no key)
+  enabled: true
+  size: 20                         # endpoint 400s above ~30 per page
+  pages: 2
+  remote: true
+  queries:
+    - "software engineer"
+    - "ai engineer"
+    - "machine learning engineer"
+    - "backend engineer"
+    - "full stack engineer"
+    - "founding engineer"
+careerjet:                         # Mexico via es_MX; uses CAREERJET_AFFID (verified live)
+  enabled: true
+  locale_code: es_MX
+  location: Mexico
+  pagesize: 50
+  keywords: ["developer", "ingeniero de software", "machine learning", "backend"]
+
+# Net-new ATS platforms (curate slugs, then flip enabled - like recruitee)
+personio:                          # EU startups; XML feed, no key
+  enabled: false
+  companies: []                    # e.g. [personio]  ->  {company}.jobs.personio.de/xml
+bamboohr:                          # net-new company coverage; no key
+  enabled: false
+  companies: []                    # e.g. [close]  ->  {company}.bamboohr.com/careers/list
+workday:                           # large enterprises on Workday CxS (POST, no key)
+  enabled: false
+  limit: 20
+  pages: 3
+  sites: []                        # e.g. [{tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite}]
+
+# Grey-zone boards (need endpoint/session work before they return rows)
+consider:                          # VC talent boards; client-rendered, endpoint not yet captured
+  enabled: false
+  boards: []                       # e.g. [sequoia-capital]
+workatastartup:                    # YC WaaS; job API needs a browser session (406 otherwise)
+  enabled: false
+
 # Grey-zone gap filler (OFF by default, read the README before enabling)
 # jobspy:  # scrapes Indeed/LinkedIn; breaks often, ToS risk, needs proxies for LinkedIn
 #   enabled: false

@@ -3,14 +3,38 @@
 A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Python.
 
 ## Pipeline
-1. **Discover** (`src/discover.py`), pull free ATS APIs + aggregators → SQLite (`data/jobs.db`).
-2. **Match** (`/match` → `job-matcher` agent), score jobs vs `config/profile.yaml`.
-3. **Tailor** (`/tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
-4. **Track** (`src/crm/viewer.py` local UI, or `/notion-sync`), application status + follow-ups.
+1. **Discover** (`/jh-discover` → `src/discover.py`), pull free ATS APIs + aggregators → SQLite (`data/jobs.db`).
+   Sources live in `config/sources.yaml` (one block per adapter in `src/adapters/`, each a
+   `fetch(cfg) -> list[Job]`). Keyed sources read `.env` (copy `.env.example`) via
+   `src.config.get_secret`; a source with no key prints a hint and yields nothing (never breaks the run).
+   Active new sources: Adzuna (MX, keyed), The Muse, Findwork (keyed), Torre (remote-LATAM). Opt-in via
+   `enabled:`: Careerjet, Personio, BambooHR, Workday, Consider, YC (see `docs/new-sources.md`).
+2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
+   `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
+   sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become
+   `status='irrelevant'` (out of every future stage); keepers get a 0-3 fit bucket in `match_verdict`.
+   Drives ~40 agents via a Workflow for a full sweep. See `docs/scaling-scoring.md`.
+3. **Match** (`/jh-match` → `job-matcher` agent), score jobs vs `config/profile.yaml`. Default
+   `export --limit N` scores the top N by fit bucket then keyword prescore. To score at scale,
+   `export --min-bucket 3 --chunk 60 --limit 0` → fan `job-matcher` over `data/match/chunk_*.json`
+   (each writes `scores_NNN.json`) → `ingest --dir data/match`.
+4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
+   cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
+5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
+6. **Track** (`src/crm/viewer.py` local UI, or `/jh-notion-sync`), application status + follow-ups.
+
+`/jh-hunt` runs the whole loop end to end: discover, match, sync + star the top 5 shortlisted,
+research those 5, then tailor those 5.
+
+Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
+`/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
+rejected/declined/ghosted. `scripts/export_pdf.sh` searches these nested folders.
 
 ## Data model
 Everything lives in one SQLite table `jobs` (see `src/db.py`). `status` column IS the CRM
 pipeline: discovered → shortlisted → applied → screen → interview → offer/rejected/ghosted.
+`irrelevant` is a terminal triage-drop (off-field / dealbreaker), excluded from match/export/triage.
+Triage keepers store their fit bucket in `match_verdict` until real scoring overwrites it.
 SQLite is canonical; Notion is a convenience mirror.
 
 ## Hard rules (enforce these in every AI step)
@@ -40,5 +64,8 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
   `design.page.*_margin` crashes its Typst template.
 
 ## Commands
-`/discover` `/match` `/tailor <id>` `/followups` `/notion-sync`, see `.claude/commands/`.
-Helper queries: `python -m src.query {job <id>|crm|followups}`.
+All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
+`/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups` `/jh-notion-sync`, see `.claude/commands/`.
+Helper queries: `python -m src.query {job <id>|crm|followups}`, `python -m src.research {path "<company>"|get <id>}`.
+Company dossiers (`research/companies/<slug>.md`) are committed, reusable, cited; obey the
+never-fabricate and zero-em-dash rules like any generated text.

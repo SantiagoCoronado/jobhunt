@@ -77,7 +77,7 @@ def _html(rows, threshold: int) -> str:
   <div style="border-top:2px solid #111111;margin-top:12px;"></div>
   {''.join(items)}
   <div style="border-top:2px solid #111111;"></div>
-  <div style="margin-top:18px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#bcbcbc;font-family:{_MONO};">Local jobhunt pipeline &middot; run /match then /notion-sync</div>
+  <div style="margin-top:18px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#bcbcbc;font-family:{_MONO};">Local jobhunt pipeline &middot; run /jh-match then /jh-notion-sync</div>
  </div>
 </div>"""
 
