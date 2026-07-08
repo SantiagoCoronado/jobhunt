@@ -18,13 +18,15 @@ cd "$(dirname "$0")/.."
 # ---------- collect targets ----------
 targets=()
 if [[ $# -eq 0 ]]; then
-  for f in applications/*/tailored_resume.docx; do
-    [[ -e "$f" ]] && targets+=("$f")
-  done
+  # recurse: apps are filed under applications/{applied,pending,other}/<slug>/
+  while IFS= read -r f; do targets+=("$f"); done \
+    < <(find applications -type f -name 'tailored_resume.docx' 2>/dev/null)
 else
   for arg in "$@"; do
     if [[ -d "$arg" ]]; then
-      for f in "$arg"/*.docx; do [[ -e "$f" ]] && targets+=("$f"); done
+      # recurse so a bucket dir (applications/pending) or a slug dir both work
+      while IFS= read -r f; do targets+=("$f"); done \
+        < <(find "$arg" -type f -name '*.docx' 2>/dev/null)
     elif [[ -f "$arg" ]]; then
       targets+=("$arg")
     else

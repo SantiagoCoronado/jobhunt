@@ -13,6 +13,8 @@ DB_PATH = Path(__file__).resolve().parent.parent / "data" / "jobs.db"
 STATUSES = [
     "discovered", "shortlisted", "applied", "screen",
     "interview", "offer", "rejected", "ghosted", "withdrawn",
+    "irrelevant",   # coarse Haiku triage drop (off-field / dealbreaker); excluded from match
+    "backlog",      # deliberately deferred (e.g. apply later); skipped by shortlist/star/tailor
 ]
 
 SCHEMA = """
