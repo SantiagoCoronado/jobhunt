@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template. Do not edit the paths by hand; run ./mac/install-schedule.sh --ai, which
+     substitutes __JOBHUNT_DIR__ with this repo's absolute path and loads the job. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.jobhunt.aipass</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>cd "__JOBHUNT_DIR__" &amp;&amp; ./scripts/ai_pass.sh</string>
+  </array>
+
+  <!-- Fire at 08:00 local. If the Mac was asleep at 08:00, launchd runs it on the
+       next wake. Replaces com.jobhunt.daily (the installer unloads the other). -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>__JOBHUNT_DIR__/data/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__JOBHUNT_DIR__/data/launchd.err.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

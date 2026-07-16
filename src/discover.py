@@ -15,7 +15,7 @@ from .models import now_iso
 ADAPTERS = [
     # ATS boards
     "greenhouse", "lever", "ashby", "workable",
-    "personio", "bamboohr", "workday",
+    "personio", "bamboohr", "workday", "softserve",
     # Aggregators
     "remoteok", "remotive", "weworkremotely", "hackernews", "getonbrd",
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",
@@ -39,6 +39,7 @@ def main() -> None:
             jobs = mod.fetch(cfg)
         except Exception as e:  # noqa: BLE001, one bad source shouldn't kill the run
             print(f"  ! {name:15s} FAILED: {e}")
+            _record_run(conn, now, name, ok=False, error=str(e)[:300])
             continue
 
         new = seen = 0
@@ -53,6 +54,7 @@ def main() -> None:
                 new += 1
             else:
                 seen += 1
+        _record_run(conn, now, name, pulled=len(jobs), new=new, seen=seen)
         conn.commit()
         total_new += new
         total_seen += seen
@@ -66,6 +68,15 @@ def _upsert(conn, job, now) -> str:
     from .db import upsert_job
 
     return upsert_job(conn, job.to_row(), now)
+
+
+def _record_run(conn, now: str, source: str, *, pulled: int = 0, new: int = 0,
+                seen: int = 0, ok: bool = True, error: str | None = None) -> None:
+    """Health log per source per run; the digest flags sources that go quiet."""
+    conn.execute(
+        "INSERT INTO runs (ts, source, pulled, new, seen, ok, error) VALUES (?,?,?,?,?,?,?)",
+        (now, source, pulled, new, seen, int(ok), error),
+    )
 
 
 if __name__ == "__main__":

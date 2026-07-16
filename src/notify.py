@@ -22,6 +22,32 @@ def _digest_rows(conn, threshold: int):
     ).fetchall()
 
 
+def _unscored_count(conn) -> int:
+    """Discovered jobs no stage has scored yet: the digest's honesty line.
+    The digest can only show what was SCORED since the last send; this is the
+    pile that hasn't been looked at."""
+    return conn.execute(
+        "SELECT COUNT(DISTINCT canonical_key) FROM jobs "
+        "WHERE status='discovered' AND match_score IS NULL"
+    ).fetchone()[0]
+
+
+def _dead_sources(conn, window: int = 3) -> list[str]:
+    """Enabled sources whose last `window` runs all pulled nothing or failed.
+    Needs at least `window` recorded runs before flagging, so a newly added
+    source isn't declared dead on day one."""
+    dead = []
+    sources = [r[0] for r in conn.execute("SELECT DISTINCT source FROM runs")]
+    for s in sources:
+        last = conn.execute(
+            "SELECT pulled, ok FROM runs WHERE source=? ORDER BY id DESC LIMIT ?",
+            (s, window),
+        ).fetchall()
+        if len(last) == window and all(r["pulled"] == 0 or not r["ok"] for r in last):
+            dead.append(s)
+    return sorted(dead)
+
+
 def _shade(score: int) -> str:
     # Monochrome hierarchy: darker numeral = stronger match. No color.
     if score >= 85:
@@ -46,7 +72,16 @@ _MONO = "'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace"
 _SANS = "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif"
 
 
-def _html(rows, threshold: int) -> str:
+def _status_line(unscored: int, dead: list[str]) -> str:
+    parts = []
+    if unscored:
+        parts.append(f"{unscored} discovered jobs not yet scored (run /jh-triage + /jh-match)")
+    if dead:
+        parts.append(f"sources gone quiet: {', '.join(dead)}")
+    return " · ".join(parts)
+
+
+def _html(rows, threshold: int, status: str = "") -> str:
     items = []
     for i, r in enumerate(rows):
         sh = _shade(r["match_score"])
@@ -72,22 +107,25 @@ def _html(rows, threshold: int) -> str:
  <div style="max-width:600px;margin:0 auto;padding:36px 26px;font-family:{_SANS};color:#111111;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
    <td style="font-size:12px;letter-spacing:3px;text-transform:uppercase;font-weight:700;color:#111111;">Job Hunt / Daily</td>
-   <td align="right" style="font-size:11px;letter-spacing:1px;color:#9a9a9a;font-family:{_MONO};">{len(rows)} matches &middot; score {threshold}+</td>
+   <td align="right" style="font-size:11px;letter-spacing:1px;color:#9a9a9a;font-family:{_MONO};">{len(rows)} scored since last digest &middot; score {threshold}+</td>
   </tr></table>
   <div style="border-top:2px solid #111111;margin-top:12px;"></div>
   {''.join(items)}
   <div style="border-top:2px solid #111111;"></div>
+  {f'<div style="margin-top:14px;font-size:12px;color:#555555;font-family:{_SANS};">{_esc(status)}</div>' if status else ''}
   <div style="margin-top:18px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#bcbcbc;font-family:{_MONO};">Local jobhunt pipeline &middot; run /jh-match then /jh-notion-sync</div>
  </div>
 </div>"""
 
 
-def _text(rows, threshold: int) -> str:
-    lines = [f"{len(rows)} new job matches (score >= {threshold}):", ""]
+def _text(rows, threshold: int, status: str = "") -> str:
+    lines = [f"{len(rows)} matches scored since last digest (score >= {threshold}):", ""]
     for r in rows:
         lines.append(f"[{r['match_score']}] {r['title']} @ {r['company']} ({r['location'] or 'n/a'})")
         lines.append(f"    {r['url']}")
         lines.append("")
+    if status:
+        lines.append(f"Pipeline: {status}")
     return "\n".join(lines)
 
 
@@ -100,8 +138,11 @@ def main() -> None:
 
     conn = connect()
     rows = _digest_rows(conn, threshold)
+    status = _status_line(_unscored_count(conn), _dead_sources(conn))
     if not rows:
-        print("No new matches above threshold.")
+        print("No newly scored matches above threshold.")
+        if status:
+            print(f"Pipeline: {status}")
         return
 
     urls = cfg.get("apprise_urls") or []
@@ -117,18 +158,18 @@ def main() -> None:
             for u in urls:
                 ap.add(u)
             sent = bool(ap.notify(
-                title=f"Job hunt: {len(rows)} new matches",
-                body=_html(rows, threshold),
+                title=f"Job hunt: {len(rows)} matches scored",
+                body=_html(rows, threshold, status),
                 body_format=apprise.NotifyFormat.HTML,
             ))
             print("Sent digest." if sent else "Digest send FAILED (check config/notify.yaml credentials).")
         except ImportError:
             print("apprise not installed; printing digest instead:\n")
-            print(_text(rows, threshold))
+            print(_text(rows, threshold, status))
     else:
         if placeholder:
             print("config/notify.yaml still has a placeholder credential; printing digest instead:\n")
-        print(_text(rows, threshold))
+        print(_text(rows, threshold, status))
 
     # Only mark notified if the digest actually went out, so nothing is lost before setup is done.
     if sent:

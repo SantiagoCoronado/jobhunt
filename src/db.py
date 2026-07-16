@@ -55,12 +55,37 @@ CREATE INDEX IF NOT EXISTS idx_status    ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_score     ON jobs(match_score);
 """
 
+# Numbered, append-only migrations applied via PRAGMA user_version. Each entry
+# runs at most once per database; keep them idempotent anyway (IF NOT EXISTS)
+# so a half-applied dev DB can't wedge. NEVER reorder or edit shipped entries.
+MIGRATIONS: list[str] = [
+    # 1: per-source fetch health, written by discover, read by the digest.
+    #    A source whose recent runs all pulled 0 (or failed) is silently dead.
+    """
+    CREATE TABLE IF NOT EXISTS runs (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts      TEXT NOT NULL,
+        source  TEXT NOT NULL,
+        pulled  INTEGER NOT NULL DEFAULT 0,
+        new     INTEGER NOT NULL DEFAULT 0,
+        seen    INTEGER NOT NULL DEFAULT 0,
+        ok      INTEGER NOT NULL DEFAULT 1,
+        error   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_runs_source ON runs(source, id);
+    """,
+]
+
 
 def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    for n, migration in enumerate(MIGRATIONS[version:], start=version + 1):
+        conn.executescript(migration)
+        conn.execute(f"PRAGMA user_version = {n}")
     return conn
 
 

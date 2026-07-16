@@ -110,7 +110,7 @@ makes state transitions cheap and automatic so the data stays honest.
 
 The scheduled path exists but is mis-ordered and skips the smart parts.
 
-- [ ] **2.1 `/jh-hunt` must use triage + bucket-ordered scoring.**
+- [x] **2.1 `/jh-hunt` must use triage + bucket-ordered scoring.**
   WHAT: insert a triage step when the unscored discovered pile is large
   (threshold ~200), then score with `export --min-bucket 3 --chunk 60 --limit 0`
   fan-out instead of the current `export --limit 40`.
@@ -119,7 +119,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   HOW: edit `.claude/commands/jh-hunt.md`; make the triage step conditional on
   `SELECT COUNT(*) FROM jobs WHERE status='discovered' AND match_score IS NULL`.
 
-- [ ] **2.2 Honest daily digest.**
+- [x] **2.2 Honest daily digest.**
   WHAT: either (a) schedule a headless triage+match pass before `notify` in
   `run.sh`, or (b) relabel the digest "scored since last run" and add a second
   section "discovered today, not yet scored: N".
@@ -128,7 +128,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   HOW: (b) is a small `src/notify.py` change and honest immediately; (a) is the
   real fix once headless scoring is trusted. Do (b) now, (a) after 2.3.
 
-- [ ] **2.3 Scheduled read-only AI pass.**
+- [x] **2.3 Scheduled read-only AI pass.**
   WHAT: a scheduled headless Claude run (launchd on macOS, mirroring
   `mac/install-schedule.sh`) that executes triage + match + notion-sync +
   followups-draft. Nothing in this set submits anything.
@@ -137,8 +137,13 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   HOW: `claude -p "/jh-triage then /jh-match then /jh-notion-sync"` style runner
   script with a lockfile so it never overlaps the interactive session; log to
   `data/logs/`. Keep tailor/apply strictly manual.
+  DONE 2026-07-16: `scripts/ai_pass.sh` (discover -> headless claude triage+match ->
+  digest, guard + lockfile, logs in data/logs/). MCP-dependent stages (notion-sync,
+  followups) stay interactive: claude.ai connectors are not available headless.
+  Install with `./mac/install-schedule.sh --ai` (mutually exclusive with the plain
+  daily job so discover never runs twice). NOT auto-installed; run it when ready.
 
-- [ ] **2.4 Source health monitoring.**
+- [x] **2.4 Source health monitoring.**
   WHAT: a `runs` table (`source, ts, fetched, inserted, ok, error`) written by
   `src/discover.py` per source per run; digest flags any enabled source with 0
   fetched for 3+ consecutive runs.
@@ -285,7 +290,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
 - [ ] **5.3 CI.**
   WHAT: `.github/workflows/ci.yml`: ruff + mypy + pytest on push/PR.
 
-- [ ] **5.4 Schema migrations.**
+- [x] **5.4 Schema migrations.**
   WHAT: `PRAGMA user_version`-based runner in `src/db.py` (numbered migration
   list applied on connect).
   WHY: Phases 2-3 and 6 all add columns/tables; `CREATE TABLE IF NOT EXISTS`
