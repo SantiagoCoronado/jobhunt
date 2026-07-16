@@ -22,14 +22,18 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
 
    RUBRIC (keep-on-doubt: this is a junk cut, NOT the final judge; when in any doubt, KEEP):
    Candidate: Santiago, founder-engineer, Mexico City, bilingual ES/EN, TN-visa eligible for US work.
-   Two role families, BOTH in-scope: (A) hands-on AI / full-stack engineering (Applied AI / AI /
+   Four role families, ALL in-scope: (A) hands-on AI / full-stack engineering (Applied AI / AI /
    Forward-Deployed / Founding / Full-Stack / Software Engineer; Python, JS/TS, React, Node, LLMs,
    RAG, AI agents, AWS, SQL); (B) AI deployment / enablement / strategy (Deployment Strategist,
    Solutions Architect/Engineer, AI Enablement/Transformation/Adoption Lead/Director/Manager, Applied
-   AI Strategist, GTM engineer, technical PM/PgM for AI). Director/Lead/Manager/Strategist titles are
-   IN scope.
-   DROP (keep=false) ONLY if clearly one of: (1) OFF-FIELD (not software/AI/data/ML engineering AND
-   not an AI deployment/solutions/enablement/strategy or technical product/program role): nurse,
+   AI Strategist, GTM engineer, technical PM/PgM for AI); (C) frontend engineering (Frontend / UI /
+   React / Web Engineer; React, TypeScript, Electron); (D) internal tooling / internal platforms
+   (Internal Tools, Developer Experience/Productivity, Business Systems, Workflow Automation
+   Engineer). C and D are his two STRONGEST positions, bucket good ones 2-3.
+   Director/Lead/Manager/Strategist titles are IN scope.
+   DROP (keep=false) ONLY if clearly one of: (1) OFF-FIELD (not software/AI/data/ML/frontend/internal
+   -tools engineering AND not an AI deployment/solutions/enablement/strategy or technical
+   product/program role): nurse,
    accountant, non-technical sales/account executive, customer success, recruiter/HR, marketing,
    finance, legal, admin, mechanical/civil/chemical/electrical/manufacturing engineering, retail;
    (2) requires an active security clearance OR US-citizens-only; (3) base salary EXPLICITLY listed
@@ -45,4 +49,5 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
 Next: `/jh-match` scores the survivors, now ordered by fit bucket (best first). For a deep scaled
 pass, `python -m src.match export --min-bucket 3 --chunk 60 --limit 0`, fan the **job-matcher** over
 `data/match/chunk_*.json` (write `data/match/scores_NNN.json` each), then
-`python -m src.match ingest --dir data/match --threshold 70`.
+`python -m src.match ingest --dir data/match` (shortlist cutoff comes from profile.yaml
+`shortlist_threshold`).

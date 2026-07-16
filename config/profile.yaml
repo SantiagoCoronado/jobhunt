@@ -19,6 +19,20 @@ target_titles:
   - "Field / Forward-Deployed Engineer"
   - "GTM Engineer"
   - "Technical Program or Product (AI)"
+  # Family C: frontend engineering (one of his two strongest positions)
+  - "Frontend Engineer"
+  - "Front-End Engineer"
+  - "UI Engineer"
+  - "React Engineer"
+  - "Web Engineer"
+  - "Software Engineer (frontend / web)"
+  # Family D: internal tooling / platform (the other strongest position)
+  - "Internal Tools Engineer"
+  - "Internal Tooling Engineer"
+  - "Developer Experience Engineer"
+  - "Developer Productivity Engineer"
+  - "Internal Applications / Business Systems Engineer"
+  - "Workflow Automation Engineer"
 
 seniority: "senior to director"    # founder-level; fits IC senior/staff AND lead/director/strategist scope
 
@@ -57,6 +71,22 @@ nice_to_have_skills:
   - enterprise
   - gtm
   - product strategy
+  # Family C (frontend) signals:
+  - frontend
+  - css
+  - html
+  - vite
+  - tailwind
+  - electron
+  - user interface
+  - responsive design
+  # Family D (internal tooling) signals:
+  - internal tools
+  - developer experience
+  - developer productivity
+  - internal platforms
+  - business systems
+  - data pipelines
 
 # Hard filters
 locations:
@@ -70,24 +100,45 @@ locations:
 timezones:
   - "Any if fully remote; hybrid must be Mexico City (GMT-6)"
 min_salary_usd: 65000        # minimum acceptable annual base
+shortlist_threshold: 70      # THE shortlist cutoff; match ingest + notify digest read this
+
+# THE authoritative location rule. Agents cite this verbatim; no other file may
+# restate it (docs/scaling-scoring.md and job-matcher.md defer here).
+location_rule: >
+  OK: fully remote from anywhere; US on-site or hybrid (TN-visa eligible, so a US
+  work location is workable, remote still preferred, note it in reasons but do NOT
+  cap the score); Mexico City on-site or hybrid; remote roles scoped to Mexico or
+  LATAM. DEALBREAKER (cap at 25): on-site or hybrid REQUIRED outside the US and
+  Mexico (e.g. must sit in London or Berlin), or remote roles that explicitly
+  exclude Mexico-based candidates.
+
 dealbreakers:
-  - "on-site or hybrid outside Mexico City"
+  - "on-site or hybrid required outside the US and Mexico"   # see location_rule; US on-site is OK via TN
   - "unpaid"
   - "base salary shown and below 65,000 USD"   # only a dealbreaker when pay is actually listed
   - "requires US citizens only"   # you are TN-eligible, not a citizen, so flag these
 
 notes: >
-  Founder-engineer based in Mexico City, open to TWO role families:
-  (A) hands-on AI / full-stack engineering (AI products, agents, RAG, internal tooling); and
+  Founder-engineer based in Mexico City, open to FOUR role families, all in-scope:
+  (A) hands-on AI / full-stack engineering (AI products, agents, RAG);
   (B) AI deployment / enablement / strategy: Deployment Strategist, Solutions Architect or Engineer,
   AI Enablement or Transformation Director/Lead/Manager, Applied AI Strategist, forward-deployed or
-  field engineering, GTM engineering. Score BOTH families as in-scope. For family B, weight his
-  founder background, 0-to-1 product building, client and stakeholder management, and real
-  AI-deployment work (built LLM workflows and a RAG "company brain," ran client AI consulting) as
-  strong positives, and do NOT penalize a Director/Lead/Manager/Strategist title as "not engineering"
-  or as a seniority-over mismatch. He fits IC senior/staff AND lead/director scope. Comfortable fully
-  remote (worldwide) or hybrid in Mexico City; not open to relocating for on-site. Bilingual (ES/EN);
-  TN-visa eligible for U.S. employment. Salary rule: only reject on pay when a base salary is shown
-  and is below 65k; if pay is not listed, keep the role in play, especially for a strong fit or a
-  notably cool company. Two roles he flagged as ideal: ElevenLabs "Deployment Strategist Lead, Mexico"
-  and Backblaze "AI Enablement Director, LATAM."
+  field engineering, GTM engineering;
+  (C) frontend engineering; and (D) internal tooling / internal platforms.
+  He rates C and D as his TWO STRONGEST positions: give a genuinely good frontend or internal-tools
+  fit the benefit of the doubt rather than treating it as off-target. Frontend evidence: React
+  front-ends at Eugenia.ai and Nextia (50K+ users), a React 18 + TypeScript + Vite + Tailwind
+  frontend in Plutus, and an Electron + TypeScript desktop app (Kairos). Internal-tooling evidence:
+  internal analytics and data pipelines that ran an $8M business at Online Basics, Kairos (internal
+  command center: CRM, tasks, OKRs), and internal automations for quoting, reporting, onboarding,
+  and collections at Pragma AI.
+  For family B, weight his founder background, 0-to-1 product building, client and stakeholder
+  management, and real AI-deployment work (built LLM workflows and a RAG "company brain," ran client
+  AI consulting) as strong positives, and do NOT penalize a Director/Lead/Manager/Strategist title
+  as "not engineering" or as a seniority-over mismatch. He fits IC senior/staff AND lead/director
+  scope. Location: see location_rule above (the single authority). Fully remote preferred;
+  US on-site workable via TN; on-site outside the US and Mexico is out.
+  Bilingual (ES/EN); TN-visa eligible for U.S. employment. Salary rule: only reject on pay
+  when a base salary is shown and is below 65k; if pay is not listed, keep the role in play,
+  especially for a strong fit or a notably cool company. Two roles he flagged as ideal: ElevenLabs
+  "Deployment Strategist Lead, Mexico" and Backblaze "AI Enablement Director, LATAM."
