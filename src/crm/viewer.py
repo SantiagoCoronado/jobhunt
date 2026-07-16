@@ -12,7 +12,7 @@ from ..reconcile import sync_folder
 try:
     from flask import Flask, request, redirect
 except ImportError:  # pragma: no cover
-    raise SystemExit("Install Flask:  pip install flask")
+    raise SystemExit("Install Flask:  pip install flask") from None
 
 app = Flask(__name__)
 

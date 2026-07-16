@@ -8,6 +8,7 @@ from src.db import connect
 from src.maintain import TRIAGE_EXCERPT, run as maintain_run
 from src.models import iso_date
 from src.research import company_slug
+from datetime import UTC
 
 
 # ---- canonical_jobs view (3.1) ----
@@ -72,8 +73,8 @@ def test_expiry_needs_a_later_successful_run(conn):
 def test_expiry_boundary_is_days_not_days_plus_one(conn):
     # Regression: comparing now_iso()'s 'T'-separated ISO string against
     # datetime('now',...) raw made the cutoff silently days+1 ('T' > ' ').
-    from datetime import datetime, timedelta, timezone
-    just_over = (datetime.now(timezone.utc) - timedelta(days=14, hours=1)).isoformat()
+    from datetime import datetime, timedelta
+    just_over = (datetime.now(UTC) - timedelta(days=14, hours=1)).isoformat()
     _insert(conn, 1, "greenhouse", "k1", last_seen=just_over)
     _run_row(conn, "greenhouse", "2099-01-01T00:00:00+00:00")
     assert maintain_run(conn)["expired"] == 1

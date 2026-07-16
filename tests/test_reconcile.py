@@ -1,5 +1,4 @@
 """reconcile: two-way sync between applications/ folders and DB statuses."""
-from pathlib import Path
 
 import pytest
 

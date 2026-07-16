@@ -61,13 +61,15 @@ def _shade(score: int) -> str:
 
 
 def _esc(s) -> str:
-    return str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # Quotes escaped too: values land inside HTML attributes (href="...").
+    return (str(s or "").replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
 
 
 def _reason(verdict) -> str:
     try:
         return json.loads(verdict).get("reasons", "") if verdict else ""
-    except Exception:
+    except Exception:  # noqa: BLE001, malformed verdict JSON just means no reason line
         return ""
 
 

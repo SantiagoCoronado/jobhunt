@@ -3,7 +3,7 @@ GET https://api.lever.co/v0/postings/{company}?mode=json
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from . import get_json
 from ..models import Job, strip_html
@@ -24,7 +24,7 @@ def fetch(cfg: dict) -> list[Job]:
             workplace = (j.get("workplaceType") or "").lower()
             posted = None
             if j.get("createdAt"):
-                posted = datetime.fromtimestamp(j["createdAt"] / 1000, timezone.utc).isoformat()
+                posted = datetime.fromtimestamp(j["createdAt"] / 1000, UTC).isoformat()
             jobs.append(Job(
                 source="lever",
                 external_id=str(j["id"]),

@@ -13,7 +13,7 @@ def fetch(cfg: dict) -> list[Job]:
         url = f"https://apply.workable.com/api/v1/widget/accounts/{account}"
         try:
             data = get_json(url, params={"details": "true"})
-        except Exception:
+        except Exception:  # noqa: BLE001, one bad account shouldn't kill the rest
             continue
         items = data.get("jobs") or data.get("results") or []
         for j in items:

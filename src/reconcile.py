@@ -24,7 +24,7 @@ import argparse
 import re
 import shutil
 import sqlite3
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 
 from .config import ROOT, followup_days
@@ -53,7 +53,7 @@ def folder_job_id(name: str) -> int | None:
 
 def scan(apps_dir: Path = APPS_DIR) -> list[tuple[str, Path]]:
     """All application folders as (bucket, path)."""
-    out = []
+    out: list[tuple[str, Path]] = []
     for bucket in BUCKETS:
         d = apps_dir / bucket
         if d.is_dir():

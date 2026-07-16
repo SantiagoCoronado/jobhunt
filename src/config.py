@@ -33,7 +33,7 @@ def followup_days() -> int:
     try:
         return int(raw)
     except (TypeError, ValueError):
-        raise ValueError(f"config/notify.yaml: followup_days must be an integer, got {raw!r}")
+        raise ValueError(f"config/notify.yaml: followup_days must be an integer, got {raw!r}") from None
 
 
 def shortlist_threshold() -> int:
@@ -46,7 +46,7 @@ def shortlist_threshold() -> int:
     try:
         return int(raw)
     except (TypeError, ValueError):
-        raise ValueError(f"config/profile.yaml: shortlist_threshold must be an integer, got {raw!r}")
+        raise ValueError(f"config/profile.yaml: shortlist_threshold must be an integer, got {raw!r}") from None
 
 
 _ENV_CACHE: dict | None = None

@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 
@@ -27,11 +27,12 @@ def normalize_text(s: str | None) -> str:
 def strip_html(s: str | None) -> str:
     if not s:
         return ""
-    return _WS.sub(" ", _HTML_TAG.sub(" ", s)).strip()
+    import html
+    return _WS.sub(" ", html.unescape(_HTML_TAG.sub(" ", s))).strip()
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def iso_date(s) -> str | None:
@@ -45,7 +46,7 @@ def iso_date(s) -> str | None:
         return None
     s = str(s).strip()
     if s.isdigit() and len(s) in (10, 13):  # epoch seconds / milliseconds
-        return datetime.fromtimestamp(int(s[:10]), tz=timezone.utc).isoformat()
+        return datetime.fromtimestamp(int(s[:10]), tz=UTC).isoformat()
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
@@ -55,8 +56,8 @@ def iso_date(s) -> str | None:
         except (ValueError, TypeError):
             return s
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).isoformat()
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat()
 
 
 @dataclass

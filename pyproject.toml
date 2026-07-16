@@ -1,0 +1,35 @@
+[project]
+name = "jobhunt"
+version = "0.1.0"
+description = "DIY, $0, locally-run job-search copilot (Claude Code as the agent engine)"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# Defaults (E4/E7/E9 + F) plus:
+#   BLE - flake8-blind-except: bare `except Exception` needs an explicit noqa
+#         with a reason (the adapter/per-source pattern already carries them)
+#   B   - flake8-bugbear: real bug patterns (mutable defaults, useless exprs)
+#   UP  - pyupgrade: keep syntax modern
+select = ["E4", "E7", "E9", "F", "BLE", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately reach into private helpers.
+"tests/*" = ["BLE"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+# Pragmatic gate: catch real type errors without fighting untyped deps.
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

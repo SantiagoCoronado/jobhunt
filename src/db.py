@@ -144,7 +144,7 @@ def _valid_date(s: str, field: str) -> str:
     try:
         return date.fromisoformat(s).isoformat()
     except ValueError:
-        raise ValueError(f"{field} must be YYYY-MM-DD, got {s!r}")
+        raise ValueError(f"{field} must be YYYY-MM-DD, got {s!r}") from None
 
 
 def set_status(

@@ -50,7 +50,6 @@ def _retryable(exc: requests.RequestException) -> bool:
 def _request(method: str, url: str, *, retries: int = 2, **kwargs) -> requests.Response:
     """Session request with per-host throttle; retries ONLY 429/5xx/timeouts.
     Other 4xx (404, 401, 403) raise immediately: retrying can't fix them."""
-    last: requests.RequestException | None = None
     for attempt in range(retries + 1):
         _throttle(url)
         try:
@@ -60,9 +59,8 @@ def _request(method: str, url: str, *, retries: int = 2, **kwargs) -> requests.R
         except requests.RequestException as e:
             if not _retryable(e) or attempt == retries:
                 raise
-            last = e
             time.sleep(1.5 * (attempt + 1))
-    raise last  # unreachable, keeps type-checkers happy
+    raise AssertionError("unreachable: loop always returns or raises")
 
 
 def get_json(url: str, *, params: dict | None = None, headers: dict | None = None,

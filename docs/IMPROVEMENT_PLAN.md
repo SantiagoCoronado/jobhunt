@@ -273,7 +273,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
 
 ## Phase 5: Engineering foundation (2-3 days, parallelizable with 3-4)
 
-- [ ] **5.1 Tests.**
+- [x] **5.1 Tests.**
   WHAT: `tests/` + pytest. Priority order:
   1. `models.canonical_key` / `normalize_text` (dedup correctness),
   2. `db.upsert_job` (insert vs refresh, uniqueness),
@@ -283,11 +283,11 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   WHY: 27 adapters and all dedup/render logic are currently untested; every
   refactor in Phase 3 is risky without this.
 
-- [ ] **5.2 Lint + types.**
+- [x] **5.2 Lint + types.**
   WHAT: `pyproject.toml` with ruff (the code already carries `# noqa: BLE001`
   expecting it) and mypy (codebase is already fully annotated).
 
-- [ ] **5.3 CI.**
+- [x] **5.3 CI.**
   WHAT: `.github/workflows/ci.yml`: ruff + mypy + pytest on push/PR.
 
 - [x] **5.4 Schema migrations.**
@@ -297,7 +297,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   cannot alter an existing table.
   NOTE: do this BEFORE 2.4, 3.2, and 6.x schema changes; sequence it early.
 
-- [ ] **5.5 Viewer hardening (small).**
+- [x] **5.5 Viewer hardening (small).**
   WHAT: validate `status` against `db.STATUSES` and validate the follow-up date
   format in `src/crm/viewer.py` update route; escape quotes in `notify._esc`.
 

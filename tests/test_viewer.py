@@ -1,5 +1,5 @@
 """Flask-level tests for the CRM viewer's update route (the second write path)."""
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
