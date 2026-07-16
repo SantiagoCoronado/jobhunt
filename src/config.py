@@ -36,6 +36,19 @@ def followup_days() -> int:
         raise ValueError(f"config/notify.yaml: followup_days must be an integer, got {raw!r}")
 
 
+def shortlist_threshold() -> int:
+    """The one shortlist cutoff (profile.yaml: shortlist_threshold, default 70).
+    match ingest and the notify digest both read THIS; nothing hardcodes 70."""
+    try:
+        raw = load_yaml("profile.yaml").get("shortlist_threshold", 70)
+    except FileNotFoundError:
+        return 70
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"config/profile.yaml: shortlist_threshold must be an integer, got {raw!r}")
+
+
 _ENV_CACHE: dict | None = None
 
 

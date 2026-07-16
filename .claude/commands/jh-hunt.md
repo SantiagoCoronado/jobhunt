@@ -17,7 +17,8 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
 3. **Match** (the `/jh-match` flow), scaled when triage ran:
    - Triaged pile: `python -m src.match export --min-bucket 3 --chunk 60 --limit 0`, fan the
      **job-matcher** subagent over `data/match/chunk_*.json` (each writes `scores_NNN.json`),
-     then `python -m src.match ingest --dir data/match --threshold 70`. If bucket-3 coverage
+     then `python -m src.match ingest --dir data/match` (cutoff from profile.yaml
+     `shortlist_threshold`). If bucket-3 coverage
      leaves budget, repeat with `--min-bucket 2`.
    - Small untriaged pile: `python -m src.match export --limit 40`, one **job-matcher** pass
      (reads `config/profile.yaml` + `data/pending_match.json`, writes `data/scores.json`), ingest.

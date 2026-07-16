@@ -16,7 +16,7 @@ import json
 
 from pathlib import Path
 
-from .config import load_yaml, ROOT
+from .config import load_yaml, shortlist_threshold, ROOT
 from .db import connect
 from .models import normalize_text, now_iso
 
@@ -105,7 +105,8 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None) 
     print("Now run /jh-match in Claude Code to score them.")
 
 
-def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
+def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
+    shortlist = threshold if threshold is not None else shortlist_threshold()
     if scores_dir:
         files = sorted(Path(scores_dir).glob("scores_*.json"))
         if not files:
@@ -126,7 +127,7 @@ def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
     for s in data:
         score = int(s.get("score", 0))
         verdict = json.dumps({k: s[k] for k in s if k not in ("id",)})
-        new_status = "shortlisted" if score >= shortlist_threshold else "discovered"
+        new_status = "shortlisted" if score >= shortlist else "discovered"
         # The score was judged on the canonical representative; propagate it to
         # every still-unscored duplicate of the same role so dupes never
         # re-enter the export queue as fresh work.
@@ -144,11 +145,11 @@ def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
             print(f"  ! skip score for unknown job id {s.get('id')!r}")
             continue
         n += 1
-        if score >= shortlist_threshold:
+        if score >= shortlist:
             short += 1
     conn.commit()
     tail = f"; {missing} skipped (unknown id)" if missing else ""
-    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist_threshold}){tail}. Updated {now}.")
+    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist}){tail}. Updated {now}.")
 
 
 if __name__ == "__main__":
@@ -159,7 +160,8 @@ if __name__ == "__main__":
     e.add_argument("--min-bucket", type=int, default=None, dest="min_bucket")
     e.add_argument("--chunk", type=int, default=None)
     i = sub.add_parser("ingest")
-    i.add_argument("--threshold", type=int, default=70)
+    i.add_argument("--threshold", type=int, default=None,
+                   help="override profile.yaml shortlist_threshold (default 70)")
     i.add_argument("--dir", default=None, dest="scores_dir")  # merge data/match/scores_*.json
     args = ap.parse_args()
     if args.cmd == "export":

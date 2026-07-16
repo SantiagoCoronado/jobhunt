@@ -21,3 +21,10 @@ def test_followup_days_rejects_garbage(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "CONFIG_DIR", tmp_path)
     with pytest.raises(ValueError, match="notify.yaml"):
         config.followup_days()
+
+
+def test_shortlist_threshold_single_source(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "CONFIG_DIR", tmp_path)
+    assert config.shortlist_threshold() == 70  # no profile.yaml: safe default
+    (tmp_path / "profile.yaml").write_text("shortlist_threshold: 75\n")
+    assert config.shortlist_threshold() == 75

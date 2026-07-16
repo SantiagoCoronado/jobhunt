@@ -238,13 +238,13 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
 
 ## Phase 4: Config and docs consistency (1 day)
 
-- [ ] **4.1 Single-source the status vocabulary.**
+- [x] **4.1 Single-source the status vocabulary.**
   WHAT: `db.STATUSES` is the only authority. Fix: `jh-hunt.md` and `CLAUDE.md`
   say `declined` (not a real status; the enum has `withdrawn`); the Notion select
   in `jh-notion-sync.md` is missing `ghosted`/`withdrawn`/`expired`.
   WHY: the phone CRM literally cannot represent a ghosted job today.
 
-- [ ] **4.2 One location matrix, in `profile.yaml` only.**
+- [x] **4.2 One location matrix, in `profile.yaml` only.**
   WHAT: authoritative rule: remote anywhere / US on-site or hybrid (TN eligible)
   / Mexico City on-site / LATAM = OK; on-site outside US+MX = dealbreaker.
   Fix the current `profile.yaml` dealbreaker text ("on-site or hybrid outside
@@ -253,12 +253,12 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   WHY: the same job legitimately scores 25 or 80 depending on which doc the
   agent anchors to.
 
-- [ ] **4.3 One shortlist threshold.**
+- [x] **4.3 One shortlist threshold.**
   WHAT: a single config key (e.g. `profile.yaml: shortlist_threshold: 70`);
   `notify.yaml min_score`, `job-matcher.md`, `jh-triage.md` all read/cite it.
   WHY: the two 70s are coincidentally equal and independently maintained.
 
-- [ ] **4.4 README regeneration.**
+- [x] **4.4 README regeneration.**
   WHAT: fix stale unprefixed command names (`/match` -> `/jh-match` etc., also in
   `run.sh` epilogue), add Triage and Research rows to the pipeline table, list all
   three agents, list `triage.py`/`research.py`/`render_docx.py` in the layout.
@@ -266,7 +266,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   WHY: copy-pasting any README command fails today; second-machine setup is the
   README's own stated use case.
 
-- [ ] **4.5 Clarify bucket vs score in `job-matcher.md`.**
+- [x] **4.5 Clarify bucket vs score in `job-matcher.md`.**
   One line: "the triage bucket affects coverage ORDER only; it is not a scoring input."
 
 ---

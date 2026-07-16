@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 
 from .db import connect
-from .config import load_yaml
+from .config import load_yaml, shortlist_threshold
 
 
 def _digest_rows(conn, threshold: int):
@@ -137,7 +137,9 @@ def main() -> None:
         cfg = load_yaml("notify.yaml")
     except FileNotFoundError:
         cfg = {}
-    threshold = cfg.get("min_score", 70)
+    # min_score is an optional override; the default is THE shortlist threshold
+    # (profile.yaml), so the digest can never silently disagree with the shortlist.
+    threshold = cfg.get("min_score") or shortlist_threshold()
 
     conn = connect()
     rows = _digest_rows(conn, threshold)

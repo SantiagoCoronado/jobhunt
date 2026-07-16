@@ -12,11 +12,15 @@ tracking**, and deliberately keeps a **human on the submit button**.
 
 | Stage | How | Tool |
 |-------|-----|------|
-| ① Discover | Pull free, ToS-safe ATS APIs + aggregators → SQLite | `python -m src.discover` |
-| ② Match | Score each job vs your profile | `/match` → `job-matcher` agent |
-| ③ Tailor | Per-job resume + cover letter (truthful, ATS-clean) | `/tailor <id>` → `resume-tailor` agent |
-| ④ Apply | You review the draft and submit (assisted form-fill optional) | manual / Playwright |
-| ⑤ Track | Local kanban CRM + follow-ups | `python -m src.crm.viewer` or `/notion-sync` |
+| ① Discover | Pull free, ToS-safe ATS APIs + aggregators → SQLite (auto-expires vanished postings) | `python -m src.discover` |
+| ② Triage | Cheap Haiku junk-cut when the pile is large; keepers get a 0-3 fit bucket | `/jh-triage` |
+| ③ Match | Score each surviving job vs your profile | `/jh-match` → `job-matcher` agent |
+| ④ Research | Cited company dossier, reused across applications | `/jh-research <company\|id>` → `company-researcher` agent |
+| ⑤ Tailor | Per-job resume + cover letter (truthful, ATS-clean) | `/jh-tailor <id>` → `resume-tailor` agent |
+| ⑥ Apply | You review the draft and submit | manual, always |
+| ⑦ Track | Local kanban CRM, follow-up nudges, two-way Notion sync | `python -m src.crm.viewer` · `/jh-followups` · `/jh-notion-sync` |
+
+`/jh-hunt` runs the whole loop end to end and tailors the top 5 shortlisted.
 
 Sources with **zero setup**: RemoteOK, Remotive, We Work Remotely, HN "Who is Hiring",
 Get on Board (LatAm). Add your target companies' **Greenhouse/Lever/Ashby** tokens for the
@@ -45,10 +49,17 @@ cp config/notify.yaml.example config/notify.yaml   # optional: Telegram/ntfy/ema
 ```
 Then, in Claude Code from this folder:
 ```
-/match                   # score newly discovered jobs
-/tailor 42               # tailor resume + cover letter for job id 42 (review before sending!)
-/notion-sync             # mirror pipeline to a Notion board (phone-friendly)
-/followups               # draft nudges for applications due a follow-up
+/jh-triage               # Haiku junk-cut when the discovered pile is large
+/jh-match                # score newly discovered jobs
+/jh-research 42          # cited company dossier (reused by tailor)
+/jh-tailor 42            # tailor resume + cover letter for job id 42 (review before sending!)
+/jh-notion-sync          # two-way sync with a Notion board (phone-friendly)
+/jh-followups            # draft nudges for applications due a follow-up
+/jh-hunt                 # or run the whole loop end to end
+```
+Record a submission (moves the folder AND schedules the follow-up):
+```bash
+python -m src.query set-status 42 applied
 ```
 Local CRM instead of Notion:
 ```bash
@@ -69,8 +80,8 @@ cd jobhunt
 ./run.sh --force                 # first discovery run on this machine
 ```
 Recommended split: keep the **scheduled** daily run on one always-on machine; use the other
-as an **interactive** client (`/match`, `/tailor`, `/notion-sync` by hand) to avoid double
-emails and double Notion syncs. Sync code changes with plain `git pull` / `git push`.
+as an **interactive** client (`/jh-match`, `/jh-tailor`, `/jh-notion-sync` by hand) to avoid
+double emails and double Notion syncs. Sync code changes with plain `git pull` / `git push`.
 
 ## Schedule it
 
@@ -83,9 +94,12 @@ Run `./run.sh` daily; its built-in ~18h guard collapses duplicate triggers into 
 
 **macOS** (launchd; runs on the next wake if the Mac was asleep at 08:00):
 ```bash
-./mac/install-schedule.sh        # installs ~/Library/LaunchAgents/com.jobhunt.daily.plist
-launchctl start com.jobhunt.daily   # optional: test the job right now
+./mac/install-schedule.sh        # plain daily: discover + queue + digest (run.sh)
+./mac/install-schedule.sh --ai   # OR the AI pass: discover + headless Claude triage/match,
+                                 # THEN the digest, so the email contains today's scores
+launchctl start com.jobhunt.daily   # optional: test the job right now (aipass label with --ai)
 ```
+The two variants are mutually exclusive; installing one removes the other.
 
 ## Ground rules (baked into the agents)
 
@@ -102,11 +116,15 @@ launchctl start com.jobhunt.daily   # optional: test the job right now
 ## Layout
 
 ```
-config/        profile.yaml · sources.yaml · notify.yaml
+config/        profile.yaml (incl. location_rule + shortlist_threshold) · sources.yaml · notify.yaml
 resume/        master_resume.yaml   (single source of truth)
-src/           discover · match · notify · query · db · models · adapters/ · crm/
-.claude/       agents/ (job-matcher, resume-tailor) · commands/ (/discover /match /tailor …)
-applications/  per-job tailored output (git-ignored)
+src/           discover · triage · match · notify · query · research · reconcile · notion_pull
+               · maintain · render_docx · db · models · adapters/ · crm/
+.claude/       agents/ (job-matcher, resume-tailor, company-researcher)
+               commands/ (/jh-hunt /jh-discover /jh-triage /jh-match /jh-research /jh-tailor …)
+research/      companies/<slug>.md   cited dossiers (committed, reusable)
+applications/  {pending,applied,other}/<company>-<id>/  tailored output (git-ignored)
+tests/         pytest suite (`.venv/bin/python -m pytest tests/`)
 data/          jobs.db + queue files (git-ignored)
 ```
 

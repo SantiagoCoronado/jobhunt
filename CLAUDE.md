@@ -28,11 +28,15 @@ research those 5, then tailor those 5.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
-rejected/declined/ghosted. `scripts/export_pdf.sh` searches these nested folders.
+rejected/ghosted/withdrawn. `scripts/export_pdf.sh` searches these nested folders.
+`python -m src.reconcile` keeps folders and DB statuses agreeing (folder names carry `-<id>`).
 
 ## Data model
 Everything lives in one SQLite table `jobs` (see `src/db.py`). `status` column IS the CRM
-pipeline: discovered → shortlisted → applied → screen → interview → offer/rejected/ghosted.
+pipeline: discovered → shortlisted → applied → screen → interview → offer, with terminal
+outcomes rejected/ghosted/withdrawn and a deliberate `backlog` hold. `db.STATUSES` is the single
+authority on this vocabulary; `declined` is NOT a status (it is Notion's phone-side label for
+`withdrawn`, mapped on sync).
 `irrelevant` is a terminal triage-drop (off-field / dealbreaker), excluded from match/export/triage.
 Triage keepers store their fit bucket in `match_verdict` until real scoring overwrites it.
 SQLite is canonical; Notion is a convenience mirror.
