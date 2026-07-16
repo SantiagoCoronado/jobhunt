@@ -95,6 +95,12 @@ def test_terminal_status_clears_followup(conn):
     assert _row(conn)["next_followup_at"] is None
 
 
+def test_explicit_followup_survives_terminal(conn):
+    # "rejected, reapply eligible in October" is an intentional reminder.
+    set_status(conn, 1, "rejected", next_followup="2026-10-06")
+    assert _row(conn)["next_followup_at"] == "2026-10-06"
+
+
 def test_note_appends(conn):
     set_status(conn, 1, "applied", note="sent via portal")
     set_status(conn, 1, "screen", note="recruiter: Ana")

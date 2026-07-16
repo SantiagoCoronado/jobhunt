@@ -129,7 +129,8 @@ def set_status(
     sets: dict[str, object] = {"status": status}
 
     # next_followup: None = not provided, "" = clear, "YYYY-MM-DD" = set.
-    # A terminal status always clears it (overriding any explicit date).
+    # A terminal status clears it unless an explicit date is passed (an
+    # intentional reminder, e.g. "rejected, reapply eligible in October").
     if status == "applied":
         if not row["applied_at"]:
             base = _valid_date(applied_at, "applied_at") if applied_at else date.today().isoformat()
@@ -144,8 +145,7 @@ def set_status(
 
     if next_followup is not None and "next_followup_at" not in sets:
         sets["next_followup_at"] = _valid_date(next_followup, "next_followup") if next_followup else None
-
-    if status in ("rejected", "ghosted", "withdrawn", "irrelevant"):
+    elif status in ("rejected", "ghosted", "withdrawn", "irrelevant"):
         sets["next_followup_at"] = None
 
     if notes is not None:

@@ -71,5 +71,8 @@ Status transitions: `python -m src.query set-status <id> <status> [--note ...] [
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
 application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.
 Folder/DB drift check: `python -m src.reconcile [--apply]`. Tests: `.venv/bin/python -m pytest tests/`.
+Notion pull (reverse sync, used by `/jh-notion-sync` phase 1): export Notion rows to
+`data/notion_pull.json`, then `python -m src.notion_pull data/notion_pull.json [--apply] [--create-missing]`
+(maps Notion `declined`/`Not Found` -> `withdrawn`, never downgrades, keeps `backlog` holds).
 Company dossiers (`research/companies/<slug>.md`) are committed, reusable, cited; obey the
 never-fabricate and zero-em-dash rules like any generated text.

@@ -147,11 +147,23 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   HOW: small schema addition (needs migrations, 5.4, or `CREATE TABLE IF NOT
   EXISTS` for now); render a "source health" line in `notify.py`.
 
-- [ ] **2.5 One starring rule for Notion.**
+- [x] **2.5 One starring rule for Notion.**
   WHAT: unify `/jh-notion-sync` (stars top 10 by match) and `/jh-hunt` (stars
   exactly 5 shortlisted). Pick: star = "top 5 shortlisted by match score", shared.
   WHY: the star is the phone action queue; it currently flip-flops by entry point.
   HOW: edit both command files to reference the same rule text.
+  DONE 2026-07-16: sync now stars top 5 shortlisted, same as hunt.
+
+- [x] **2.6 Two-way Notion sync (pull before push).** (added 2026-07-16, shipped same day)
+  WHAT: Notion is where statuses get updated from the phone; those edits now flow
+  back. `src/notion_pull.py` takes a JSON export of the Notion rows and applies a
+  conservative diff: URL-first matching (tracking params stripped, identifying
+  params kept), `declined`/`Not Found` -> `withdrawn`, no pipeline downgrades,
+  `backlog` holds preserved, explicit follow-up dates survive terminal statuses
+  (reapply reminders). `/jh-notion-sync` is now pull-then-push.
+  Initial pull applied 35 changes (real statuses: 32 applied, 2 screen, 4 rejected,
+  9 withdrawn) and all 10 unlinked application folders were renamed to carry their
+  DB ids.
 
 ---
 
