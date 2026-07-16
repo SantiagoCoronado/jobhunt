@@ -34,8 +34,9 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
    AI-forward or better-located role. Report the 5 starred (company, role, match).
 
 5. **Research the 5 starred**: for each of the 5, delegate to the **company-researcher** subagent
-   (Sonnet) to write `research/companies/<slug>.md`. Resolve each path with
-   `python -m src.research get <job_id>`; skip the research if a fresh dossier already exists.
+   (Sonnet) to write `research/companies/<slug>.md`. Resolve each with
+   `python -m src.research get <job_id>`; skip the research when it reports `stale: False`,
+   refresh in place when `stale: True`.
 
 6. **Tailor the 5 starred**: for each of the 5 (all `shortlisted`), run the `/jh-tailor` flow: load
    the job (`python -m src.query job <id>`), pass its company dossier from step 5, and delegate to

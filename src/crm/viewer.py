@@ -49,15 +49,17 @@ CARD = """<div class=card>
 @app.route("/")
 def board():
     conn = connect()
+    # irrelevant/expired are terminal junk, not pipeline stages: keep them off the board
     rows = conn.execute(
-        "SELECT * FROM jobs WHERE status!='discovered' OR match_score IS NOT NULL "
+        "SELECT * FROM jobs WHERE (status!='discovered' OR match_score IS NOT NULL) "
+        "AND status NOT IN ('irrelevant','expired') "
         "ORDER BY COALESCE(match_score,0) DESC, id DESC"
     ).fetchall()
     total = conn.execute("SELECT COUNT(*) c FROM jobs").fetchone()["c"]
     shortlisted = sum(1 for r in rows if r["status"] == "shortlisted")
 
     cols = []
-    for st in STATUSES:
+    for st in (s for s in STATUSES if s not in ("irrelevant", "expired")):
         cards = []
         for r in [x for x in rows if x["status"] == st]:
             opts = "".join(

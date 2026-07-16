@@ -174,7 +174,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
 
 ## Phase 3: Data quality (2-3 days)
 
-- [ ] **3.1 Deterministic cross-source dedup.**
+- [x] **3.1 Deterministic cross-source dedup.**
   WHAT: replace bare `GROUP BY canonical_key` in `src/match.py:67`,
   `src/triage.py:47`, `src/notify.py` with a deterministic representative:
   prefer ATS sources (greenhouse/lever/ashby/recruitee/workable) over
@@ -184,7 +184,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   judged may not be the row shown.
   HOW: a `rank` CASE expression or a `canonical_jobs` SQL view all consumers use.
 
-- [ ] **3.2 Job expiry.**
+- [x] **3.2 Job expiry.**
   WHAT: nightly pass (in `src/discover.py` post-run): jobs with
   `last_seen < now - 14 days` and status in (`discovered`) get `status='expired'`
   (new terminal status). Never expire anything shortlisted or later.
@@ -193,14 +193,14 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   HOW: add `expired` to `db.STATUSES`; exclude it everywhere `irrelevant` is
   excluded; add to Notion select mapping (4.1).
 
-- [ ] **3.3 Description pruning (the 72MB fix).**
+- [x] **3.3 Description pruning (the 72MB fix).**
   WHAT: null out `description` on rows that are `irrelevant` or `expired` for
   30+ days; then `VACUUM`.
   WHY: descriptions are ~56MB of the 72MB file; 4,056 irrelevant rows keep full
   text forever for no reader.
   HOW: same nightly pass as 3.2. Keep company/title/url/scores for audit.
 
-- [ ] **3.4 HTTP layer hardening.**
+- [x] **3.4 HTTP layer hardening.**
   WHAT: in `src/adapters/__init__.py`:
   - retry only on 429/5xx/timeouts (catch `requests.RequestException`, not `Exception`);
     fail fast on other 4xx.
@@ -210,7 +210,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   WHY: today a 404 retries 3x with backoff for nothing, one blip kills a SoftServe
   run, and sitemap fan-out can hammer one host.
 
-- [ ] **3.5 Adapter shared helpers.**
+- [x] **3.5 Adapter shared helpers.**
   WHAT: extract into `src/adapters/__init__.py` (or `src/adapters/base.py`):
   `paginate(fetch_page, max_pages)`, `int_or_none(x)`, `remote_from_text(*parts)`,
   `require_id(obj, *keys)` (raises instead of producing external_id `"None"`).
@@ -218,7 +218,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   WHY: the same pagination/skip/coercion logic is copy-pasted across ~24 files;
   `str(j.get("id"))` currently creates bogus `"None"` unique rows.
 
-- [ ] **3.6 Research slug normalization + freshness.**
+- [x] **3.6 Research slug normalization + freshness.**
   WHAT: in `src/research.py`:
   - `company_slug`: strip trailing domain tokens (`com|io|ai|co|net`) and corporate
     suffixes (`inc|llc|ltd|sa|de|cv`), collapse repeats; keep an alias map
@@ -229,7 +229,7 @@ The scheduled path exists but is mis-ordered and skips the smart parts.
   "looks fresh" is currently eyeballed non-determinism.
   HOW: update `jh-research.md`, `jh-hunt.md`, `jh-tailor.md` to branch on `stale`.
 
-- [ ] **3.7 Normalize `posted_at`.**
+- [x] **3.7 Normalize `posted_at`.**
   WHAT: coerce every adapter's date to ISO-8601 UTC in `Job.to_row` (one place),
   parsing the handful of formats sources emit.
   WHY: mixed formats in one TEXT column make date filtering/sorting unreliable.

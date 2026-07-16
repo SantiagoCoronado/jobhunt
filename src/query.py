@@ -35,7 +35,8 @@ def job(job_id: str) -> None:
 def crm() -> None:
     rows = connect().execute(
         "SELECT id,company,title,location,url,match_score,status,applied_at,"
-        "next_followup_at,notes FROM jobs WHERE status!='discovered' "
+        "next_followup_at,notes FROM jobs "
+        "WHERE status NOT IN ('discovered','irrelevant','expired') "
         "ORDER BY COALESCE(match_score,0) DESC"
     ).fetchall()
     _dump(rows)

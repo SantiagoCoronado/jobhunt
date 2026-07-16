@@ -41,9 +41,8 @@ def export(chunk: int, limit: int | None) -> None:
     rows = conn.execute(
         """
         SELECT id, company, title, location, remote, description
-        FROM jobs
+        FROM canonical_jobs
         WHERE status='discovered' AND match_score IS NULL AND match_verdict IS NULL
-        GROUP BY canonical_key
         ORDER BY canonical_key
         """
     ).fetchall()

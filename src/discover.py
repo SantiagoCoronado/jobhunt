@@ -61,6 +61,11 @@ def main() -> None:
         print(f"  ✓ {name:15s} {new:4d} new  {seen:4d} seen  ({len(jobs)} pulled)")
 
     print(f"\nDone. {total_new} new jobs added, {total_seen} already known.")
+
+    from .maintain import run as maintain
+    m = maintain(conn)
+    print(f"Maintenance: {m['expired']} expired, {m['pruned']} descriptions pruned"
+          f"{', VACUUMed' if m['vacuumed'] else ''}.")
     print("Next:  python -m src.match export   then run /jh-match in Claude Code.")
 
 

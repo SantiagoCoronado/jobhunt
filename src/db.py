@@ -16,7 +16,15 @@ STATUSES = [
     "interview", "offer", "rejected", "ghosted", "withdrawn",
     "irrelevant",   # coarse Haiku triage drop (off-field / dealbreaker); excluded from match
     "backlog",      # deliberately deferred (e.g. apply later); skipped by shortlist/star/tailor
+    "expired",      # dropped out of its source's feed while still 'discovered'; posting likely gone
 ]
+
+# Direct ATS boards carry the authoritative posting (full JD, working apply URL);
+# aggregators re-syndicate. The canonical_jobs view prefers ATS rows for a role.
+ATS_SOURCES = (
+    "greenhouse", "lever", "ashby", "workable", "recruitee",
+    "smartrecruiters", "personio", "bamboohr", "workday", "softserve",
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -73,6 +81,22 @@ MIGRATIONS: list[str] = [
         error   TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_runs_source ON runs(source, id);
+    """,
+    # 2: deterministic cross-source dedup. One representative row per
+    #    canonical_key: ATS source beats aggregator, then lowest id. Replaces
+    #    the non-deterministic bare `GROUP BY canonical_key` in match/triage.
+    #    NOTE: SQLite expands `SELECT *` at CREATE VIEW time, so any future
+    #    migration that ALTERs the jobs table MUST also DROP and recreate this view.
+    f"""
+    CREATE VIEW IF NOT EXISTS canonical_jobs AS
+    SELECT * FROM (
+        SELECT jobs.*, ROW_NUMBER() OVER (
+            PARTITION BY canonical_key
+            ORDER BY CASE WHEN source IN ({", ".join(f"'{s}'" for s in ATS_SOURCES)})
+                     THEN 0 ELSE 1 END, id
+        ) AS canonical_rank
+        FROM jobs
+    ) WHERE canonical_rank = 1;
     """,
 ]
 

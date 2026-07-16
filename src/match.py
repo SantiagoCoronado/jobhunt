@@ -58,13 +58,10 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None) 
     """
     skills = _profile_skills()
     conn = connect()
-    # cross-source dedupe: one row per canonical_key
+    # cross-source dedupe: the deterministic representative per canonical_key
+    # (ATS source preferred, then lowest id; see db.canonical_jobs)
     rows = conn.execute(
-        """
-        SELECT * FROM jobs
-        WHERE match_score IS NULL AND status='discovered'
-        GROUP BY canonical_key
-        """
+        "SELECT * FROM canonical_jobs WHERE match_score IS NULL AND status='discovered'"
     ).fetchall()
 
     items = []
@@ -125,20 +122,33 @@ def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
         data = json.loads(SCORES.read_text())
     conn = connect()
     now = now_iso()
-    n = short = 0
+    n = short = missing = 0
     for s in data:
         score = int(s.get("score", 0))
         verdict = json.dumps({k: s[k] for k in s if k not in ("id",)})
         new_status = "shortlisted" if score >= shortlist_threshold else "discovered"
-        conn.execute(
-            "UPDATE jobs SET match_score=?, match_verdict=?, status=CASE WHEN status='discovered' THEN ? ELSE status END WHERE id=?",
-            (score, verdict, new_status, s["id"]),
+        # The score was judged on the canonical representative; propagate it to
+        # every still-unscored duplicate of the same role so dupes never
+        # re-enter the export queue as fresh work.
+        cur = conn.execute(
+            "UPDATE jobs SET match_score=?, match_verdict=?, "
+            "status=CASE WHEN status='discovered' THEN ? ELSE status END "
+            "WHERE (id=? OR (match_score IS NULL AND status='discovered')) "
+            "AND canonical_key=(SELECT canonical_key FROM jobs WHERE id=?)",
+            (score, verdict, new_status, s["id"], s["id"]),
         )
+        if cur.rowcount == 0:
+            # Unknown id (deleted row, or the scorer hallucinated one): a silent
+            # no-op here would report success while writing nothing.
+            missing += 1
+            print(f"  ! skip score for unknown job id {s.get('id')!r}")
+            continue
         n += 1
         if score >= shortlist_threshold:
             short += 1
     conn.commit()
-    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist_threshold}). Updated {now}.")
+    tail = f"; {missing} skipped (unknown id)" if missing else ""
+    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist_threshold}){tail}. Updated {now}.")
 
 
 if __name__ == "__main__":

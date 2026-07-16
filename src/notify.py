@@ -14,9 +14,12 @@ from .config import load_yaml
 
 def _digest_rows(conn, threshold: int):
     # MAX(match_score) + GROUP BY canonical_key returns the best-scoring row per role.
+    # MAX() + GROUP BY is SQLite's documented bare-column special case: the
+    # other columns come from the max-scoring row, deterministically.
     return conn.execute(
         "SELECT id, company, title, location, url, MAX(match_score) AS match_score, match_verdict "
         "FROM jobs WHERE notified=0 AND match_score >= ? "
+        "AND status NOT IN ('irrelevant', 'expired') "
         "GROUP BY canonical_key ORDER BY match_score DESC LIMIT 40",
         (threshold,),
     ).fetchall()
@@ -27,7 +30,7 @@ def _unscored_count(conn) -> int:
     The digest can only show what was SCORED since the last send; this is the
     pile that hasn't been looked at."""
     return conn.execute(
-        "SELECT COUNT(DISTINCT canonical_key) FROM jobs "
+        "SELECT COUNT(*) FROM canonical_jobs "
         "WHERE status='discovered' AND match_score IS NULL"
     ).fetchone()[0]
 

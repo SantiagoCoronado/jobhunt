@@ -34,6 +34,31 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def iso_date(s) -> str | None:
+    """Best-effort normalization of a source's posted-at into ISO-8601 UTC.
+
+    Sources emit epoch seconds, ISO with/without Z, and RFC-2822 (RSS). One
+    TEXT column with mixed formats makes date sorting unreliable, so coerce
+    here. Unparseable values pass through unchanged: never destroy data.
+    """
+    if not s:
+        return None
+    s = str(s).strip()
+    if s.isdigit() and len(s) in (10, 13):  # epoch seconds / milliseconds
+        return datetime.fromtimestamp(int(s[:10]), tz=timezone.utc).isoformat()
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(s)
+        except (ValueError, TypeError):
+            return s
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
+
+
 @dataclass
 class Job:
     # identity
@@ -64,5 +89,6 @@ class Job:
         d["tags"] = ",".join(str(t) for t in self.tags)
         d.pop("raw", None)
         d["remote"] = int(self.remote)
+        d["posted_at"] = iso_date(self.posted_at)
         d["canonical_key"] = self.canonical_key
         return d
