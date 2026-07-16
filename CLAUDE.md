@@ -67,5 +67,9 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
 `/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups` `/jh-notion-sync`, see `.claude/commands/`.
 Helper queries: `python -m src.query {job <id>|crm|followups}`, `python -m src.research {path "<company>"|get <id>}`.
+Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
+(single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
+application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.
+Folder/DB drift check: `python -m src.reconcile [--apply]`. Tests: `.venv/bin/python -m pytest tests/`.
 Company dossiers (`research/companies/<slug>.md`) are committed, reusable, cited; obey the
 never-fabricate and zero-em-dash rules like any generated text.

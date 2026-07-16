@@ -18,6 +18,24 @@ def load_yaml(name: str) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def notify_setting(key: str, default):
+    """Read one key from config/notify.yaml; falls back to default if the file
+    is absent (it is gitignored, so fresh clones won't have it)."""
+    try:
+        return load_yaml("notify.yaml").get(key, default)
+    except FileNotFoundError:
+        return default
+
+
+def followup_days() -> int:
+    """Days after applying (or after a contact bump) that a follow-up comes due."""
+    raw = notify_setting("followup_days", 7)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"config/notify.yaml: followup_days must be an integer, got {raw!r}")
+
+
 _ENV_CACHE: dict | None = None
 
 

@@ -5,8 +5,9 @@ Columns = pipeline stages. Change a job's status / notes / follow-up date inline
 """
 from __future__ import annotations
 
-from ..db import connect, STATUSES
-from ..models import now_iso
+from ..config import followup_days
+from ..db import connect, STATUSES, set_status
+from ..reconcile import sync_folder
 
 try:
     from flask import Flask, request, redirect
@@ -25,7 +26,7 @@ PAGE = """<!doctype html><meta charset=utf-8><title>Job Hunt CRM</title>
  .card{{padding:10px 12px;border-bottom:1px solid #222}}
  .card b{{color:#fff}} .score{{float:right;background:#264;color:#cfc;border-radius:10px;padding:1px 8px;font-size:12px}}
  .muted{{color:#888;font-size:12px}} a{{color:#7bf;text-decoration:none}}
- select,input{{background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:12px}}
+ select,input,textarea{{background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:2px 4px;font-size:12px;font-family:inherit}}
  form.inline{{margin-top:6px;display:flex;gap:4px;flex-wrap:wrap}}
 </style>
 <header><b>Job Hunt CRM</b> &nbsp;<span class=muted>{count} jobs · {shortlisted} shortlisted · sorted by match score</span></header>
@@ -40,7 +41,7 @@ CARD = """<div class=card>
    <input type=hidden name=id value="{id}">
    <select name=status onchange="this.form.submit()">{opts}</select>
    <input name=next_followup value="{followup}" placeholder="follow-up YYYY-MM-DD" size=12>
-   <input name=notes value="{notes}" placeholder="notes" size=18>
+   <textarea name=notes placeholder="notes" rows=1 cols=20>{notes}</textarea>
    <button>save</button>
  </form></div>"""
 
@@ -78,15 +79,17 @@ def board():
 def update():
     f = request.form
     conn = connect()
-    applied = ", applied_at=?" if f["status"] == "applied" else ""
-    params = [f["status"], f.get("next_followup") or None, f.get("notes") or None]
-    if applied:
-        params.append(now_iso())
-    params.append(f["id"])
-    conn.execute(
-        f"UPDATE jobs SET status=?, next_followup_at=?, notes=?{applied} WHERE id=?", params
-    )
+    try:
+        changed = set_status(
+            conn, f["id"], f["status"],
+            notes=f.get("notes", ""),
+            next_followup=f.get("next_followup", ""),
+            followup_days=followup_days(),
+        )
+    except ValueError as e:
+        return str(e), 400
     conn.commit()
+    sync_folder(int(changed["id"]), f["status"])
     return redirect("/")
 
 
