@@ -2,9 +2,9 @@
 # Export tailored resume .docx files to PDF (house design preserved).
 #
 # Usage:
-#   scripts/export_pdf.sh                          # export ALL applications/*/tailored_resume.docx
+#   scripts/export_pdf.sh                          # export ALL applications/**/SantiagoCoronadoResume.docx + CoverLetter.docx
 #   scripts/export_pdf.sh applications/belvo-applied-ai        # one application folder
-#   scripts/export_pdf.sh applications/foo/tailored_resume.docx  # explicit file(s)
+#   scripts/export_pdf.sh applications/foo/SantiagoCoronadoResume.docx  # explicit file(s)
 #
 # Converter preference:
 #   1. LibreOffice (soffice) if installed  - headless, no UI
@@ -20,7 +20,7 @@ targets=()
 if [[ $# -eq 0 ]]; then
   # recurse: apps are filed under applications/{applied,pending,other}/<slug>/
   while IFS= read -r f; do targets+=("$f"); done \
-    < <(find applications -type f -name 'tailored_resume.docx' 2>/dev/null)
+    < <(find applications -type f \( -name 'SantiagoCoronadoResume.docx' -o -name 'CoverLetter.docx' \) 2>/dev/null)
 else
   for arg in "$@"; do
     if [[ -d "$arg" ]]; then
