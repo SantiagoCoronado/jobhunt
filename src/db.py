@@ -98,6 +98,29 @@ MIGRATIONS: list[str] = [
         FROM jobs
     ) WHERE canonical_rank = 1;
     """,
+    # 3: event log, the memory the intelligence layer runs on. `status` alone
+    #    loses history (you can't compute applied -> first-reply latency from
+    #    one column). set_status/touch_contact write events automatically.
+    #    The INSERT backfills a synthetic applied event from applied_at so
+    #    funnel stats start with the existing pipeline.
+    """
+    CREATE TABLE IF NOT EXISTS events (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id  INTEGER NOT NULL,
+        ts      TEXT NOT NULL,
+        kind    TEXT NOT NULL,   -- status_change | contact | debrief | note
+        payload TEXT             -- JSON detail
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_job ON events(job_id, id);
+    -- The NOT IN guard makes the backfill idempotent: executescript commits
+    -- before the user_version bump, so a crash between the two would re-run
+    -- this migration on the next connect and, unguarded, duplicate history.
+    INSERT INTO events (job_id, ts, kind, payload)
+        SELECT id, applied_at, 'status_change',
+               '{"to": "applied", "backfill": true}'
+        FROM jobs WHERE applied_at IS NOT NULL
+        AND id NOT IN (SELECT job_id FROM events WHERE kind='status_change');
+    """,
 ]
 
 
@@ -145,6 +168,19 @@ def _valid_date(s: str, field: str) -> str:
         return date.fromisoformat(s).isoformat()
     except ValueError:
         raise ValueError(f"{field} must be YYYY-MM-DD, got {s!r}") from None
+
+
+def log_event(conn: sqlite3.Connection, job_id: int | str, kind: str,
+              payload: dict | None = None) -> None:
+    """Append to the event log (the history `status` alone can't hold).
+    Caller commits, same contract as set_status."""
+    import json
+    from datetime import datetime, UTC
+    conn.execute(
+        "INSERT INTO events (job_id, ts, kind, payload) VALUES (?,?,?,?)",
+        (job_id, datetime.now(UTC).isoformat(),
+         kind, json.dumps(payload) if payload else None),
+    )
 
 
 def set_status(
@@ -206,6 +242,9 @@ def set_status(
     # derived from caller input; only the values are bound via placeholders.
     assign = ", ".join(f"{c}=?" for c in sets)
     conn.execute(f"UPDATE jobs SET {assign} WHERE id=?", [*sets.values(), row["id"]])
+    if status != row["status"]:
+        log_event(conn, row["id"], "status_change",
+                  {"from": row["status"], "to": status})
     return {"id": row["id"], "company": row["company"], "title": row["title"],
             "old_status": row["status"], **sets}
 
@@ -230,4 +269,6 @@ def touch_contact(
         sets["next_followup_at"] = (date.fromisoformat(stamp) + timedelta(days=bump_days)).isoformat()
     assign = ", ".join(f"{c}=?" for c in sets)
     conn.execute(f"UPDATE jobs SET {assign} WHERE id=?", [*sets.values(), row["id"]])
+    log_event(conn, row["id"], "contact",
+              {"date": stamp, "bumped": bump_days is not None})
     return {"id": row["id"], "company": row["company"], "old_status": row["status"], **sets}

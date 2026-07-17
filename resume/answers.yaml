@@ -1,0 +1,51 @@
+# Reusable application/interview answers, the "answer bank" (/jh-tailor emits a
+# per-job answers.md from the approved ones; /jh-debrief proposes new entries).
+#
+# Rules:
+# - draft: true  = proposed by /jh-debrief, NOT used anywhere until you review it,
+#   edit as needed, and flip draft to false.
+# - Answers obey the never-fabricate rule: only facts from resume/master_resume.yaml
+#   and config/profile.yaml. Salary figures come from the human, never generated.
+# - {company} placeholders are personalized per job from the company dossier.
+# - Zero em-dashes in answers, house rule.
+
+answers:
+  - id: visa-status
+    question: "Do you require visa sponsorship? / Are you authorized to work in the US?"
+    answer: >
+      I am a Mexican citizen, TN-visa eligible for US employment (no H-1B lottery
+      required; TN status is issued at the border or consulate with an employer
+      support letter, typically within days). No sponsorship in the H-1B sense is
+      needed. For remote roles I can work as a Mexico-based contractor or employee.
+    draft: false
+
+  - id: location-remote
+    question: "Where are you located? / What is your remote setup?"
+    answer: >
+      Mexico City (GMT-6, overlaps US business hours year-round). Fully equipped
+      home office, reliable fiber, and years of remote-first work across US time
+      zones. Open to travel and to hybrid or on-site in Mexico City or in the US.
+    draft: false
+
+  - id: languages
+    question: "What languages do you speak?"
+    answer: "Bilingual: Spanish (native) and English (full professional proficiency)."
+    draft: false
+
+  - id: why-company
+    question: "Why do you want to work at {company}?"
+    answer: >
+      TEMPLATE: personalize from research/companies/<slug>.md. Structure that works:
+      one concrete product/company fact that genuinely resonates, one line connecting
+      it to my founder/AI-deployment background, one line on what I would ship first.
+    draft: false
+
+  - id: salary-expectations
+    question: "What are your salary expectations?"
+    answer: ""   # HUMAN ONLY: never auto-filled; floor in profile.yaml is 65k USD base
+    draft: true
+
+  - id: notice-period
+    question: "When can you start? / What is your notice period?"
+    answer: ""   # TODO: fill in your real availability
+    draft: true

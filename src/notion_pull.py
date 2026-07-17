@@ -38,7 +38,7 @@ import sqlite3
 from pathlib import Path
 
 from .config import followup_days
-from .db import connect, set_status, upsert_job
+from .db import connect, log_event, set_status, upsert_job
 from .models import Job, normalize_text, now_iso
 from .reconcile import sync_folder
 
@@ -147,6 +147,9 @@ def apply_changes(conn: sqlite3.Connection, p: dict, create_missing: bool = Fals
         if "applied_at" in c:
             conn.execute("UPDATE jobs SET applied_at=? WHERE id=?",
                          (c["applied_at"], c["id"]))
+            # keep the event log aware of the correction; latency() reads events
+            log_event(conn, c["id"], "note",
+                      {"applied_at_corrected": c["applied_at"], "source": "notion"})
         if "notes" in c and "status" not in c:
             conn.execute("UPDATE jobs SET notes=COALESCE(notes,?) WHERE id=?",
                          (c["notes"], c["id"]))

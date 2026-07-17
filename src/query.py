@@ -68,6 +68,17 @@ def cmd_set_status(job_id: str, status: str, note: str | None, followup: str | N
     print(json.dumps(changed, indent=2, default=str))
 
 
+def cmd_event(job_id: str, kind: str, note: str | None) -> None:
+    from .db import log_event
+
+    conn = connect()
+    if not conn.execute("SELECT 1 FROM jobs WHERE id=?", (job_id,)).fetchone():
+        sys.exit(f"No job with id {job_id}")
+    log_event(conn, job_id, kind, {"note": note} if note else None)
+    conn.commit()
+    print(json.dumps({"id": job_id, "event": kind, "note": note}))
+
+
 def cmd_touch(job_id: str, date: str | None, bump: bool) -> None:
     conn = connect()
     try:
@@ -96,6 +107,10 @@ if __name__ == "__main__":
     t.add_argument("--date", help="contact date YYYY-MM-DD (default today)")
     t.add_argument("--bump", action="store_true",
                    help="push next_followup_at out another followup_days")
+    e = sub.add_parser("event", help="log an event (debrief, note) for a job")
+    e.add_argument("id")
+    e.add_argument("kind")
+    e.add_argument("--note", help="short free-text payload")
     a = ap.parse_args()
     if a.cmd == "job":
         job(a.id)
@@ -105,5 +120,7 @@ if __name__ == "__main__":
         followups()
     elif a.cmd == "set-status":
         cmd_set_status(a.id, a.status, a.note, a.followup)
+    elif a.cmd == "event":
+        cmd_event(a.id, a.kind, a.note)
     else:
         cmd_touch(a.id, a.date, a.bump)

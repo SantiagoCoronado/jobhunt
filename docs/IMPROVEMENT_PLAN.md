@@ -309,7 +309,7 @@ This is where the system starts learning instead of just filtering. Order within
 the phase follows the data dependency: capture events first, then the loops that
 consume them.
 
-- [ ] **6.1 Event log + outcome capture.**
+- [x] **6.1 Event log + outcome capture.**
   WHAT: an `events` table: `(id, job_id, ts, kind, payload)` with kinds like
   `status_change`, `followup_sent`, `reply_received`, `interview_scheduled`,
   `debrief`. Every status transition (1.1) writes an event automatically.
@@ -317,7 +317,7 @@ consume them.
   first reply" from a single column). Every loop below reads this table.
   HOW: needs migrations (5.4). Backfill what's derivable from `applied_at`.
 
-- [ ] **6.2 Interview transcripts + `/jh-debrief <id>` (user-requested).**
+- [x] **6.2 Interview transcripts + `/jh-debrief <id>` (user-requested).**
   WHAT: record interviews, drop the transcript in
   `interviews/<company>-<id>/<date>-<round>.md` (e.g. `2026-07-20-screen.md`),
   then run `/jh-debrief <id>`. The command:
@@ -345,7 +345,7 @@ consume them.
   itself stays out of scope (use Voice Memos + any local transcriber; the
   pipeline starts at "a .md/.txt transcript exists").
 
-- [ ] **6.3 `/jh-prep <id>`: interview prep brief.**
+- [x] **6.3 `/jh-prep <id>`: interview prep brief.**
   WHAT: when a job hits `screen`/`interview`, generate
   `applications/<...>/prep-<round>.md`: likely questions from the JD, your
   matching stories from `master_resume.yaml` (STAR-shaped, grounded), questions
@@ -356,7 +356,7 @@ consume them.
   natural next pipeline stage and consumes the 6.2 output.
   HOW: `.claude/commands/jh-prep.md`; refresh the dossier first if `stale` (3.6).
 
-- [ ] **6.4 Answer bank.**
+- [x] **6.4 Answer bank.**
   WHAT: `resume/answers.yaml`: canonical, human-approved answers to recurring
   application/interview questions (why-us template, visa/TN status, salary
   expectations, notice period, remote setup). `/jh-tailor` emits a per-job
@@ -368,7 +368,7 @@ consume them.
   GUARDRAIL: answers obey the never-fabricate rule; salary figures come from the
   human, never generated.
 
-- [ ] **6.5 `/jh-review`: the monthly feedback loop.**
+- [x] **6.5 `/jh-review`: the monthly feedback loop.**
   WHAT: a command that reads `events` + statuses and reports:
   - conversion by stage (applied -> reply -> screen -> interview -> offer),
     segmented by title family, score band, source, and remote/on-site;
@@ -386,13 +386,16 @@ consume them.
   HOW: `.claude/commands/jh-review.md` + `python -m src.query stats` helpers so
   the numbers are computed deterministically in SQL, not by the LLM.
 
-- [ ] **6.6 Salary intelligence (small, do anytime after 6.1).**
+- [x] **6.6 Salary intelligence (small, do anytime after 6.1).**
   WHAT: `python -m src.query comp`: salary_min/max distribution for matched title
   families, split MX vs US-remote, from data already being stored (Adzuna, Torre,
   RemoteOK emit salaries; nothing reads them today). Surface in `/jh-review` and
   before any negotiation.
 
-- [ ] **6.7 (Deferred) Assisted form-fill.**
+- [ ] **6.7 (Deferred, decision 2026-07-16: NOT building now) Assisted form-fill.**
+  The README promise was removed in Phase 4. Revisit only if the answer bank +
+  manual flow proves too slow in practice; the answer bank (6.4) removes most of
+  the pain already.
   The README promises "assisted form-fill optional / Playwright". Only worth
   building after 6.4 (the answer bank is the content source). Strictly
   fill-and-pause: Playwright pre-fills fields from `answers.md` + resume data,

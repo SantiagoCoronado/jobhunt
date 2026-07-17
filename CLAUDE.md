@@ -22,6 +22,14 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
 6. **Track** (`src/crm/viewer.py` local UI, or `/jh-notion-sync`), application status + follow-ups.
+7. **Learn** (the intelligence layer). `/jh-prep <id>`: interview prep brief from dossier +
+   past debriefs. `/jh-debrief <id>`: digest an interview transcript (dropped at
+   `interviews/<company>-<id>/<date>-<round>.md`, git-ignored, NEVER committed) into a debrief +
+   answer-bank drafts. `/jh-review`: monthly conversion/calibration report over `python -m
+   src.stats {funnel|calibration|latency|drops|comp}`; proposes profile/rubric edits as diffs.
+   `resume/answers.yaml` is the answer bank: `draft: true` entries await human review; answers
+   only ever contain master-resume facts. Every status change / contact / debrief lands in the
+   `events` table (written by `db.set_status`/`touch_contact`/`log_event`).
 
 `/jh-hunt` runs the whole loop end to end: discover, match, sync + star the top 5 shortlisted,
 research those 5, then tailor those 5.

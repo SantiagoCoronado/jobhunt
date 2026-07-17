@@ -12,6 +12,12 @@ Tailor my application for job id **$ARGUMENTS**.
    the most resonant, company-specific hook (if `stale: True`, still use it but avoid citing its
    time-sensitive facts, e.g. funding news, as current). If it does not exist, proceed without it
    and suggest running `/jh-research $ARGUMENTS` first for a sharper letter (non-blocking).
+2b. Emit the application answers: read `resume/answers.yaml` and write
+   `applications/pending/<company>-<id>/answers.md` from the entries with `draft: false`,
+   personalizing `{company}` placeholders from the dossier (the why-company TEMPLATE entry
+   becomes a real 3-sentence answer grounded in the dossier). Skip drafts and empty
+   answers; list them at the end under "needs your input" instead.
+
 3. Delegate to the **resume-tailor** subagent with that job, `resume/master_resume.yaml`,
    `config/profile.yaml`, and the company dossier if present. It writes the tailored resume, cover
    letter, and match report into `applications/pending/<company>-$ARGUMENTS/`, then renders the one-page
