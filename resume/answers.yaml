@@ -42,10 +42,13 @@ answers:
 
   - id: salary-expectations
     question: "What are your salary expectations?"
-    answer: ""   # HUMAN ONLY: never auto-filled; floor in profile.yaml is 65k USD base
-    draft: true
+    answer: >
+      80,000 to 100,000 MXN per month, net (after tax). For USD-denominated
+      offers, the equivalent range at the prevailing exchange rate. Open to
+      discussing structure (base/equity) for the right role.
+    draft: false   # provided by Santiago 2026-07-16; update only on his instruction
 
   - id: notice-period
     question: "When can you start? / What is your notice period?"
-    answer: ""   # TODO: fill in your real availability
-    draft: true
+    answer: "Two weeks' notice; available to start two weeks after signing."
+    draft: false   # provided by Santiago 2026-07-16
