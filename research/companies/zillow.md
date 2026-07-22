@@ -1,0 +1,92 @@
+# Zillow
+
+## 1. Snapshot
+Zillow Group is a public (Nasdaq: Z / ZG), Seattle-headquartered real estate marketplace founded in 2006 by Rich Barton and Lloyd Frink, the most-visited real estate platform in the U.S. (Wikipedia; Fortune). It runs Premier Agent advertising, Zillow Showcase, rentals, and a mortgage arm, employed about 7,068 people as of December 31, 2025 (Stockanalysis.com, citing Zillow's own filings), and reports steady revenue growth with full-year 2025 adjusted EBITDA of USD 622 million at a 24 percent margin (Zillow Group Q4/FY2025 earnings release, prnewswire.com). It has run a Mexico City engineering hub since 2023 (Milenio; Zillow careers site), which is where this Frontend SDE role and the earlier Senior Full Stack SDE role Santiago already applied to both sit.
+
+## 2. Core narrative
+Zillow is a mature, profitable public "housing super app" (Fortune) that is deliberately building out a second engineering center of gravity in Mexico City, led by Julio Saenz (who previously built Lyft's Mexico City office) as Senior Director of Engineering and Mexico Country Lead (TheOrg; Karat). The Mexico team is not a cost-center outpost: it works directly with U.S. tech teams on the same React/TypeScript/GraphQL web stack and Python/Java/Node/Go services that power Zillow's core products (Zillow Mexico careers page, via search snippet; job posting text). The pitch for this specific role is joining that hub at a moment Zillow is both financially stable (first full year of strong profitability per Techbrew/Fortune coverage) and pushing AI hard into the core product (computer-vision home tours, AI-assisted agent tools, Zestimate), not a scrappy startup bet.
+
+## 3. Mission & product
+- Real estate marketplace connecting buyers, sellers, renters, agents, and lenders; "reimagining how people move through the real estate market" (Fortune, July 2025; Wikipedia).
+- Revenue drivers: Premier Agent advertising (share-of-voice and pay-for-performance "Zillow Preferred" models), Zillow Showcase (premium listing product, reached 3.2 percent of new listings in Q3 2025), a growing rentals business, and Zillow Home Loans (WebSearch summary of Q3/Q4 2025 filings, stocktitan.net / inman.com).
+- February 2025: paid Redfin USD 100 million to become the exclusive multifamily (25+ unit) rental-listings provider on Redfin, Rent.com, and ApartmentGuide.com, expanding the Zillow Rentals Network; this triggered roughly 450 Redfin role cuts and drew a September 2025 FTC antitrust suit plus a coordinated multi-state lawsuit in October 2025 (GeekWire; PRNewswire/Zillow investor release; Wikipedia).
+- Also facing a June 2025 Compass antitrust suit over Zillow's 24-hour listing-exclusivity policy and a September 2025 class action alleging steering toward affiliated agents (Wikipedia).
+- Discontinued its climate-risk scoring feature in November 2025 after agent complaints about unsellable flagged listings (Wikipedia); worth knowing as an example of Zillow pulling back a feature under commercial pressure.
+
+## 4. Mexico City engineering presence (key fact)
+- Zillow opened its Mexico engineering center in 2023, explicitly to attract Mexican technical talent without requiring relocation; company messaging frames it as a cloud-based, distributed org where "all collaborators have the freedom to work where they are most productive: from home, from an office, or a combination of both" (Milenio, "Zillow abre centro en México para nuevos talentos").
+- Led by Julio Saenz, Senior Director of Engineering and Mexico Country Lead, who previously built and led Lyft's Mexico City site before joining Zillow; he has spoken publicly about site leadership needing to "expand the mindset of the company and local people" and about treating employee feedback as more than a survey exercise (TheOrg; Karat, "Hiring Engineers in Latin America: Insights From Etsy, PayPal, Pinterest, and Zillow"; Shorestories podcast title referencing him as "the man who started the Mexico City offices of Lyft and Zillow").
+- The Mexico team works directly with U.S. tech teams on the same stack: ES6, React, TypeScript, and GraphQL for web/mobile-web, and Python, Java, Node.js, and Go for APIs/services (job posting text for job 7769, matching the Zillow Mexico careers messaging).
+- No primary source found for exact Mexico City headcount; treat any specific number as unverified. Public roles span frontend, backend, mobile (Android/iOS), and mobile-engineer tracks (Career.com job listing titles; JoinTaro interview report).
+- Remote/hybrid expectations, per the job postings themselves: this Frontend role (job 12158) is listed as on-site in Ciudad de México (remote flag 0 in the tracker); the Senior Full Stack role already applied to (job 7769) is explicitly a "teleworker position," letting employees live anywhere in Mexico with periodic travel to Mexico City for optional office events. Current Zillow Mexico employees describe the arrangement on Glassdoor/JoinTaro as effectively "100 percent remote" in practice (JoinTaro interview report, employee quote). Confirm the specific arrangement for job 12158 directly with the recruiter since its own listing reads as more location-fixed than the Senior role's.
+- Employee-review signal (anecdotal, not verified): one former Senior Software Engineer III reported that "cultural equity doesn't feel consistent for teams in Mexico (less voice/visibility in decisions)" and cited micromanagement and shifting direction from some managers; a current employee separately called compensation and support "highly competitive" and positive (JoinTaro interview report). Treat as one data point, not a company-wide verdict.
+
+## 5. Culture & voice
+- Zillow was named a Fortune 100 Best Companies to Work For in 2025 and appeared on the PEOPLE Companies That Care 2025 list (job posting text, job 7769, sourced from Zillow's own copy).
+- Stated engineering values in Mexico job postings: creativity, collaboration, and innovation; encouraging teams to learn the business and share ideas; a stated commitment to a diverse, inclusive workplace (job posting text).
+- Co-founder Rich Barton has publicly discussed a "provocation marketing playbook," reflecting a brand voice comfortable with bold, contrarian public positioning (GeekWire, June 2025; RealEstateNews, June 2025).
+- Zillow runs a public engineering blog/publication, "Zillow Tech Hub" on Medium (topics: AI/ML & Research, Data & Analytics, Software Engineering, Culture) and a zillow.com/tech microsite; a notable historical post documents the HotPads team's migration to an isomorphic React/Flux stack (Zillow Tech Hub, medium.com/zillow-tech-hub; zillow.com/tech/migrating-hotpads-isomorphic-stack-react).
+
+## 6. Recent news (last ~12 months)
+- Feb 11, 2025: announced the USD 100 million Redfin rentals-licensing partnership (Zillow investor relations; PRNewswire).
+- Feb-Sep 2025: partnership triggers about 450 Redfin layoffs and a September 2025 FTC antitrust lawsuit against Zillow and Redfin; five states sued in October 2025 over the same deal (GeekWire; RealEstateNews; Wikipedia).
+- June 2025: Compass files an antitrust suit over Zillow's 24-hour-exclusivity listing rule (Wikipedia).
+- July 2025: Fortune profiles CEO Jeremy Wacksman on Zillow's AI-driven transformation of the buyer/seller/agent experience (Fortune, "How Zillow CEO Jeremy Wacksman is using AI...").
+- Aug 2025: Techbrew publishes a deep dive on Zillow's AI strategy, "from gaming-style graphics to real-estate agent tools" (Techbrew, Aug 7, 2025).
+- Sep 2025: class action filed alleging Zillow steers buyers to affiliated agents for a larger commission cut (Wikipedia).
+- Nov 2025: Zillow discontinues its climate-risk scoring feature after agent pushback (Wikipedia).
+- Jan 30, 2026: Zillow cuts about 200 roles (roughly 2 percent of headcount), described by the company as annual performance-based separations unrelated to market conditions, affecting Seattle HQ and satellite offices in Denver, New York, and California; no Mexico-office impact reported (GeekWire, via search summary; Interviewpal layoffs tracker).
+- Feb 2026: Zillow reports Q4/full-year 2025 results, full-year adjusted EBITDA of USD 622 million at a 24 percent margin, continued growth in Rentals (Q3 2025 segment revenue USD 676 million) and Showcase adoption (Zillow investor relations; PRNewswire; Stocktitan; Inman).
+
+Note: no layoff or restructuring news specific to the Mexico City office was found in any source; the January 2026 cuts are reported as U.S.-office only.
+
+## 7. Engineering & AI direction
+- Core web/mobile-web stack: ES6, React, TypeScript, GraphQL; backend/services in Python, Java, Node.js, and Go; a mix of relational and non-relational persistence (job posting text, job 7769, Zillow's own description of the stack).
+- AI bets described in press: computer-vision models generating 3D walkthroughs and AI-enabled virtual staging for listings, machine-learning-generated "super listings" from photos/panoramas, and AI tools aimed at real-estate agents, part of a stated "housing super app" strategy to touch every step of a transaction (Techbrew, Aug 2025; Fortune, July 2025).
+- The Zestimate (Zillow's original AI/ML product) reported a median error rate of 1.8 percent for on-market homes and 7.2 percent for off-market homes in 2025 (Techbrew/Fortune coverage, via search summary).
+- Public engineering blog ("Zillow Tech Hub" on Medium; zillow.com/tech) covers software engineering, AI/ML and research, data and analytics, and engineering culture, indicating an active, external-facing engineering communications practice (medium.com/zillow-tech-hub).
+
+## 8. Why-fit angles for Santiago
+Best hook to lead with: Santiago is a Mexico City-based, Mexican founder-engineer with direct, shipped React 18/TypeScript frontend experience (Eugenia.ai's full-stack React/Node app for 20+ buildings and 10,000+ users; Nextia's responsive React web apps for 50,000+ users; Plutus's 11-route, 45+ component React/TypeScript/Vite frontend with real-time WebSocket and SSE layers). That is close to a line-for-line match with the stated stack for this role (ES6, React, TypeScript, GraphQL) and with Zillow's own description of what its Mexico engineering team builds day to day.
+
+Supporting angles:
+- Being based in Mexico City removes any relocation, visa, or timezone question for a role explicitly targeting Mexico-based engineers working alongside U.S. teams.
+- Founder-level ownership (took Eugenia.ai from concept to acquisition, led on-site client deployments, owned full product lifecycle) speaks to the "lead delivery end to end," "advocate for standard methodologies," and "mentor junior engineers" language used in Zillow's own Mexico job postings.
+- Bilingual (native Spanish, fluent English) and TN-visa eligible, both explicit or implicit requirements/pluses in Zillow's Mexico postings.
+- Real testing discipline on recent work (Playwright E2E plus Vitest unit tests on the Hydrel and Kairos projects) is a direct answer to Zillow's stated emphasis on "testing and maintainability" and "raising the bar" engineering-wide, an area the Senior Full Stack cover letter and match report already flagged as a relative gap to shore up.
+
+Honest concerns / watch-outs:
+- Santiago already applied to Zillow's "Senior Full Stack Software Development Engineer, Mexico" (job 7769) on 2026-07-09 and has not heard back as of this writing (application status: applied, next follow-up scheduled 2026-07-20; see `applications/applied/zillow-7769/`). Applying to a second, more junior-scoped Frontend role at the same company in the same short window risks looking scattershot or diluting the stronger, senior-level application, especially since both roles plausibly route through the same Mexico engineering org and possibly the same recruiter. Recommendation: send the July 20/21 follow-up on job 7769 first and, if there is a genuine reason the Frontend-specific role fits better (e.g. it turns out to be a distinct team or a role Santiago is more certain to clear on seniority), mention interest in both openings in one message rather than filing two separate, seemingly uncoordinated applications.
+- This Frontend role's own listing (job 12158) reads as location-fixed to Ciudad de México (remote flag 0), a firmer in-market commitment than the Senior role's explicit "teleworker" language; confirm the real hybrid/on-site cadence before committing to specifics in a cover letter.
+- Zillow's core stack requirements (job 7769) list GraphQL and Go as explicit skills; Santiago's resume does not show hands-on GraphQL or Go experience, only REST APIs and Python/Node/TypeScript. Be ready to address this honestly as a fast-learn area, not a hidden gap.
+- Zillow is currently defending multiple active antitrust and class-action lawsuits (Compass suit, FTC/multi-state suit over the Redfin deal, agent-steering class action) and just cut 200 U.S. roles in January 2026; while none of this appears to touch the Mexico office, it is a real signal of legal and cost-discipline pressure worth being aware of, not a reason to avoid applying.
+
+## 9. Application-question angles
+- Why this company: lead with the direct stack overlap (React, TypeScript, real production frontend work at meaningful user scale) plus the specific, deliberate choice Zillow made to build a real engineering hub in Mexico City under a leader who has done it before (Julio Saenz, ex-Lyft Mexico). Frame it as choosing to build inside that hub, not a generic "I love real estate tech" pitch.
+- Why you fit: anchor on shipped React/TypeScript products end to end (Eugenia.ai, Nextia, Plutus) plus founder-level ownership of delivery, code quality, and mentorship, mirroring the "lead delivery end-to-end," "review peers' code," and "raise the bar on testing" language in Zillow's own Mexico postings. Be candid that GraphQL/Go are growth areas, not existing strengths.
+- Anything else: mention, briefly and without over-explaining, that this is a second Zillow application in the same window (the Senior Full Stack role, job 7769) so the recruiter has context rather than discovering it independently; frame it as genuine enthusiasm for the Mexico org specifically, not spray-and-pray.
+
+## Sources
+- Wikipedia, Zillow (founding, founders, HQ, tickers, business model, 2025-2026 legal developments): https://en.wikipedia.org/wiki/Zillow
+- Zillow Group Q4/Full-Year 2025 earnings release (headcount context, EBITDA, margin): https://www.prnewswire.com/news-releases/zillow-group-reports-fourth-quarter-and-full-year-2025-financial-results-302684089.html
+- Stockanalysis.com, Zillow Group (Z) employee count 2011-2025 (headcount: 7,068 at end of 2025): https://stockanalysis.com/stocks/z/employees/
+- Fortune, "How Zillow CEO Jeremy Wacksman is using AI to transform the real estate industry" (July 2, 2025; AI strategy, mission framing): https://fortune.com/2025/07/02/zillow-ceo-jeremy-wacksman-is-using-ai-to-transform-the-real-estate-industry-for-buyers-sellers-and-agents/
+- Techbrew, "Inside Zillow's AI strategy, from gaming-style graphics to real-estate agent tools" (Aug 7, 2025; computer vision, virtual staging, Zestimate error rates): https://www.techbrew.com/stories/2025/08/07/zillow-ai-strategy
+- Milenio, "Buscas trabajo: Zillow abre centro en México para nuevos talentos" (Mexico center opening year 2023, remote/hybrid framing, benefits): https://www.milenio.com/content/buscas-zillow-abre-centro-mexico-talentos
+- Zillow Mexico careers page (Mexico team mission, stack: ES6/React/TypeScript/GraphQL, Python/Java/Node/Go), referenced via search snippet: https://www.zillow.com/careers/zillow-mexico/
+- TheOrg, Julio Saenz profile (Senior Director of Engineering and Mexico Country Lead, prior Lyft Mexico site lead): https://theorg.com/org/zillow/org-chart/julio-saenz
+- Karat, "Hiring Engineers in Latin America: Insights From Etsy, PayPal, Pinterest, and Zillow" (Julio Saenz quotes on site leadership and employee engagement): https://karat.com/hiring-engineers-in-latin-america-insights-from-etsy-paypal-pinterest-zillow/
+- Shorestories podcast episode title, "The Man who started the Mexico City offices of Lyft and Zillow" (context on Saenz's dual Lyft/Zillow Mexico site-building role): https://www.shorestories.com/episodes/the-man-who-started-the-mexico-city-offices-of-lyft-and-zillow
+- JoinTaro, Zillow Mobile Engineer interview experience, Ciudad de Mexico, Jan 10 2025 (interview process notes, "100 percent remote" employee quote, mixed culture review): https://www.jointaro.com/interviews/companies/zillow/experiences/mobile-engineer-ciudad-de-mexico-january-10-2025-no-offer-negative-008fed3b/
+- Zillow Tech Hub, engineering blog on Medium (blog topics: software engineering, AI/ML, culture): https://medium.com/zillow-tech-hub
+- Zillow Tech Hub, "Migrating HotPads to an Isomorphic Stack with React" (historical React engineering post): https://www.zillow.com/tech/migrating-hotpads-isomorphic-stack-react/
+- Zillow Group investor relations, Redfin rentals partnership announcement (Feb 11, 2025; USD 100 million terms): https://investors.zillowgroup.com/news-and-events/news/news-details/2025/Zillow-and-Redfin-partner-to-make-apartment-hunting-easier-and-give-listings-more-exposure/default.aspx
+- GeekWire, "Could Zillow buy Redfin? New rentals partnership brings real estate rivals closer together" (2025; Redfin layoffs count, deal context): https://www.geekwire.com/2025/could-zillow-buy-redfin-new-rentals-partnership-brings-real-estate-rivals-closer-together/
+- GeekWire, "Zillow lets go of 200 employees in performance-related reductions..." (Jan 30, 2026 layoffs, U.S.-office scope), referenced via search summary: https://www.geekwire.com/2026/zillow-lets-go-of-200-employees-in-performance-related-reductions-at-real-estate-company/
+- Local job tracker record, job 12158, Frontend Software Development Engineer, Mexico (full JD text, remote flag, source Careerjet): `python -m src.query job 12158`
+- Local job tracker record, job 7769, Senior Full Stack Software Development Engineer, Mexico (full JD text, applied status, applied_at 2026-07-09, source The Muse): `python -m src.query job 7769`
+- Existing application artifacts for job 7769 (cover letter, match report, applied 2026-07-09, follow-up scheduled 2026-07-20): `applications/applied/zillow-7769/`
+
+researched: 2026-07-21
+
+This dossier is a draft for Santiago to review before use in any application.

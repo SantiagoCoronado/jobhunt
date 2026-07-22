@@ -18,6 +18,37 @@ def load_yaml(name: str) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def notify_setting(key: str, default):
+    """Read one key from config/notify.yaml; falls back to default if the file
+    is absent (it is gitignored, so fresh clones won't have it)."""
+    try:
+        return load_yaml("notify.yaml").get(key, default)
+    except FileNotFoundError:
+        return default
+
+
+def followup_days() -> int:
+    """Days after applying (or after a contact bump) that a follow-up comes due."""
+    raw = notify_setting("followup_days", 7)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"config/notify.yaml: followup_days must be an integer, got {raw!r}") from None
+
+
+def shortlist_threshold() -> int:
+    """The one shortlist cutoff (profile.yaml: shortlist_threshold, default 70).
+    match ingest and the notify digest both read THIS; nothing hardcodes 70."""
+    try:
+        raw = load_yaml("profile.yaml").get("shortlist_threshold", 70)
+    except FileNotFoundError:
+        return 70
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"config/profile.yaml: shortlist_threshold must be an integer, got {raw!r}") from None
+
+
 _ENV_CACHE: dict | None = None
 
 

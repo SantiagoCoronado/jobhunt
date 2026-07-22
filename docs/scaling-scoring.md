@@ -33,12 +33,11 @@ and `--chunk` for a fanned-out pass:
 ```
 python -m src.match export --min-bucket 3 --chunk 60 --limit 0   # strong bucket -> data/match/chunk_*.json
 # fan job-matcher (Sonnet) over each chunk -> data/match/scores_NNN.json
-python -m src.match ingest --dir data/match --threshold 70       # merge all scores, shortlist >=70
+python -m src.match ingest --dir data/match       # merge all scores; cutoff = profile.yaml shortlist_threshold
 ```
 
-The `job-matcher` rubric is unchanged except a candidate-specific location rule to pass in the
-scorer prompt: remote / any US (on-site or hybrid, TN-eligible) / Mexico City / LATAM = `location_ok`;
-only on-site-outside-US-and-outside-Mexico-City with no remote is a location dealbreaker.
+The `job-matcher` rubric applies the location rule from `config/profile.yaml`'s `location_rule`
+key, which is the single authority on location (this doc intentionally does not restate it).
 
 ## Reference numbers (2026-07-08 run)
 Discovered 8,157 unique → triage kept 5,015 (62%), dropped 3,053 off-field. Strong bucket = 1,038

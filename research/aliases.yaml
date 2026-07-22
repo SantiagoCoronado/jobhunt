@@ -1,0 +1,6 @@
+# Manual slug overrides for company dossiers: {alias-slug: canonical-slug}.
+# Applied AFTER automatic normalization (domain TLDs and inc/llc/ltd already
+# stripped). Add a line here when two spellings of one company still produce
+# different slugs, e.g.:
+#   grafanalabs: grafana-labs
+grafanalabs: grafana-labs

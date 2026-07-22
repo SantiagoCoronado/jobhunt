@@ -22,17 +22,29 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
 6. **Track** (`src/crm/viewer.py` local UI, or `/jh-notion-sync`), application status + follow-ups.
+7. **Learn** (the intelligence layer). `/jh-prep <id>`: interview prep brief from dossier +
+   past debriefs. `/jh-debrief <id>`: digest an interview transcript (dropped at
+   `interviews/<company>-<id>/<date>-<round>.md`, git-ignored, NEVER committed) into a debrief +
+   answer-bank drafts. `/jh-review`: monthly conversion/calibration report over `python -m
+   src.stats {funnel|calibration|latency|drops|comp}`; proposes profile/rubric edits as diffs.
+   `resume/answers.yaml` is the answer bank: `draft: true` entries await human review; answers
+   only ever contain master-resume facts. Every status change / contact / debrief lands in the
+   `events` table (written by `db.set_status`/`touch_contact`/`log_event`).
 
 `/jh-hunt` runs the whole loop end to end: discover, match, sync + star the top 5 shortlisted,
 research those 5, then tailor those 5.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
-rejected/declined/ghosted. `scripts/export_pdf.sh` searches these nested folders.
+rejected/ghosted/withdrawn. `scripts/export_pdf.sh` searches these nested folders.
+`python -m src.reconcile` keeps folders and DB statuses agreeing (folder names carry `-<id>`).
 
 ## Data model
 Everything lives in one SQLite table `jobs` (see `src/db.py`). `status` column IS the CRM
-pipeline: discovered → shortlisted → applied → screen → interview → offer/rejected/ghosted.
+pipeline: discovered → shortlisted → applied → screen → interview → offer, with terminal
+outcomes rejected/ghosted/withdrawn and a deliberate `backlog` hold. `db.STATUSES` is the single
+authority on this vocabulary; `declined` is NOT a status (it is Notion's phone-side label for
+`withdrawn`, mapped on sync).
 `irrelevant` is a terminal triage-drop (off-field / dealbreaker), excluded from match/export/triage.
 Triage keepers store their fit bucket in `match_verdict` until real scoring overwrites it.
 SQLite is canonical; Notion is a convenience mirror.
@@ -44,6 +56,9 @@ SQLite is canonical; Notion is a convenience mirror.
   unless the user explicitly enables it and accepts the risk.
 - Keep resumes ATS-clean: single column, standard headings, no tables/images, acronym+full form.
 - **Zero em-dashes** (Unicode U+2014) in ANY generated text (resumes, cover letters, notes, reports). Canonical rule. Use commas/colons/periods.
+- **Voice rules for all application text** (answers, cover letters, outreach): `docs/writing-voice.md`.
+  No "not X, it's Y" reversals, no kicker endings, no invented percentages, no intensifiers. Plain
+  engineer-in-a-form voice. Every tailor/answer agent must read that file first.
 
 ## Resume rendering
 Canonical renderer (docx, house design):
@@ -67,5 +82,16 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
 `/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups` `/jh-notion-sync`, see `.claude/commands/`.
 Helper queries: `python -m src.query {job <id>|crm|followups}`, `python -m src.research {path "<company>"|get <id>}`.
+Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
+(single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
+application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.
+Folder/DB drift check: `python -m src.reconcile [--apply]`. Tests: `.venv/bin/python -m pytest tests/`.
+DB maintenance (auto-runs after discover): `python -m src.maintain [--vacuum]`, expires postings
+that vanished from an actively-checked source, prunes irrelevant/expired descriptions.
+Cross-source dedup: query the `canonical_jobs` view (one deterministic row per role, ATS source
+preferred), never bare `GROUP BY canonical_key`.
+Notion pull (reverse sync, used by `/jh-notion-sync` phase 1): export Notion rows to
+`data/notion_pull.json`, then `python -m src.notion_pull data/notion_pull.json [--apply] [--create-missing]`
+(maps Notion `declined`/`Not Found` -> `withdrawn`, never downgrades, keeps `backlog` holds).
 Company dossiers (`research/companies/<slug>.md`) are committed, reusable, cited; obey the
 never-fabricate and zero-em-dash rules like any generated text.

@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 
@@ -27,11 +27,37 @@ def normalize_text(s: str | None) -> str:
 def strip_html(s: str | None) -> str:
     if not s:
         return ""
-    return _WS.sub(" ", _HTML_TAG.sub(" ", s)).strip()
+    import html
+    return _WS.sub(" ", html.unescape(_HTML_TAG.sub(" ", s))).strip()
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
+
+
+def iso_date(s) -> str | None:
+    """Best-effort normalization of a source's posted-at into ISO-8601 UTC.
+
+    Sources emit epoch seconds, ISO with/without Z, and RFC-2822 (RSS). One
+    TEXT column with mixed formats makes date sorting unreliable, so coerce
+    here. Unparseable values pass through unchanged: never destroy data.
+    """
+    if not s:
+        return None
+    s = str(s).strip()
+    if s.isdigit() and len(s) in (10, 13):  # epoch seconds / milliseconds
+        return datetime.fromtimestamp(int(s[:10]), tz=UTC).isoformat()
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            from email.utils import parsedate_to_datetime
+            dt = parsedate_to_datetime(s)
+        except (ValueError, TypeError):
+            return s
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC).isoformat()
 
 
 @dataclass
@@ -64,5 +90,6 @@ class Job:
         d["tags"] = ",".join(str(t) for t in self.tags)
         d.pop("raw", None)
         d["remote"] = int(self.remote)
+        d["posted_at"] = iso_date(self.posted_at)
         d["canonical_key"] = self.canonical_key
         return d

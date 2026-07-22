@@ -2,6 +2,8 @@
 # Leave apprise_urls empty to just print the digest to the terminal.
 
 min_score: 70
+# Days after applying that a follow-up comes due (auto-set when status flips to applied).
+followup_days: 7
 apprise_urls:
   # Telegram (create a bot via @BotFather, get your chat_id):
   # - "tgram://BOT_TOKEN/CHAT_ID"

@@ -10,9 +10,11 @@ Research the company for **$ARGUMENTS** and write a reusable dossier.
    - If **$ARGUMENTS** is a numeric job id, run `python -m src.query job $ARGUMENTS` with Bash to
      get the company name and the job description (extra grounding for what they value).
    - Otherwise treat **$ARGUMENTS** as a company name directly.
-   - Get the dossier path with `python -m src.research path "<company>"`. If it already exists and
-     still looks fresh, reuse or refresh it rather than starting over. (Use `--refresh` intent in
-     your request if I explicitly ask to rebuild stale news.)
+   - Get the dossier path with `python -m src.research path "<company>"` (for a job id,
+     `python -m src.research get <id>` also prints `exists`/`researched`/`stale`). If it exists
+     and `stale: False`, reuse it rather than starting over; if `stale: True`, refresh it in
+     place (keep the file, update facts and the `researched:` date line). Always end the dossier
+     with a `researched: YYYY-MM-DD` line; that line is what makes staleness deterministic.
 2. Delegate to the **company-researcher** subagent with the company name, the job description (if
    from a job id), `config/profile.yaml`, and `resume/master_resume.yaml`. It writes the dossier
    to `research/companies/<company-slug>.md` (all four areas: mission & product, culture & voice,

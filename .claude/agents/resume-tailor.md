@@ -26,9 +26,10 @@ the cover letter per STEP 4. If no dossier is provided, tailor exactly as before
 1. Extract the job's requirements into 3 tiers: must-have / high-priority / bonus.
 2. Gap report: for each top requirement mark Covered strongly / weakly / Not covered, citing
    the resume evidence. Flag anything the candidate genuinely lacks (don't paper over it).
-3. Produce `applications/pending/<company>-<id>/tailored_resume.yaml`, the master resume with bullets
+3. Produce `applications/pending/<company>-<id>/SantiagoCoronadoResume.yaml`, the master resume with bullets
    reordered/reworded for this job (RenderCV/JSON-Resume schema preserved so it still renders).
-4. Produce `applications/pending/<company>-<id>/cover_letter.md`, 220-280 words, grounded in real
+   The output file MUST be named `SantiagoCoronadoResume.yaml` (this drives the rendered .docx/.pdf names).
+4. Produce `applications/pending/<company>-<id>/CoverLetter.md`, 220-280 words, grounded in real
    achievements, specific hook (not "I am writing to express my interest"), the candidate's
    real name/contact. Tie each paragraph to a real JD requirement.
    - If a company dossier was provided, lead the hook with the ONE or TWO most resonant,
@@ -39,8 +40,9 @@ the cover letter per STEP 4. If no dossier is provided, tailor exactly as before
 5. Write `applications/pending/<company>-<id>/match_report.md`, the gap report + the ATS keywords you
    wove in + any honest gaps the candidate should be ready to address.
 6. Render the resume with Bash:
-   `python -m src.render_docx applications/pending/<company>-<id>/tailored_resume.yaml --pdf`
-   This produces a .docx in the canonical house design (Arial, navy #1F3864 accents,
+   `python -m src.render_docx applications/pending/<company>-<id>/SantiagoCoronadoResume.yaml --pdf`
+   This produces `SantiagoCoronadoResume.docx` (and `SantiagoCoronadoResume.pdf`) in the canonical
+   house design (Arial, navy #1F3864 accents,
    underlined CAPS section headers, compact one-page layout) plus a PDF when LibreOffice
    is available. `--fit auto` (the default) picks the loosest spacing level that fits ONE
    page and prints the estimated page fill.
@@ -62,6 +64,13 @@ the cover letter per STEP 4. If no dossier is provided, tailor exactly as before
    - NEVER pad with generic phrases to fill space; truthfulness and signal density win over
      geometry. If neither an honest cut nor an honest extension works, leave the block as is.
    Iterate render -> audit until the audit is clean or only justified exceptions remain.
+8. Render the cover letter with Bash:
+   `python -m src.render_cover_letter applications/pending/<company>-<id>/CoverLetter.md`
+   then convert both deliverables to PDF:
+   `scripts/export_pdf.sh applications/pending/<company>-<id>`
+   This yields `CoverLetter.docx`/`CoverLetter.pdf` and `SantiagoCoronadoResume.pdf` (LibreOffice,
+   headless). The final attachable set is `SantiagoCoronadoResume.{docx,pdf}` and
+   `CoverLetter.{docx,pdf}`. Never rename these outputs to anything else.
 
 ## FINAL TRUTHFULNESS PASS
 Re-read every bullet. Flag any that could read as exaggerated or fabricated and revise to a

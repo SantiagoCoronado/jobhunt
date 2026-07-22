@@ -39,9 +39,9 @@ def fetch(cfg: dict) -> list[Job]:
             if not results:
                 break
             for j in results:
-                locs = [(l or {}).get("name", "") for l in (j.get("locations") or [])]
-                loc = ", ".join(l for l in locs if l)
-                remote = any("remote" in l.lower() or "flexible" in l.lower() for l in locs)
+                locs = [(x or {}).get("name", "") for x in (j.get("locations") or [])]
+                loc = ", ".join(x for x in locs if x)
+                remote = any("remote" in x.lower() or "flexible" in x.lower() for x in locs)
                 jobs.append(Job(
                     source="themuse",
                     external_id=str(j.get("id")),
@@ -52,7 +52,7 @@ def fetch(cfg: dict) -> list[Job]:
                     remote=remote,
                     description=strip_html(j.get("contents", "")),
                     posted_at=j.get("publication_date"),
-                    tags=[(l or {}).get("name") for l in (j.get("levels") or []) if (l or {}).get("name")],
+                    tags=[name for x in (j.get("levels") or []) if (name := (x or {}).get("name"))],
                     raw={},
                 ))
     return jobs

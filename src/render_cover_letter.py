@@ -1,4 +1,4 @@
-"""Render a cover_letter.md into a clean, house-styled .docx.
+"""Render a CoverLetter.md into a clean, house-styled .docx.
 
 Matches the resume package look (Arial, navy #1F3864 accent) but with letter-appropriate
 margins and spacing. The first blank-line-separated block is treated as the letterhead
@@ -6,9 +6,10 @@ margins and spacing. The first blank-line-separated block is treated as the lett
 block is a body paragraph.
 
 Usage:
-    python -m src.render_cover_letter <cover_letter.md>
+    python -m src.render_cover_letter applications/pending/<slug>/CoverLetter.md
 
-Produces <cover_letter.docx> next to the source. Convert to PDF with scripts/export_pdf.sh.
+Produces a .docx next to the source with the same basename (the app convention is
+CoverLetter.md -> CoverLetter.docx). Convert to PDF with scripts/export_pdf.sh.
 """
 from __future__ import annotations
 
@@ -63,7 +64,7 @@ def render(md_path: Path) -> Path:
         print("WARNING: em-dash (U+2014) found in source; house rule forbids it.", file=sys.stderr)
 
     # Split into blank-line-separated blocks; join wrapped lines within a block.
-    blocks: list[str] = []
+    blocks: list[list[str]] = []
     for chunk in raw.replace("\r\n", "\n").split("\n\n"):
         lines = [ln.strip() for ln in chunk.split("\n") if ln.strip()]
         if lines:

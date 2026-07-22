@@ -27,6 +27,7 @@ from pathlib import Path
 
 import yaml
 from docx import Document
+from docx.document import Document as DocumentType
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -181,8 +182,12 @@ def _hyperlink(p, text, url, size, color=NAVY):
     for a in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
         fonts.set(qn(a), "Arial")
     rpr.append(fonts)
-    c = OxmlElement("w:color"); c.set(qn("w:val"), color); rpr.append(c)
-    sz = OxmlElement("w:sz"); sz.set(qn("w:val"), str(int(size * 2))); rpr.append(sz)
+    c = OxmlElement("w:color")
+    c.set(qn("w:val"), color)
+    rpr.append(c)
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), str(int(size * 2)))
+    rpr.append(sz)
     r.append(rpr)
     t = OxmlElement("w:t")
     t.set(qn("xml:space"), "preserve")
@@ -292,7 +297,7 @@ def _contact_items(cv):
 
 # ------------------------------------------------------------------ renderer
 
-def build(data: dict, level: int, lang: str = "en") -> Document:
+def build(data: dict, level: int, lang: str = "en") -> DocumentType:
     cv = data["cv"]
     sections = cv.get("sections", {})
     titles = SECTION_TITLES.get(lang, SECTION_TITLES["en"])
@@ -483,7 +488,7 @@ def estimate_height_pts(data: dict, level: int) -> float:
                      and "tn visa" in a.get("details", "").lower())]
     if edu or extra:
         header()
-        for e in edu:
+        for _ in edu:
             block(1, FS["body"][L], after=SP["body_after"][L])
         for a in extra:
             txt = f"{a['label']}: {a['details']}"
@@ -589,7 +594,7 @@ def main(argv=None):
     doc = build(data, level, lang)
 
     out = Path(args.output) if args.output else src.with_suffix(".docx")
-    doc.save(out)
+    doc.save(str(out))
     pct = est / PAGE_AVAIL_PTS * 100
     print(f"wrote {out}  (fit level {level}, est. height {est:.0f}/{PAGE_AVAIL_PTS:.0f}pt = {pct:.0f}% of page)")
     if pct > 102:

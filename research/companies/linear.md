@@ -1,0 +1,68 @@
+# Linear
+
+## 1. Snapshot
+Linear builds "the product development system for teams and agents": a fast, opinionated issue tracking, project management, and now AI-agent orchestration platform for software teams. Founded 2019, remote-first (no single HQ, optional co-working hubs in San Francisco, New York, London), roughly 80 to 99 people (TechCrunch reported ~80 at the June 2025 raise; Linear's own culture page describes a 99-person team across 15+ countries in 2026). Raised an $82M Series C in June 2025 at a $1.25B valuation (led by Accel; Sequoia, 01 Advisors, Seven Seven Six, Designer Fund, Index Ventures participating), $134.2M raised to date. Used by 30,000+ companies including OpenAI, Coinbase, Ramp, Cursor, and Scale AI. (Sources: job posting, TechCrunch, careers/remote-work page.)
+
+## 2. Core narrative
+Three ex-Airbnb, Coinbase, and Uber product people (Karri Saarinen, Tuomas Artman, Jori Lallo) got frustrated building software inside high-growth companies with clunky, bloated tools, so in 2019 they set out to build the tool they themselves wished existed: fast, elegant, and opinionated rather than a checklist of enterprise features (Sequoia Capital profile, Contrary Research). That founder-level product taste, obsessive craft, and refusal to follow SaaS growth playbooks (no A/B testing, no growth hacks, deliberately slow and profitable team growth) is Linear's defining story, and it is now colliding head-on with an equally opinionated bet: that AI agents become first-class teammates inside the product-development workflow, not a bolt-on chat feature (Linear "Building our way" post, Linear Agent changelog).
+
+## 3. Mission & product
+Linear's own framing: "designed for the AI era," a "new species of product tool" built for "workflows shared by humans and agents, from drafting PRDs to pushing PRs" (linear.app homepage). The product spans intake (turning feedback into issues), planning (roadmaps, initiatives, cycles), building (AI agents that write and review code), and monitoring (dashboards, analytics). Business model is B2B SaaS, tiered plans (with Agent/Skills on all plans, Automations and Code Intelligence gated to Business/Enterprise per the March 2026 Linear Agent changelog). Customers skew toward high-craft, high-velocity software teams and AI-native companies: OpenAI, Coinbase, Ramp, Cursor, Scale AI, Perplexity are named repeatedly across Linear's own materials and press (job posting; TechCrunch).
+
+## 4. Culture & voice
+Linear's public voice is literary and mission-driven rather than corporate. Its "Read Me" origin story talks about restoring "the magic of software" against three "dark forces" eroding it (noise, mediocre design, outdated methodology), framed as a "call to adventure" for engineers and designers as "protagonists" (linear.app/readme). Its hiring philosophy names four traits: craft, judgment, ownership, clarity, explicitly favoring "slope over credentials" (linear.app/now/how-we-hire-at-linear). Teams are deliberately small (2 to 4 people, assembled per project, disbanded when done), there are no OKRs ("one product team, one roadmap"), weekly written updates replace status meetings, and quality is enforced with a "zero-bugs policy with SLAs" and a running "Quality Wednesdays" practice that produced 1,000+ small fixes over two years (linear.app/now/designing-remote-work-at-linear). Hiring uses paid, 2 to 5 day work trials as the final stage for every role (same source; Linear blog, "Why and how we do work trials"). CEO Karri Saarinen has publicly framed company-building itself as "a kind of craft" and says Linear deliberately resisted standard startup playbooks (linear.app/now/building-our-way).
+
+## 5. Recent news (last ~12 months)
+- June 10, 2025: Series C, $82M at $1.25B valuation, led by Accel; reported 280% profit growth and 15,000+ customers at the time (TechCrunch).
+- March 24, 2026: "Introducing Linear Agent," public beta, an AI agent built into Linear that understands roadmap, issues, and (via Code Intelligence) the codebase; Agent and Skills bundled into all plans (Linear changelog, 2026-03-24).
+- Ongoing through spring 2026: Code Intelligence and MCP support added so Linear Agent can read and answer questions about a team's codebase and pull in outside context (Linear blog).
+- May 14, 2026: "Code Intelligence for Linear Agent" post; May 28, 2026: "Code review should be fast," launching Diffs (code review inside Linear); June 10 to 12, 2026: three-post run on code review and autonomous bug-fixing ("Reviewing code in the agent era," "Now Linear writes the code, too" introducing Coding Sessions, "Teaching an agent to auto-fix bugs") (Linear blog).
+- Reported adoption as of mid-2026: 25% of Linear workspaces use agents, 60%+ adoption among enterprise workspaces (Linear blog / changelog coverage). This adoption figure is Linear's own reported number as surfaced in coverage; treat the precise percentage as company-sourced rather than independently audited.
+- Customer case studies published in 2026 include Ramp (reported 60% of PRs written by agents), Cars24, Coinbase, and Cursor (Linear blog).
+- Unverified: 2025 ARR is widely reported in press/analyst roundups (getlatka, Aakash Gupta's newsletter, growth trackers) as approximately $100M, but this figure traces to third-party estimates, not a Linear-published number. Treat as directional, not confirmed.
+
+## 6. Engineering & AI direction
+From the actual job posting for this role (Senior / Staff Product Engineer, AI) and Linear's engineering content:
+- Stack: React, MobX, styled-components on the frontend; Node, PostgreSQL, Temporal, and Redis on the backend; a proprietary websocket-based real-time sync engine built for speed and offline support; an extensive GraphQL API and SDK; hosted on Google Cloud with Kubernetes; GitHub, Slack, and Notion for internal tooling (job posting via Ashby, ID b4a7764e-c680-4bdf-9956-dc78f2ca94d5).
+- Agent infrastructure specifically: an "agentic workload system utilizing Temporal, operating at production scale" powers Linear's own AI agents (same job posting).
+- Public engineering narrative centers on the sync engine (cofounder Tuomas Artman's 2023 offsite talk, "Scaling the Linear sync engine") and, since 2026, on agent-native product development: agents as first-class workspace members that can be assigned issues, mentioned in comments, and now write and review code directly (Linear Agent changelog, Coding Sessions and Diffs blog posts).
+- AI bet, in Linear's own words from this job posting: "building intelligence into the core of Linear, enabling the product to orchestrate coding, proactively move work forward, and power-up every software team," transforming foundation models into "structured, reliable workflows embedded deeply in the core of Linear" while staying "fast, intuitive, and opinionated."
+
+## 7. Why-fit angles for Santiago
+Best hook to lead with: Santiago is a 3x technical founder who has repeatedly built the full-stack, production system himself (from database schema to UI to shipping), which mirrors exactly what this posting asks for ("high ownership mentality: self-directed, full-lifecycle builder who takes a feature from idea to shipped," "comfortable working without heavy PM overhead"). That is a rarer match than generic "AI engineer" applicants bring.
+
+Supporting hooks:
+- Full-stack applied AI shipped to production, not research: Santiago's Pragma AI RAG "company brain," LLM workflow automation at Online Basics, and the Plutus/Kairos side projects (FastAPI, React/TypeScript, MCP server, Claude Agent SDK) are concrete answers to the posting's ask for engineers "who have shipped applied AI systems to production."
+- Agent-native fluency: Santiago uses Claude Code daily and has built an MCP server and a Claude Agent SDK integration (Kairos), directly relevant to a team whose core 2026 bet is agents as first-class product citizens with MCP support.
+- Founder-level product taste and small-team craft: Linear's culture (small teams, no PM overhead, "slope over credentials," zero-bugs bar) rewards someone who has owned full product lifecycles at Eugenia.ai and Online Basics rather than someone used to large-org process.
+- Remote-first fit: Linear is explicitly remote-first with team members across many countries; Santiago is Mexico City-based, fully remote, and the role's posted location is "North America," so no relocation is needed, though Mexico's timezone (GMT-6) overlaps most of the stated North America range.
+
+Honest concerns / watch-outs:
+- Craft and design bar: Linear's hiring philosophy and product culture (Quality Wednesdays, zero-bugs SLA, "taste" repeatedly cited by press) set an unusually high UI/UX polish bar. Santiago's shipped work is real and full-stack but has not been benchmarked against a company this design-obsessive; this is worth acknowledging rather than overselling.
+- Competitive pool: Linear is a marquee, widely admired employer (30,000+ customers including OpenAI and Coinbase, a widely-read "product taste" press narrative) drawing a large volume of strong applicants; standing out will require a tight, specific portfolio story, not breadth.
+- Team size and scope: at roughly 80 to 99 people total, engineering headcount is small; the role expects true full-stack ownership (frontend, backend, prompt/model behavior, infra) with minimal ramp support, which raises the bar for immediate productivity versus a larger, more structured engineering org.
+- Work-authorization note: posting is open to candidates "based in North America," worded as a location requirement rather than a citizenship one; Santiago's TN-visa eligibility and Mexico City base fit the geography as stated, but this is worth a direct, early confirmation in the process rather than an assumption.
+
+## 8. Application-question angles
+- Why this company: lead with the founder-to-founder resonance, not a generic "I love Linear's UI" line. Linear's founders left Airbnb, Coinbase, and Uber because the tools available did not match the bar they wanted to build at, and built the tool they wished existed. Santiago has done the same thing three times over (Eugenia.ai, Online Basics, Pragma AI): identified a broken workflow and built the full-stack system himself rather than accepting an off-the-shelf answer. Tie that instinct directly to why Linear's current bet, agents as first-class teammates inside the product system, is the kind of "opinionated rebuild" he wants to be part of.
+- Why you fit: anchor on full-lifecycle ownership and shipped agentic systems, matching the posting's explicit language ("self-directed, full-lifecycle builder," "shipped applied AI systems to production"). Use one or two concrete, specific proof points (the RAG company brain at Pragma AI, the Claude Agent SDK plus MCP server in Kairos) rather than a skills list. Keep it to the single strongest example, not a tour of the whole resume.
+- Anything else: use this space narrowly, either to name the craft/design-bar watch-out honestly and turn it into a question (what does "done" look like on this team, how is design collaboration structured for an AI-focused engineer) or to note remote-first, Mexico City, TN-eligible logistics briefly and move on. Do not use this space to repeat points already made under why-fit.
+
+## 9. Sources
+- https://linear.app/ , homepage: product positioning ("designed for the AI era," "new species of product tool"), customer count (33,000+), named customers.
+- https://jobs.ashbyhq.com/linear/b4a7764e-c680-4bdf-9956-dc78f2ca94d5 (full posting text retrieved via Ashby job-board API, api.ashbyhq.com/posting-api/job-board/linear): full role description, responsibilities, requirements, tech stack, benefits, location/remote policy, founding year, customer names, published date (2025-07-10, republished/current as of this research).
+- https://techcrunch.com/2025/06/10/atlassian-rival-linear-raises-82m-at-1-25b-valuation/ : Series C amount, valuation, investors, date, ~80 employees, profit growth, customer count.
+- https://linear.app/now/building-our-way : founder philosophy on craft, resisting growth-hacking playbooks, AI direction ("Linear for Agents" and "Linear AI").
+- https://linear.app/careers : stated values (11 principles), remote policy statement, hiring philosophy summary.
+- https://linear.app/now/how-we-hire-at-linear : four hiring traits (craft, judgment, ownership, clarity), "slope over credentials," hiring process stages, paid work trials.
+- https://linear.app/now/designing-remote-work-at-linear : remote culture specifics, team size (99 people, 15+ countries), small project teams, no-OKR structure, zero-bugs policy, Quality Wednesdays.
+- https://linear.app/readme : mission/origin story, tone and voice.
+- https://linear.app/blog : recent engineering/product post titles and dates (Coding Sessions, Diffs, Code Intelligence, auto-fix agents, customer stories).
+- https://linear.app/changelog/2026-03-24-introducing-linear-agent : Linear Agent public beta launch, plan availability, date.
+- https://sequoiacap.com/article/linear-spotlight/ and Contrary Research company report (research.contrary.com/company/linear): founding story, founders' Airbnb/Coinbase/Uber background.
+- Third-party, labeled unverified: 2025 ARR estimate (~$100M) reported by getlatka.com, growthhunt.ai, and Aakash Gupta's newsletter (news.aakashg.com); these are analyst/press estimates, not a Linear-published figure, and are flagged as such in section 5.
+
+researched: 2026-07-13
+
+---
+This dossier is a first draft compiled from public sources for Santiago to review, verify, and adjust before use in an application.

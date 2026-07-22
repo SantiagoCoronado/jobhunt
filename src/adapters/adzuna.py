@@ -4,7 +4,7 @@ Docs: https://developer.adzuna.com  (keys go in .env, see .env.example)
 """
 from __future__ import annotations
 
-from . import get_json
+from . import get_json, int_or_none, paginate, remote_from_text, require_id
 from ..config import get_secret
 from ..models import Job, strip_html
 
@@ -26,7 +26,7 @@ def fetch(cfg: dict) -> list[Job]:
 
     jobs: list[Job] = []
     for what in queries:
-        for page in range(1, pages + 1):
+        def fetch_page(page: int, what=what):
             url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/{page}"
             params = {
                 "app_id": app_id,
@@ -38,30 +38,28 @@ def fetch(cfg: dict) -> list[Job]:
                 params["what"] = what
             if where:
                 params["where"] = where
+            return get_json(url, params=params).get("results", [])
+
+        for j in paginate(fetch_page, pages, label=f"adzuna '{what}'"):
+            loc = (j.get("location") or {}).get("display_name", "")
             try:
-                data = get_json(url, params=params)
-            except Exception as e:  # noqa: BLE001, skip a bad page, keep the rest
-                print(f"    · adzuna '{what}' p{page} failed: {e}")
-                break
-            results = data.get("results", [])
-            if not results:
-                break
-            for j in results:
-                loc = (j.get("location") or {}).get("display_name", "")
-                jobs.append(Job(
-                    source="adzuna",
-                    external_id=str(j.get("id")),
-                    url=j.get("redirect_url", ""),
-                    company=(j.get("company") or {}).get("display_name", ""),
-                    title=j.get("title", ""),
-                    location=loc,
-                    remote="remote" in (j.get("title", "") + " " + loc).lower(),
-                    description=strip_html(j.get("description", "")),
-                    salary_min=int(j["salary_min"]) if j.get("salary_min") else None,
-                    salary_max=int(j["salary_max"]) if j.get("salary_max") else None,
-                    currency=_CCY.get(country),
-                    posted_at=j.get("created"),
-                    tags=[t for t in [(j.get("category") or {}).get("label")] if t],
-                    raw={},
-                ))
+                ext_id = require_id(j, "id", "redirect_url")
+            except KeyError:
+                continue  # a row with no identity can't be upserted safely
+            jobs.append(Job(
+                source="adzuna",
+                external_id=ext_id,
+                url=j.get("redirect_url", ""),
+                company=(j.get("company") or {}).get("display_name", ""),
+                title=j.get("title", ""),
+                location=loc,
+                remote=remote_from_text(j.get("title"), loc),
+                description=strip_html(j.get("description", "")),
+                salary_min=int_or_none(j.get("salary_min")),
+                salary_max=int_or_none(j.get("salary_max")),
+                currency=_CCY.get(country),
+                posted_at=j.get("created"),
+                tags=[t for t in [(j.get("category") or {}).get("label")] if t],
+                raw={},
+            ))
     return jobs

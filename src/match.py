@@ -16,7 +16,7 @@ import json
 
 from pathlib import Path
 
-from .config import load_yaml, ROOT
+from .config import load_yaml, shortlist_threshold, ROOT
 from .db import connect
 from .models import normalize_text, now_iso
 
@@ -58,13 +58,10 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None) 
     """
     skills = _profile_skills()
     conn = connect()
-    # cross-source dedupe: one row per canonical_key
+    # cross-source dedupe: the deterministic representative per canonical_key
+    # (ATS source preferred, then lowest id; see db.canonical_jobs)
     rows = conn.execute(
-        """
-        SELECT * FROM jobs
-        WHERE match_score IS NULL AND status='discovered'
-        GROUP BY canonical_key
-        """
+        "SELECT * FROM canonical_jobs WHERE match_score IS NULL AND status='discovered'"
     ).fetchall()
 
     items = []
@@ -108,7 +105,8 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None) 
     print("Now run /jh-match in Claude Code to score them.")
 
 
-def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
+def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
+    shortlist = threshold if threshold is not None else shortlist_threshold()
     if scores_dir:
         files = sorted(Path(scores_dir).glob("scores_*.json"))
         if not files:
@@ -125,20 +123,33 @@ def ingest(shortlist_threshold: int, scores_dir: str | None = None) -> None:
         data = json.loads(SCORES.read_text())
     conn = connect()
     now = now_iso()
-    n = short = 0
+    n = short = missing = 0
     for s in data:
         score = int(s.get("score", 0))
         verdict = json.dumps({k: s[k] for k in s if k not in ("id",)})
-        new_status = "shortlisted" if score >= shortlist_threshold else "discovered"
-        conn.execute(
-            "UPDATE jobs SET match_score=?, match_verdict=?, status=CASE WHEN status='discovered' THEN ? ELSE status END WHERE id=?",
-            (score, verdict, new_status, s["id"]),
+        new_status = "shortlisted" if score >= shortlist else "discovered"
+        # The score was judged on the canonical representative; propagate it to
+        # every still-unscored duplicate of the same role so dupes never
+        # re-enter the export queue as fresh work.
+        cur = conn.execute(
+            "UPDATE jobs SET match_score=?, match_verdict=?, "
+            "status=CASE WHEN status='discovered' THEN ? ELSE status END "
+            "WHERE (id=? OR (match_score IS NULL AND status='discovered')) "
+            "AND canonical_key=(SELECT canonical_key FROM jobs WHERE id=?)",
+            (score, verdict, new_status, s["id"], s["id"]),
         )
+        if cur.rowcount == 0:
+            # Unknown id (deleted row, or the scorer hallucinated one): a silent
+            # no-op here would report success while writing nothing.
+            missing += 1
+            print(f"  ! skip score for unknown job id {s.get('id')!r}")
+            continue
         n += 1
-        if score >= shortlist_threshold:
+        if score >= shortlist:
             short += 1
     conn.commit()
-    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist_threshold}). Updated {now}.")
+    tail = f"; {missing} skipped (unknown id)" if missing else ""
+    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist}){tail}. Updated {now}.")
 
 
 if __name__ == "__main__":
@@ -149,7 +160,8 @@ if __name__ == "__main__":
     e.add_argument("--min-bucket", type=int, default=None, dest="min_bucket")
     e.add_argument("--chunk", type=int, default=None)
     i = sub.add_parser("ingest")
-    i.add_argument("--threshold", type=int, default=70)
+    i.add_argument("--threshold", type=int, default=None,
+                   help="override profile.yaml shortlist_threshold (default 70)")
     i.add_argument("--dir", default=None, dest="scores_dir")  # merge data/match/scores_*.json
     args = ap.parse_args()
     if args.cmd == "export":
