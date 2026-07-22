@@ -56,6 +56,9 @@ SQLite is canonical; Notion is a convenience mirror.
   unless the user explicitly enables it and accepts the risk.
 - Keep resumes ATS-clean: single column, standard headings, no tables/images, acronym+full form.
 - **Zero em-dashes** (Unicode U+2014) in ANY generated text (resumes, cover letters, notes, reports). Canonical rule. Use commas/colons/periods.
+- **Voice rules for all application text** (answers, cover letters, outreach): `docs/writing-voice.md`.
+  No "not X, it's Y" reversals, no kicker endings, no invented percentages, no intensifiers. Plain
+  engineer-in-a-form voice. Every tailor/answer agent must read that file first.
 
 ## Resume rendering
 Canonical renderer (docx, house design):

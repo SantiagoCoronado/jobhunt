@@ -52,3 +52,57 @@ answers:
     question: "When can you start? / What is your notice period?"
     answer: "Two weeks' notice; available to start two weeks after signing."
     draft: false   # provided by Santiago 2026-07-16
+
+  - id: founder-to-ic
+    question: "You've been a founder/CEO. How do you feel about not being the driver?"
+    answer: >
+      I thought hard about founding again, and what I kept coming back to is that the
+      moments I've been happiest and most productive are when I'm building, not
+      directing. Running the company eats your day and follows you home. I want to let
+      go of the reins, give my opinion when it genuinely adds something, and stay on
+      the building side with a team. I know exactly what a small company demands
+      because I've lived it from the other seat.
+    draft: true   # proposed from the 2026-07-20 EasyAudit screen; this landed well live
+
+  - id: ai-workflow
+    question: "How do you work with AI coding tools? / How do you scale yourself with AI?"
+    answer: >
+      I define what I want first, then have Claude produce a detailed spec we iterate
+      on together. Big work becomes epics and stories; every story is its own PR. I
+      review each PR myself AND have a second, independent session review it, which
+      catches a real issue roughly 40% of the time. I require tests with every story
+      (Vitest; Playwright when there's meaningful UI), and after merge I do manual QA
+      on the actual functionality. The volume of generated code means line-by-line
+      reading doesn't scale; strong tests, independent review, and real QA are what
+      keep me in command of the codebase.
+    draft: true   # proposed from the 2026-07-20 EasyAudit screen; strongest answer of the call
+
+  - id: unfamiliar-codebase
+    question: "You're dropped into an unfamiliar codebase, no docs, authors gone. What's your process?"
+    answer: >
+      Start with the tests: they're the only documentation that can't lie, and they
+      show me the intended behavior and the entry points. Map the architecture (how
+      requests or events flow in, where state lives, what talks to what), using Claude
+      to accelerate the mapping and produce a CLAUDE.md I then verify by reading the
+      key paths myself. Before changing anything, I put characterization tests around
+      the area I'm touching so the current behavior is pinned. Then the first change is
+      small and reversible, and each change leaves the area better documented and
+      better tested than I found it.
+    draft: true   # proposed after a thin live answer on 2026-07-20; rehearse this version
+
+  - id: integration-sync-design
+    question: "How would you design a one-way sync from a third-party system (HR platform, marketplace, etc.)?"
+    answer: >
+      I've built this shape twice: marketplace inventory/pricing sync at Online Basics
+      (Amazon, Mercado Libre) and multi-source comms sync in Kairos. My checklist:
+      full initial import, then incremental sync driven by updated-at cursors or
+      webhooks with a polling fallback; idempotent upserts keyed on the provider's
+      stable external ID so retries and replays are safe; respect pagination and rate
+      limits with exponential backoff, a capped retry count, and an alert instead of an
+      infinite loop; validate every payload against an expected schema and alert on
+      drift rather than silently coercing (marketplace APIs taught me endpoints
+      disagree with each other, so verify writes by reading them back); handle deletes
+      and re-hires explicitly; and run a periodic reconciliation sweep comparing
+      content hashes so the system self-heals from missed events. Surface sync health
+      in the UI so a broken connection is visible in minutes, not weeks.
+    draft: true   # proposed after the weakest answer of the 2026-07-20 screen; this is the role's core problem
