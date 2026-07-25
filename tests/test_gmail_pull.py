@@ -1,0 +1,138 @@
+"""Phase 2 of docs/spec-email-report-upskill.md: the Gmail signal applier."""
+import json
+
+import pytest
+
+from src.db import connect
+from src.gmail_pull import apply_changes, plan
+
+EV = {"from": "recruiter@acme.com", "subject": "Interview invitation",
+      "date": "2026-07-20", "message_id": "<m1@acme>"}
+
+
+@pytest.fixture
+def conn(tmp_path, monkeypatch):
+    # sync_folder walks the real applications/ tree; keep the test hermetic
+    monkeypatch.setattr("src.gmail_pull.sync_folder", lambda *a, **k: None)
+    return connect(tmp_path / "jobs.db")
+
+
+def _insert(conn, jid, status="applied", company="Acme"):
+    conn.execute(
+        "INSERT INTO jobs (id, source, external_id, canonical_key, company, title, "
+        "status, applied_at) VALUES (?,?,?,?,?,?,?, '2026-07-01')",
+        (jid, "test", f"x{jid}", f"k{jid}", company, "Engineer", status))
+
+
+def _prop(jid, signal="interview_invite", status="screen", ev=EV, contact=None):
+    return {"job_id": jid, "signal": signal, "proposed_status": status,
+            "contact_date": contact, "evidence": ev}
+
+
+def test_forward_move_applied_with_note_and_event(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1)])
+    assert [(c["id"], c["from_status"], c["to_status"]) for c in p["changes"]] == \
+        [(1, "applied", "screen")]
+    apply_changes(conn, p)
+    row = conn.execute("SELECT status, notes, last_contact_at FROM jobs WHERE id=1").fetchone()
+    assert row["status"] == "screen"
+    assert "Interview invitation" in row["notes"]
+    assert row["last_contact_at"] == "2026-07-20"
+    ev = conn.execute("SELECT payload FROM events WHERE job_id=1 AND kind='email_signal'").fetchone()
+    payload = json.loads(ev["payload"])
+    assert payload["message_id"] == "<m1@acme>"
+    assert "body" not in payload
+
+
+def test_non_forward_proposal_degrades_to_touch(conn):
+    _insert(conn, 1, "interview")
+    p = plan(conn, [_prop(1, status="screen")])   # would downgrade
+    assert not p["changes"]
+    assert p["touches"][0]["id"] == 1
+    apply_changes(conn, p)
+    row = conn.execute("SELECT status, last_contact_at FROM jobs WHERE id=1").fetchone()
+    assert row["status"] == "interview"           # untouched
+    assert row["last_contact_at"] == "2026-07-20"
+
+
+def test_out_of_scope_statuses_skipped(conn):
+    for jid, status in ((1, "backlog"), (2, "rejected"), (3, "shortlisted")):
+        _insert(conn, jid, status)
+    p = plan(conn, [_prop(1), _prop(2), _prop(3)])
+    assert not p["changes"] and not p["touches"] and len(p["skipped"]) == 3
+    assert any("backlog hold" in s for s in p["skipped"])
+
+
+def test_unknown_job_skipped(conn):
+    p = plan(conn, [_prop(99)])
+    assert p["skipped"] == ["#99: no such job"]
+
+
+def test_contact_only_touch(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1, signal="reply", status=None, contact="2026-07-21")])
+    apply_changes(conn, p)
+    row = conn.execute("SELECT status, last_contact_at FROM jobs WHERE id=1").fetchone()
+    assert row["status"] == "applied" and row["last_contact_at"] == "2026-07-21"
+    kinds = {r["kind"] for r in conn.execute("SELECT kind FROM events WHERE job_id=1")}
+    assert kinds == {"contact", "email_signal"}
+
+
+def test_terminal_proposals_need_full_evidence(conn):
+    _insert(conn, 1, "applied")
+    _insert(conn, 2, "screen")
+    thin = {"date": "2026-07-20"}   # no subject, no sender
+    p = plan(conn, [_prop(1, signal="rejection", status="rejected", ev=thin),
+                    _prop(2, signal="offer", status="offer", ev=thin)])
+    assert not p["changes"] and len(p["skipped"]) == 2
+    assert all("needs evidence" in s for s in p["skipped"])
+
+
+def test_rejected_allowed_from_any_open_stage(conn):
+    _insert(conn, 1, "interview")
+    p = plan(conn, [_prop(1, signal="rejection", status="rejected")])
+    assert p["changes"][0]["to_status"] == "rejected"
+
+
+def test_never_email_proposable_statuses_rejected(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1, status="ghosted"), _prop(1, status="withdrawn")])
+    assert not p["changes"]
+    assert all("never email-proposable" in s for s in p["skipped"])
+
+
+def test_duplicates_collapse_to_most_advanced(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1, status="screen"), _prop(1, status="interview")])
+    assert [(c["id"], c["to_status"]) for c in p["changes"]] == [(1, "interview")]
+
+
+def test_rejection_conflicting_with_advance_goes_ambiguous(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1, status="interview"),
+                    _prop(1, signal="rejection", status="rejected")])
+    assert not p["changes"] and len(p["ambiguous"]) == 2
+
+
+def test_ambiguous_signal_never_applied(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1, signal="ambiguous", status=None)])
+    assert p["ambiguous"] and not p["changes"] and not p["touches"]
+    apply_changes(conn, p)
+    assert conn.execute("SELECT status FROM jobs WHERE id=1").fetchone()["status"] == "applied"
+
+
+def test_dry_run_plan_writes_nothing(conn):
+    _insert(conn, 1, "applied")
+    plan(conn, [_prop(1)])
+    row = conn.execute("SELECT status, last_contact_at FROM jobs WHERE id=1").fetchone()
+    assert row["status"] == "applied" and row["last_contact_at"] is None
+    assert not conn.execute("SELECT 1 FROM events").fetchone()
+
+
+def test_touch_not_doubled_when_status_change_wins(conn):
+    _insert(conn, 1, "applied")
+    p = plan(conn, [_prop(1, status="screen"),
+                    _prop(1, signal="reply", status=None, contact="2026-07-19")])
+    assert len(p["changes"]) == 1 and not p["touches"]
