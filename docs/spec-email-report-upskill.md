@@ -7,7 +7,12 @@ and all generated text obeys the zero em-dash and writing-voice rules.
 
 Status: Phase 1 SHIPPED 2026-07-24 (`src/report.py`, stats compute/print split,
 `/jh-report`, `tests/test_report.py`; verified on the real DB and rendered in a browser).
-Phases 2-4 pending.
+Phase 2 SHIPPED 2026-07-24 (`src/gmail_pull.py`, `/jh-gmail-sync`, `/jh-followups`
+refactor, `/jh-hunt` inbox-pull + report steps, CLAUDE.md Track paragraph,
+`tests/test_gmail_pull.py`). One deviation from 2c/2d as written: a rejection
+conflicting with a forward move goes to the ambiguous pile rather than "keep the most
+advanced" (email order is not reliable enough to auto-pick a winner).
+Phases 3-4 pending.
 
 ---
 

@@ -22,6 +22,11 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
 6. **Track** (`src/crm/viewer.py` local UI, or `/jh-notion-sync`), application status + follow-ups.
+   `/jh-gmail-sync` reads Gmail (STRICTLY read-only on the mailbox) for signals on open
+   applications: the skill classifies and writes `data/gmail_pull.json`, then
+   `python -m src.gmail_pull` validates and applies after human approval (forward-only moves,
+   never ghosted/withdrawn/offer decisions, evidence headers only, bodies never enter the DB).
+   `/jh-report` (`python -m src.report`) renders `data/report.html`, the offline dashboard.
 7. **Learn** (the intelligence layer). `/jh-prep <id>`: interview prep brief from dossier +
    past debriefs. `/jh-debrief <id>`: digest an interview transcript (dropped at
    `interviews/<company>-<id>/<date>-<round>.md`, git-ignored, NEVER committed) into a debrief +
@@ -80,7 +85,8 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 
 ## Commands
 All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
-`/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups` `/jh-notion-sync`, see `.claude/commands/`.
+`/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups` `/jh-notion-sync`
+`/jh-gmail-sync` `/jh-report`, see `.claude/commands/`.
 Helper queries: `python -m src.query {job <id>|crm|followups}`, `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
