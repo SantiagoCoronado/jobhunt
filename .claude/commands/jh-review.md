@@ -12,6 +12,8 @@ Numbers come from deterministic SQL, never estimate them yourself.
    - `python -m src.stats latency`       (applied -> first response, from the event log)
    - `python -m src.stats drops --sample 15`  (triage false-drop audit)
    - `python -m src.stats comp --min-score 70` (salary landscape of good matches)
+   - `python -m src.report`  (regenerates `data/report.html`, the visual companion to
+     these numbers; mention its path in the report)
 
 2. **Audit the drop sample**: read each sampled drop's company+title+reason. Any that a
    human would clearly have kept is a false drop; name it and say which rubric line

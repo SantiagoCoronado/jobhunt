@@ -73,11 +73,9 @@ def _outcome(status: str) -> str:
     return "waiting"            # applied, no signal yet
 
 
-def funnel(conn: sqlite3.Connection) -> None:
+def funnel_data(conn: sqlite3.Connection) -> dict:
+    """Everything funnel() prints, as data. Also consumed by src/report.py."""
     apps = _applications(conn)
-    if not apps:
-        print("No applications yet.")
-        return
     total = len(apps)
     by_stage = {"screen": 0, "interview": 0, "offer": 0, "rejected": 0,
                 "ghosted": 0, "withdrawn": 0, "waiting": 0, "other": 0}
@@ -92,52 +90,70 @@ def funnel(conn: sqlite3.Connection) -> None:
             # breakdown always sums to the reported total.
             by_stage["other"] += 1
     responded = sum(1 for r in apps if _outcome(r["status"]) == "responded")
-    print(f"Applications: {total}")
-    print(f"  responded (screen+ or rejected): {responded}  ({100 * responded // total}%)")
-    for k, v in by_stage.items():
-        if v:
-            print(f"  {k:10s} {v}")
 
+    segments: dict[str, list[tuple[str, int, int]]] = {}
     for label, keyfn in (("score band", lambda r: _band(r["match_score"])),
                          ("title family", lambda r: title_family(r["title"])),
                          ("source", lambda r: r["source"])):
         seg: dict[str, list] = {}
         for r in apps:
             seg.setdefault(keyfn(r), []).append(_outcome(r["status"]))
-        print(f"\nBy {label}:")
-        for k in sorted(seg):
-            outs = seg[k]
-            resp = sum(1 for o in outs if o == "responded")
-            print(f"  {k:12s} applied={len(outs):3d}  responded={resp}  ({100 * resp // len(outs)}%)")
+        segments[label] = [
+            (k, len(seg[k]), sum(1 for o in seg[k] if o == "responded"))
+            for k in sorted(seg)
+        ]
+    return {"total": total, "responded": responded,
+            "by_stage": by_stage, "segments": segments}
 
 
-def calibration(conn: sqlite3.Connection) -> None:
-    apps = _applications(conn)
-    if not apps:
+def funnel(conn: sqlite3.Connection) -> None:
+    d = funnel_data(conn)
+    if not d["total"]:
         print("No applications yet.")
         return
-    print("Score band vs outcome (does a 90 convert better than a 75?):")
+    total = d["total"]
+    print(f"Applications: {total}")
+    print(f"  responded (screen+ or rejected): {d['responded']}  ({100 * d['responded'] // total}%)")
+    for k, v in d["by_stage"].items():
+        if v:
+            print(f"  {k:10s} {v}")
+    for label, rows in d["segments"].items():
+        print(f"\nBy {label}:")
+        for k, n, resp in rows:
+            print(f"  {k:12s} applied={n:3d}  responded={resp}  ({100 * resp // n}%)")
+
+
+def calibration_data(conn: sqlite3.Connection) -> dict:
+    """Score band vs outcome counts, in fixed band order."""
+    apps = _applications(conn)
     seg: dict[str, dict[str, int]] = {}
     for r in apps:
         b = seg.setdefault(_band(r["match_score"]), {"responded": 0, "silence": 0})
         b["responded" if _outcome(r["status"]) == "responded" else "silence"] += 1
-    for band in ("90+", "80-89", "70-79", "<70", "unscored"):
-        if band in seg:
-            d = seg[band]
-            n = d["responded"] + d["silence"]
-            print(f"  {band:9s} n={n:3d}  responded={d['responded']}  rate={100 * d['responded'] // n}%")
+    bands = [(band, seg[band]["responded"], seg[band]["silence"])
+             for band in ("90+", "80-89", "70-79", "<70", "unscored") if band in seg]
+    return {"total": len(apps), "bands": bands}
+
+
+def calibration(conn: sqlite3.Connection) -> None:
+    d = calibration_data(conn)
+    if not d["total"]:
+        print("No applications yet.")
+        return
+    print("Score band vs outcome (does a 90 convert better than a 75?):")
+    for band, responded, silence in d["bands"]:
+        n = responded + silence
+        print(f"  {band:9s} n={n:3d}  responded={responded}  rate={100 * responded // n}%")
     print("\nSmall n means weak evidence; interpret rates with counts in view.")
 
 
-def comp(conn: sqlite3.Connection, min_score: int = 0) -> None:
+def comp_data(conn: sqlite3.Connection, min_score: int = 0) -> dict:
+    """Salary segments over deduped roles at the score floor."""
     rows = conn.execute(
         "SELECT title, currency, salary_min, salary_max, remote FROM canonical_jobs "
         "WHERE (salary_min IS NOT NULL OR salary_max IS NOT NULL) "
         "AND COALESCE(match_score, 0) >= ?", (min_score,),
     ).fetchall()
-    if not rows:
-        print("No salary data at that score floor.")
-        return
     seg: dict[tuple, list[int]] = {}
     for r in rows:
         key = (r["currency"] or "?", title_family(r["title"]), bool(r["remote"]))
@@ -145,13 +161,26 @@ def comp(conn: sqlite3.Connection, min_score: int = 0) -> None:
         # salary is always truthy (invariant from src/adapters/__init__.py).
         val = r["salary_max"] or r["salary_min"]
         seg.setdefault(key, []).append(val)
-    print(f"Salary data on {len(rows)} deduped roles (value = max of range, else min).")
+    segments = [
+        {"currency": ccy, "family": fam, "remote": remote, "n": len(vals),
+         "median": round(median(vals)), "min": min(vals), "max": max(vals)}
+        for (ccy, fam, remote), vals in sorted(seg.items())
+    ]
+    return {"n_rows": len(rows), "segments": segments}
+
+
+def comp(conn: sqlite3.Connection, min_score: int = 0) -> None:
+    d = comp_data(conn, min_score)
+    if not d["n_rows"]:
+        print("No salary data at that score floor.")
+        return
+    print(f"Salary data on {d['n_rows']} deduped roles (value = max of range, else min).")
     print("NOTE: units are as-posted; several LatAm boards post MONTHLY figures, so a")
     print("'5,000 USD' cluster is monthly rate, not annual. Sanity-check before negotiating.")
     print(f"  {'ccy':4s} {'fam':3s} {'remote':6s} {'n':>4s} {'median':>10s} {'min':>10s} {'max':>10s}")
-    for (ccy, fam, remote), vals in sorted(seg.items()):
-        print(f"  {ccy:4s} {fam:3s} {str(remote):6s} {len(vals):4d} "
-              f"{round(median(vals)):>10,} {min(vals):>10,} {max(vals):>10,}")
+    for s in d["segments"]:
+        print(f"  {s['currency']:4s} {s['family']:3s} {str(s['remote']):6s} {s['n']:4d} "
+              f"{s['median']:>10,} {s['min']:>10,} {s['max']:>10,}")
 
 
 def drops(conn: sqlite3.Connection, sample: int = 15, seed: int | None = None) -> None:
@@ -172,7 +201,7 @@ def drops(conn: sqlite3.Connection, sample: int = 15, seed: int | None = None) -
         print(f"  #{r['id']} {r['company']} - {r['title']}  [{reason}]")
 
 
-def latency(conn: sqlite3.Connection) -> None:
+def latency_data(conn: sqlite3.Connection) -> dict:
     # One row per APPLIED EVENT (not per job: a re-apply is its own cycle), and
     # the response must land before the next applied event of the same job so
     # cycles never cross. MIN() makes the pick well-defined; a bare column
@@ -195,10 +224,14 @@ def latency(conn: sqlite3.Connection) -> None:
         GROUP BY a.id
         """
     ).fetchall()
-    if not rows:
+    return {"days": [r["days"] for r in rows]}
+
+
+def latency(conn: sqlite3.Connection) -> None:
+    days = latency_data(conn)["days"]
+    if not days:
         print("No applied -> response pairs in the event log yet.")
         return
-    days = [r["days"] for r in rows]
     print(f"Applied -> first response: n={len(days)}, median {median(days):.0f} days, "
           f"min {min(days)}, max {max(days)}")
 
