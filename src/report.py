@@ -151,9 +151,9 @@ def _cards(fd: dict, lat_days: list[int], open_count: int) -> str:
         ("Open pipeline", str(open_count), "shortlisted through offer"),
     ]
     tiles = "".join(
-        f'<div class="card"><div class="card-label">{esc(l)}</div>'
-        f'<div class="card-value">{esc(v)}</div>'
-        f'<div class="card-sub">{esc(s)}</div></div>' for l, v, s in cards)
+        f'<div class="card"><div class="card-label">{esc(label)}</div>'
+        f'<div class="card-value">{esc(value)}</div>'
+        f'<div class="card-sub">{esc(sub)}</div></div>' for label, value, sub in cards)
     return f'<div class="cards">{tiles}</div>'
 
 
@@ -166,7 +166,7 @@ def _funnel_section(conn: sqlite3.Connection, fd: dict) -> str:
     for s in STAGE_ORDER[1:]:
         rows.append((s, reached[s], str(reached[s]), f"{reached[s]} reached {s}"))
     mx = max((v for _, v, _, _ in rows), default=0)
-    return bar_chart([(l, v, t, h) for l, v, t, h in rows], mx)
+    return bar_chart(rows, mx)
 
 
 def _rate_charts(fd: dict) -> str:

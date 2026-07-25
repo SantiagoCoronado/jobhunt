@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from src.db import connect, set_status
+from src.db import connect
 from src.report import (build_html, followups_due, reached_stages, source_health,
                         status_distribution)
 from src.stats import calibration_data, comp_data, funnel_data, latency_data
