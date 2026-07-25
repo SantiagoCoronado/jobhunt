@@ -19,6 +19,10 @@ Numbers come from deterministic SQL, never estimate them yourself.
    human would clearly have kept is a false drop; name it and say which rubric line
    failed. The triage rubric lives in `.claude/commands/jh-triage.md`.
 
+2b. **Quarterly**: check the newest `research/upskill/*-plan.md`. If it is 3+ months
+   old (or absent), suggest running `/jh-upskill`; if newer, note whether the market
+   gaps it names have shifted given the current funnel.
+
 3. **Mine the debriefs**: scan `interviews/*/debrief-*.md` (if any). Recurring themes:
    questions seen 3+ times (answer-bank candidates), answers repeatedly marked weak
    (rehearsal list), companies/round-types where I underperform.

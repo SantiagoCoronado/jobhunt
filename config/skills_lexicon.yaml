@@ -1,0 +1,105 @@
+# Curated tech-term lexicon for src/gaps.py (spec 3a). Grows by hand.
+# Each entry: term (canonical), optional aliases, category. Matching is
+# case-insensitive on word boundaries; a term the lexicon lacks is simply not
+# counted (the /jh-upskill LLM pass covers novel terms qualitatively).
+# NOTE: "go" and "r" are deliberately absent as bare terms (hopelessly noisy in
+# prose); golang covers the real signal.
+
+terms:
+  # languages
+  - {term: python, category: language}
+  - {term: javascript, category: language}
+  - {term: typescript, category: language}
+  - {term: golang, category: language}
+  - {term: rust, category: language}
+  - {term: java, category: language}
+  - {term: "c++", category: language}
+  - {term: "c#", aliases: [".net", "dotnet"], category: language}
+  - {term: ruby, aliases: [rails, ruby on rails], category: language}
+  - {term: php, category: language}
+  - {term: kotlin, category: language}
+  - {term: swift, category: language}
+  - {term: scala, category: language}
+  # frontend
+  - {term: react, aliases: [react.js, reactjs], category: frontend}
+  - {term: vue, aliases: [vue.js, vuejs], category: frontend}
+  - {term: angular, category: frontend}
+  - {term: svelte, category: frontend}
+  - {term: next.js, aliases: [nextjs], category: frontend}
+  - {term: tailwind, aliases: [tailwindcss], category: frontend}
+  - {term: css, category: frontend}
+  - {term: vite, category: frontend}
+  - {term: webpack, category: frontend}
+  - {term: electron, category: frontend}
+  - {term: react native, category: mobile}
+  - {term: flutter, category: mobile}
+  - {term: ios, category: mobile}
+  - {term: android, category: mobile}
+  # backend
+  - {term: node.js, aliases: [nodejs, node js], category: backend}
+  - {term: django, category: backend}
+  - {term: fastapi, category: backend}
+  - {term: flask, category: backend}
+  - {term: spring, aliases: [spring boot], category: backend}
+  - {term: graphql, category: backend}
+  - {term: grpc, category: backend}
+  - {term: rest, aliases: [rest api, rest apis, restful], category: backend}
+  - {term: microservices, category: backend}
+  - {term: websockets, aliases: [websocket], category: backend}
+  # data
+  - {term: sql, category: data}
+  - {term: postgresql, aliases: [postgres], category: data}
+  - {term: mysql, category: data}
+  - {term: mongodb, aliases: [mongo], category: data}
+  - {term: redis, category: data}
+  - {term: elasticsearch, category: data}
+  - {term: kafka, category: data}
+  - {term: spark, category: data}
+  - {term: airflow, category: data}
+  - {term: dbt, category: data}
+  - {term: snowflake, category: data}
+  - {term: bigquery, category: data}
+  - {term: etl, aliases: [data pipeline, data pipelines], category: data}
+  - {term: data warehouse, aliases: [data warehousing], category: data}
+  # cloud / infra
+  - {term: aws, aliases: [amazon web services], category: infra}
+  - {term: gcp, aliases: [google cloud], category: infra}
+  - {term: azure, category: infra}
+  - {term: docker, category: infra}
+  - {term: kubernetes, aliases: [k8s], category: infra}
+  - {term: terraform, category: infra}
+  - {term: ci/cd, aliases: [continuous integration, continuous delivery], category: infra}
+  - {term: linux, category: infra}
+  - {term: serverless, aliases: [lambda], category: infra}
+  - {term: observability, aliases: [datadog, grafana, prometheus], category: infra}
+  # ai
+  - {term: llm, aliases: [large language model, large language models], category: ai}
+  - {term: rag, aliases: [retrieval augmented generation, retrieval-augmented generation], category: ai}
+  - {term: embeddings, aliases: [embedding], category: ai}
+  - {term: vector database, aliases: [vector databases, pinecone, weaviate, pgvector, qdrant], category: ai}
+  - {term: fine-tuning, aliases: [finetuning, fine tuning], category: ai}
+  - {term: pytorch, category: ai}
+  - {term: tensorflow, category: ai}
+  - {term: langchain, category: ai}
+  - {term: langgraph, category: ai}
+  - {term: prompt engineering, category: ai}
+  - {term: ai agents, aliases: [agentic, agent framework, agent frameworks], category: ai}
+  - {term: mlops, category: ai}
+  - {term: function calling, aliases: [tool use, tool calling], category: ai}
+  - {term: openai api, aliases: [openai], category: ai}
+  - {term: anthropic api, aliases: [anthropic, claude api], category: ai}
+  - {term: hugging face, aliases: [huggingface], category: ai}
+  - {term: model evaluation, aliases: [evals, llm evaluation], category: ai}
+  - {term: computer vision, category: ai}
+  - {term: nlp, aliases: [natural language processing], category: ai}
+  # practices
+  - {term: tdd, aliases: [test-driven development], category: practice}
+  - {term: system design, category: practice}
+  - {term: distributed systems, category: practice}
+  - {term: security, aliases: [oauth, application security], category: practice}
+  - {term: accessibility, aliases: [a11y, wcag], category: practice}
+  - {term: performance optimization, aliases: [performance tuning], category: practice}
+  - {term: technical writing, aliases: [documentation], category: practice}
+  - {term: stakeholder management, category: practice}
+  - {term: product management, category: practice}
+  - {term: mentoring, aliases: [mentorship], category: practice}

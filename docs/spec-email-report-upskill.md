@@ -12,7 +12,12 @@ refactor, `/jh-hunt` inbox-pull + report steps, CLAUDE.md Track paragraph,
 `tests/test_gmail_pull.py`). One deviation from 2c/2d as written: a rejection
 conflicting with a forward move goes to the ambiguous pile rather than "keep the most
 advanced" (email order is not reliable enough to auto-pick a winner).
-Phases 3-4 pending.
+Phase 3 SHIPPED 2026-07-24 (`src/gaps.py`, `config/skills_lexicon.yaml`, `/jh-upskill`,
+`/jh-prep` weak-spots fold-in, `tests/test_gaps.py`; smoke-run on the real DB: 692 jobs
+scanned).
+Phase 4 SHIPPED 2026-07-24 with phases 2-3 (CLAUDE.md Track + Learn entries, `/jh-hunt`
+inbox pull + report steps, `/jh-review` report regeneration + quarterly upskill pointer;
+full suite green at every phase).
 
 ---
 

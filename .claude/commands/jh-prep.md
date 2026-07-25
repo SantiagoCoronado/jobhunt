@@ -24,6 +24,8 @@ Build me an interview prep brief for job **$ARGUMENTS**.
      ONLY from `master_resume.yaml` facts (cite which experience each comes from).
    - **Weak spots**: gaps the matcher flagged (`match_verdict`) and weak answers from
      past debriefs, each with a prepared honest response, never a fabricated one.
+     If `upskill.md` exists in the application folder (written by `/jh-upskill <id>`),
+     fold its real-gap list in here with the prepared honest response for each.
    - **Questions to ask them**: 5-6 specific ones grounded in the dossier (product,
      team, roadmap), not generic filler.
    - **Company snapshot**: 5 lines from the dossier: what they do, stage/funding,
