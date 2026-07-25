@@ -27,7 +27,10 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `python -m src.gmail_pull` validates and applies after human approval (forward-only moves,
    never ghosted/withdrawn/offer decisions, evidence headers only, bodies never enter the DB).
    `/jh-report` (`python -m src.report`) renders `data/report.html`, the offline dashboard.
-7. **Learn** (the intelligence layer). `/jh-prep <id>`: interview prep brief from dossier +
+7. **Learn** (the intelligence layer). `/jh-upskill [id]`: gap analysis via `python -m src.gaps`
+   (matcher missing_skills + lexicon scan vs `config/skills_lexicon.yaml`); vocabulary gaps become
+   proposed profile.yaml diffs, real gaps a learning plan in `research/upskill/`; learning plans
+   NEVER feed resume content. `/jh-prep <id>`: interview prep brief from dossier +
    past debriefs. `/jh-debrief <id>`: digest an interview transcript (dropped at
    `interviews/<company>-<id>/<date>-<round>.md`, git-ignored, NEVER committed) into a debrief +
    answer-bank drafts. `/jh-review`: monthly conversion/calibration report over `python -m
