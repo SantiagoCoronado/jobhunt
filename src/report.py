@@ -14,6 +14,7 @@ import html
 import json
 import sqlite3
 import subprocess
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
 from statistics import median
@@ -105,7 +106,7 @@ def source_health(conn: sqlite3.Connection, window: int = 5) -> list[dict]:
 
 # ---------------------------------------------------------------- SVG charts
 
-def bar_chart(rows: list[tuple[str, float, str, str]], max_val: float,
+def bar_chart(rows: Sequence[tuple[str, float, str, str]], max_val: float,
               label_w: int = 150) -> str:
     """Horizontal single-series bars. rows: (label, value, tip_text, hover_text).
 
