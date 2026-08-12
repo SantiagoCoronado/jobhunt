@@ -6,10 +6,12 @@ margins and spacing. The first blank-line-separated block is treated as the lett
 block is a body paragraph.
 
 Usage:
-    python -m src.render_cover_letter applications/pending/<slug>/CoverLetter.md
+    python -m src.render_cover_letter applications/pending/<slug>/CoverLetter.md [--no-pdf]
 
-Produces a .docx next to the source with the same basename (the app convention is
-CoverLetter.md -> CoverLetter.docx). Convert to PDF with scripts/export_pdf.sh.
+Produces a .docx AND a .pdf next to the source with the same basename (the app convention
+is CoverLetter.md -> CoverLetter.docx/.pdf). The PDF is the file that gets attached to an
+application, so it is regenerated every run; passing --no-pdf, or a missing LibreOffice,
+warns loudly that any existing PDF is now stale.
 """
 from __future__ import annotations
 
@@ -21,6 +23,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+
+from src.render_docx import to_pdf
 
 NAVY = "1F3864"
 GREY = "444444"
@@ -114,16 +118,35 @@ def render(md_path: Path) -> Path:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
+    args = [a for a in argv[1:] if not a.startswith("--")]
+    flags = {a for a in argv[1:] if a.startswith("--")}
+    if len(args) != 1 or flags - {"--no-pdf"}:
         print(__doc__)
         return 2
-    md_path = Path(argv[1])
+    md_path = Path(args[0])
     if not md_path.is_file():
         print(f"not found: {md_path}", file=sys.stderr)
         return 1
     out = render(md_path)
     print(f"wrote {out}")
-    return 0
+
+    # The PDF is what actually gets attached to an application, so it must never be
+    # left older than the .docx. Silently skipping the conversion once shipped a
+    # placeholder line to the edge of a real submission.
+    pdf = out.with_suffix(".pdf")
+    if "--no-pdf" in flags:
+        if pdf.exists():
+            print(f"WARNING: {pdf} is now STALE (--no-pdf). Do not send it.", file=sys.stderr)
+        return 0
+    made = to_pdf(out)
+    if made:
+        print(f"wrote {made}")
+        return 0
+    msg = "PDF skipped: LibreOffice (soffice) not found"
+    if pdf.exists():
+        msg += f"\nWARNING: {pdf} is STALE and no longer matches the .docx. Do not send it."
+    print(msg, file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
