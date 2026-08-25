@@ -37,7 +37,9 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
    accountant, non-technical sales/account executive, customer success, recruiter/HR, marketing,
    finance, legal, admin, mechanical/civil/chemical/electrical/manufacturing engineering, retail;
    (2) requires an active security clearance OR US-citizens-only; (3) base salary EXPLICITLY listed
-   and clearly below 65,000 USD.
+   and, ONCE ANNUALIZED, clearly below `comp.min_usd_latam_scope` in `config/profile.yaml`.
+   Annualize first: a USD figure under 20,000 is a MONTHLY rate, multiply by 12 (a "5,000-7,000
+   USD" getonbrd row is 60k-84k/yr, not 5k-7k/yr). Never drop a monthly rate as if it were annual.
    NEVER drop for location, city, on-site, hybrid, remote, or country. Location is judged later with
    the full JD. Give each KEPT job a bucket 0-3 (0 weak, 1 plausible, 2 good, 3 strong fit).
 

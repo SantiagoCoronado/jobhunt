@@ -99,23 +99,51 @@ locations:
   - United States           # TN Visa eligible
 timezones:
   - "Any if fully remote; hybrid must be Mexico City (GMT-6)"
-min_salary_usd: 65000        # minimum acceptable annual base
 shortlist_threshold: 70      # THE shortlist cutoff; match ingest + notify digest read this
+
+# THE authoritative compensation block. Agents defer here; no other file restates it.
+# CRITICAL, postings quote different periods and currencies: getonbrd rows are MONTHLY
+# USD, torre/himalayas US rows are ANNUAL USD, adzuna MX rows are MXN. Normalize before
+# comparing anything: a USD figure under 20,000 is a MONTHLY rate, multiply by 12.
+comp:
+  target_usd: 100000            # default anchor, annual base, US-scope remote (set 2026-08-25)
+  min_usd: 70000                # walk-away floor for US-scope remote roles (set 2026-08-25)
+  min_usd_latam_scope: 70000    # floor for explicitly LATAM-priced roles (set 2026-08-25)
+  # Both floors are deliberately the same number right now: one walk-away, 70,000 USD
+  # gross annual base. The two keys stay separate so the tiers can diverge again without
+  # touching every agent that already cites them by name.
+  quote_period: annual          # never quote monthly, never quote MXN, never quote net
+  band_rule: >
+    When the posted band is known, anchor at or above its midpoint and never quote below
+    its floor; the band overrides target_usd. A posted 180k-230k band means an ask near
+    205k, not 100k.
+  contractor_note: >
+    Most remote-from-Mexico arrangements are contractor, not employment. A contractor rate
+    sits ABOVE the equivalent employee salary because it absorbs benefits, PTO, aguinaldo,
+    IMSS, and self-paid ISR. Never convert an employee figure to a contractor rate by tax
+    gross-up alone.
 
 # THE authoritative location rule. Agents cite this verbatim; no other file may
 # restate it (docs/scaling-scoring.md and job-matcher.md defer here).
 location_rule: >
-  OK: fully remote from anywhere; US on-site or hybrid (TN-visa eligible, so a US
-  work location is workable, remote still preferred, note it in reasons but do NOT
-  cap the score); Mexico City on-site or hybrid; remote roles scoped to Mexico or
-  LATAM. DEALBREAKER (cap at 25): on-site or hybrid REQUIRED outside the US and
-  Mexico (e.g. must sit in London or Berlin), or remote roles that explicitly
-  exclude Mexico-based candidates.
+  He lives in Mexico City and will NOT relocate (set 2026-07-28). OK: fully remote,
+  hired from Mexico; remote roles scoped to Mexico, LATAM, or the Americas; Mexico
+  City on-site or hybrid; remote roles that expect occasional travel to the US or to
+  customers (periodic trips, onboarding weeks, quarterly onsites are fine, and
+  he is TN-visa eligible so business travel is workable). DEALBREAKER (cap at 25):
+  any role that REQUIRES a work location outside Mexico, on-site or hybrid, including
+  US on-site and US hybrid (e.g. must sit in San Francisco, New York, London, or
+  Berlin), and remote roles that exclude Mexico-based candidates (e.g. "US only",
+  "must reside in the United States", country-locked to another LATAM country).
+  Judge the REQUIREMENT, not the office address: a role headquartered in San
+  Francisco that hires remotely from Mexico is fine; the same role requiring
+  in-office days is not.
 
 dealbreakers:
-  - "on-site or hybrid required outside the US and Mexico"   # see location_rule; US on-site is OK via TN
+  - "on-site or hybrid required anywhere outside Mexico (US on-site included; he will not relocate)"
   - "unpaid"
-  - "base salary shown and below 65,000 USD"   # only a dealbreaker when pay is actually listed
+  # only a dealbreaker when pay is actually listed; ANNUALIZE first (monthly USD x 12)
+  - "annualized base shown and below comp.min_usd_latam_scope"
   - "requires US citizens only"   # you are TN-eligible, not a citizen, so flag these
 
 notes: >
@@ -136,9 +164,13 @@ notes: >
   management, and real AI-deployment work (built LLM workflows and a RAG "company brain," ran client
   AI consulting) as strong positives, and do NOT penalize a Director/Lead/Manager/Strategist title
   as "not engineering" or as a seniority-over mismatch. He fits IC senior/staff AND lead/director
-  scope. Location: see location_rule above (the single authority). Fully remote preferred;
-  US on-site workable via TN; on-site outside the US and Mexico is out.
-  Bilingual (ES/EN); TN-visa eligible for U.S. employment. Salary rule: only reject on pay
-  when a base salary is shown and is below 65k; if pay is not listed, keep the role in play,
-  especially for a strong fit or a notably cool company. Two roles he flagged as ideal: ElevenLabs
+  scope. Location: see location_rule above (the single authority). He will NOT relocate:
+  remote (hired from Mexico) or Mexico City on-site only. Occasional travel to the US or
+  to customers is fine and he is TN-visa eligible for it, but any role REQUIRING a work
+  location outside Mexico, US on-site and US hybrid included, is out.
+  Bilingual (ES/EN); TN-visa eligible for U.S. employment. Salary rule: see the `comp` block
+  above, the single authority. Annualize before judging (monthly USD x 12); only reject on pay
+  when an annualized base is shown and is below comp.min_usd_latam_scope; if pay is not listed,
+  keep the role in play, especially for a strong fit or a notably cool company.
+  Two roles he flagged as ideal: ElevenLabs
   "Deployment Strategist Lead, Mexico" and Backblaze "AI Enablement Director, LATAM."
