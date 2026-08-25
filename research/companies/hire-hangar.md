@@ -100,7 +100,7 @@ families: frontend engineering and internal tooling.
     vs. direct hire, benefits, stability) are unclear from the listing and worth clarifying early in
     the process.
   - Salary band from the DB record (18,000 to 36,000 MXN/month, roughly 900 to 1,800 USD/month, or
-    about 11k to 22k USD/year) sits well below Santiago's profile.yaml floor of 65,000 USD/year.
+    about 11k to 22k USD/year) sits well below Santiago's profile.yaml floor of 70,000 USD/year.
     This is a real gap: either the listed range is a placeholder/junior band Hire Hangar posts
     broadly, or the role is genuinely below his target compensation, and it should be confirmed
     directly before investing much more time.

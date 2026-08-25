@@ -171,3 +171,29 @@ Build adapters in the existing `src/adapters/` + `sources.yaml` style, in ROI or
   session headers/credentials. Budget for auth reverse-engineering on grey-zone sources.
 - Ever Jobs (TypeScript) and Jobber (single free Cloudflare Worker) are blueprints to reimplement
   natively, not runtime dependencies.
+
+---
+
+## Wired after this report
+
+### PostHog "Cool tech jobs" (`posthog`), added 2026-08-25
+
+- **Page:** https://posthog.com/cool-tech-jobs, a curated list of dev-tool companies picked for
+  engineer-friendly culture (engineers decide what to build, meeting-free days, remote-only, ...).
+- **Endpoint:** `GET https://better-animal-d658c56969.strapiapp.com/api/jobs?populate=company`
+  with Strapi params `pagination[page]` / `pagination[pageSize]` (capped at 100) and
+  `sort[0]=postedDate:desc`. No key, no session, no headers.
+- **How it was found:** the page's Gatsby `page-data.json` is empty (`pageContext: {}`); every
+  listing is client-fetched. The Strapi base URL is in the page chunk
+  `component---src-pages-cool-tech-jobs-tsx-*.js`, which builds the same query we send.
+- **Size:** ~159 live roles across ~10 companies (Supabase, Antithesis, Mintlify, PostHog,
+  Resend, SigNoz, Zapier, Railway, Converge, Nango). Two requests cover the whole board.
+- **Fields:** title, apply URL (Ashby or Gem), company, department, location, `isRemote`,
+  `postedDate`, and full plain-text descriptions on ~90% of rows. No salary.
+- **Overlap:** several of these companies are already Ashby tokens, so `canonical_key` collapses
+  the duplicates and the ATS row wins the `canonical_jobs` view. The net-new value is the
+  companies we do not track directly plus the culture curation.
+- **Risk:** LOW-ish. Public unauthenticated read API backing a public page, tiny request volume,
+  no auth bypass. Grey-zone only in that the API is undocumented, same footing as Torre.
+- **Caveat:** `department` is free text ("Engineering", "Data + Growth", and sometimes a company
+  name), so the optional `departments:` filter matches loosely and defaults to off.

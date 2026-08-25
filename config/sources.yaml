@@ -47,6 +47,12 @@ arbeitnow:
 himalayas:
   enabled: true
   limit: 100
+posthog:                           # posthog.com/cool-tech-jobs, curated dev-tool boards, no key
+  enabled: true
+  pages: 3
+  page_size: 100
+  departments: []                  # [] = all; free-text field, match loosely (e.g. [Engineering, Data])
+  remote_only: false
 recruitee:                         # per-company (Recruitee ATS); add slugs then flip enabled
   enabled: false
   companies: []

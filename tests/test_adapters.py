@@ -79,8 +79,64 @@ def test_adzuna_missing_keys_yields_nothing(monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("adapter_name", ["greenhouse", "adzuna", "lever", "ashby",
-                                          "remoteok", "themuse", "torre", "findwork"])
+                                          "remoteok", "themuse", "torre", "findwork",
+                                          "posthog"])
 def test_adapters_import_and_expose_fetch(adapter_name):
     import importlib
     mod = importlib.import_module(f"src.adapters.{adapter_name}")
     assert callable(mod.fetch)
+
+
+POSTHOG_PAGE = {
+    "data": [
+        {"id": 205821, "attributes": {
+            "title": "UX Engineer", "url": "https://jobs.ashbyhq.com/posthog/2ef3",
+            "department": "Engineering", "postedDate": "2026-08-20T18:46:44.330Z",
+            "isRemote": True, "location": "", "description": "<p>Build &amp; ship</p>",
+            "company": {"data": {"attributes": {"name": "PostHog", "remoteOnly": True}}}}},
+        {"id": 205793, "attributes": {
+            "title": "Founding Growth", "url": "https://jobs.gem.com/converge/am9i",
+            "department": "Sales", "postedDate": "2026-08-25T00:00:56.067Z",
+            "isRemote": False, "location": "New York", "description": "",
+            "company": {"data": {"attributes": {"name": "Converge", "remoteOnly": False,
+                                                "description": "Marketing measurement"}}}}},
+    ]
+}
+
+
+def _posthog_pages(monkeypatch, calls=None):
+    import src.adapters.posthog as posthog
+
+    def fake_get_json(url, **kw):
+        page = kw["params"]["pagination[page]"]
+        if calls is not None:
+            calls.append(page)
+        return POSTHOG_PAGE if page == 1 else {"data": []}
+
+    monkeypatch.setattr(posthog, "get_json", fake_get_json)
+    return posthog
+
+
+def test_posthog_fetch_normalizes(monkeypatch):
+    calls: list[int] = []
+    posthog = _posthog_pages(monkeypatch, calls)
+    jobs = posthog.fetch({"pages": 3})
+
+    assert [j.external_id for j in jobs] == ["205821", "205793"]
+    j = jobs[0]
+    assert j.source == "posthog"
+    assert j.company == "PostHog" and j.title == "UX Engineer"
+    assert j.remote is True and j.location == "Remote"   # blank location + isRemote
+    assert j.description == "Build & ship"               # HTML stripped, entity intact
+    assert j.tags == ["Engineering"]
+    assert j.to_row()["posted_at"] == "2026-08-20T18:46:44.330000+00:00"
+    # empty description falls back to the company blurb, not a blank row
+    assert jobs[1].remote is False and jobs[1].description == "Marketing measurement"
+    assert len(calls) == 2                               # stopped at the first empty page
+
+
+def test_posthog_filters_department_and_remote(monkeypatch):
+    posthog = _posthog_pages(monkeypatch)
+    assert [j.title for j in posthog.fetch({"departments": ["engineering"]})] == ["UX Engineer"]
+    posthog = _posthog_pages(monkeypatch)
+    assert [j.title for j in posthog.fetch({"remote_only": True})] == ["UX Engineer"]
