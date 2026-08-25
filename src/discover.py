@@ -19,7 +19,7 @@ ADAPTERS = [
     # Aggregators
     "remoteok", "remotive", "weworkremotely", "hackernews", "getonbrd",
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",
-    "adzuna", "themuse", "findwork", "careerjet", "torre",
+    "adzuna", "themuse", "findwork", "careerjet", "torre", "posthog",
     "consider", "workatastartup",
 ]
 

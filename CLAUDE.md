@@ -7,7 +7,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    Sources live in `config/sources.yaml` (one block per adapter in `src/adapters/`, each a
    `fetch(cfg) -> list[Job]`). Keyed sources read `.env` (copy `.env.example`) via
    `src.config.get_secret`; a source with no key prints a hint and yields nothing (never breaks the run).
-   Active new sources: Adzuna (MX, keyed), The Muse, Findwork (keyed), Torre (remote-LATAM). Opt-in via
+   Active new sources: Adzuna (MX, keyed), The Muse, Findwork (keyed), Torre (remote-LATAM),
+   PostHog cool-tech-jobs (curated dev-tool boards, no key). Opt-in via
    `enabled:`: Careerjet, Personio, BambooHR, Workday, Consider, YC (see `docs/new-sources.md`).
 2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
    `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
