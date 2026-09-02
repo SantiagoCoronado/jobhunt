@@ -131,7 +131,7 @@ the architecture" posture the case study describes.
   agent with tool-use/function calling, and an MCP-based research agent in Plutus. This matches
   the posting's ask for "active AI product development or experimentation" and the case study's
   emphasis on shipping real production AI, not demos.
-- Founder autonomy: 3x founder background (raised capital, led a 9-person team, owned client
+- Founder autonomy: 3x founder background (raised capital, led a 7-person team, owned client
   relationships end to end) maps well onto an "embedded, autonomous, detail-oriented builder"
   engagement model where an engineer effectively parachutes into a client team and needs to move
   without hand-holding.

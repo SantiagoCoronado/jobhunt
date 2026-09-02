@@ -196,7 +196,7 @@ Staniszewski)](https://en.wikipedia.org/wiki/Mati_Staniszewski), [master_resume.
 - **Builder-not-employee hiring bar plays to his story.** ElevenLabs explicitly screens for
   "founder mindset," no job titles, "impact not job titles." Santiago's resume is literally three
   founder roles (Online Basics, Eugenia.ai, Pragma AI) where he owned outcomes end to end,
-  including raising capital and leading a 9-person team, which lines up with how the company says
+  including raising capital and leading a 7-person team, which lines up with how the company says
   it evaluates candidates (ownership narratives, not collaboration narratives). [careers
   page](https://elevenlabs.io/careers), [master_resume.yaml]
 

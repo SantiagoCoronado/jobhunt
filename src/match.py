@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .config import load_yaml, shortlist_threshold, ROOT
 from .db import connect
+from .dream import dream_shortlist_threshold, is_dream
 from .models import normalize_text, now_iso
 
 PENDING = ROOT / "data" / "pending_match.json"
@@ -100,6 +101,10 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
     scoring input changed (e.g. profile.yaml location_rule) and old scores are stale. Their
     priority bucket is derived from the existing match_score. `eligible_only` drops rows whose
     location clearly requires relocating outside Mexico (see `_location_plausible`).
+
+    Dream-company rows (profile.yaml dream_companies) always survive `eligible_only`, sort
+    ahead of everything else, carry `dream: true`, and, when the hand-curated sheet has a row
+    for the same role, a `curated_note` with the sheet's priority / work-auth / notes.
     """
     skills = _profile_skills()
     conn = connect()
@@ -117,21 +122,33 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
         rows += list(prev)
 
     if eligible_only:
-        rows = [r for r in rows if _location_plausible(r)]
+        rows = [r for r in rows if is_dream(r["company"]) or _location_plausible(r)]
 
     items = []
     for r in rows:
         blob = f"{r['title']} {r['title']} {r['description']}"  # title double-weighted
         bucket = (_score_bucket(r["match_score"]) if r["id"] in stale
                   else _triage_bucket(r["match_verdict"]))
-        items.append((r, _keyword_score(blob, skills), bucket))
+        items.append((r, _keyword_score(blob, skills), bucket, is_dream(r["company"])))
     if min_bucket is not None:
-        items = [it for it in items if it[2] >= min_bucket]
-    items.sort(key=lambda x: (x[2], x[1]), reverse=True)  # bucket first, then prescore
+        # A dream row with no triage bucket yet still rides along: it never waits behind
+        # a bucket gate it may not have been through.
+        items = [it for it in items if it[2] >= min_bucket or it[3]]
+    items.sort(key=lambda x: (x[3], x[2], x[1]), reverse=True)  # dream, bucket, prescore
 
     cap = limit if (limit and limit > 0) else None
 
-    def rec(r, ks, bucket):
+    def curated_note(r) -> str | None:
+        """The dream sheet's row for this role, if any (its description is the
+        Curated block; the canonical row is usually the ATS one)."""
+        if r["source"] == "dreamsheet":
+            return None
+        hit = conn.execute(
+            "SELECT description FROM jobs WHERE canonical_key=? AND source='dreamsheet' "
+            "AND description IS NOT NULL LIMIT 1", (r["canonical_key"],)).fetchone()
+        return hit["description"] if hit else None
+
+    def rec(r, ks, bucket, dream):
         # salary_* carry the posted band when a source published one. They are NOT
         # normalised: sources mix periods (annual/monthly/hourly) and currencies, so the
         # matcher must annualise before comparing against the comp floor in profile.yaml.
@@ -147,6 +164,11 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
             out["salary_min"] = r["salary_min"]
             out["salary_max"] = r["salary_max"]
             out["salary_currency"] = r["currency"]
+        if dream:
+            out["dream"] = True   # profile.yaml dream_rule applies (matcher reads it)
+            note = curated_note(r)
+            if note:
+                out["curated_note"] = note
         return out
 
     if chunk:
@@ -162,18 +184,23 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
             n += 1
         by = {b: sum(1 for it in sel if it[2] == b) for b in (3, 2, 1, 0, -1)}
         print(f"Exported {len(sel)} jobs -> {n} chunk(s) of <= {chunk} in {MATCH_DIR}")
-        print(f"  buckets: strong={by[3]} good={by[2]} plausible={by[1]} weak={by[0]} none={by[-1]}")
+        print(f"  buckets: strong={by[3]} good={by[2]} plausible={by[1]} weak={by[0]} none={by[-1]}"
+              f"  dream={sum(1 for it in sel if it[3])}")
         return
 
-    out = [rec(*it) for it in (items[:cap] if cap else items)]
+    sel = items[:cap] if cap else items
+    out = [rec(*it) for it in sel]
     PENDING.parent.mkdir(exist_ok=True)
     PENDING.write_text(json.dumps(out, indent=2))
-    print(f"Exported {len(out)} jobs -> {PENDING}")
+    print(f"Exported {len(out)} jobs -> {PENDING}  (dream={sum(1 for it in sel if it[3])})")
     print("Now run /jh-match in Claude Code to score them.")
 
 
 def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
+    """Write scores back. Dream-company rows shortlist at `dream_shortlist_threshold`
+    (profile.yaml) instead of `shortlist_threshold`; an explicit --threshold applies to both."""
     shortlist = threshold if threshold is not None else shortlist_threshold()
+    dream_cut = threshold if threshold is not None else dream_shortlist_threshold()
     if scores_dir:
         files = sorted(Path(scores_dir).glob("scores_*.json"))
         if not files:
@@ -190,11 +217,14 @@ def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
         data = json.loads(SCORES.read_text())
     conn = connect()
     now = now_iso()
-    n = short = missing = 0
+    n = short = missing = dream_short = 0
     for s in data:
         score = int(s.get("score", 0))
         verdict = json.dumps({k: s[k] for k in s if k not in ("id",)})
-        new_status = "shortlisted" if score >= shortlist else "discovered"
+        co = conn.execute("SELECT company FROM jobs WHERE id=?", (s.get("id"),)).fetchone()
+        dream = bool(co) and is_dream(co["company"])
+        cut = dream_cut if dream else shortlist
+        new_status = "shortlisted" if score >= cut else "discovered"
         # The score was judged on the canonical representative; propagate it to
         # every still-unscored duplicate of the same role so dupes never
         # re-enter the export queue as fresh work.
@@ -215,11 +245,13 @@ def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
             print(f"  ! skip score for unknown job id {s.get('id')!r}")
             continue
         n += 1
-        if score >= shortlist:
+        if score >= cut:
             short += 1
+            dream_short += int(dream)
     conn.commit()
     tail = f"; {missing} skipped (unknown id)" if missing else ""
-    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist}){tail}. Updated {now}.")
+    dtail = f", {dream_short} of them dream-company rows (>= {dream_cut})" if dream_short else ""
+    print(f"Ingested {n} scores; {short} shortlisted (>= {shortlist}{dtail}){tail}. Updated {now}.")
 
 
 if __name__ == "__main__":

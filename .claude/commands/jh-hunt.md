@@ -6,7 +6,10 @@ allowed-tools: Read, Write, Bash, WebSearch, WebFetch, mcp__claude_ai_Notion__no
 Run my whole job hunt end to end. Do the phases in order and give me a short report after each.
 Use `.venv/bin/python` if plain `python` is not on PATH.
 
-1. **Discover** (the `/jh-discover` flow): run `python -m src.discover`. Report how many new jobs landed.
+1. **Discover** (the `/jh-discover` flow): run `python -m src.discover` with the Bash tool
+   **in the background** (run_in_background: true); a full sweep is hundreds of sequential HTTP
+   calls and blows past the default 2-minute Bash timeout. Wait for it to finish, then report
+   how many new jobs landed and flag any source marked FAILED.
 
 2. **Triage if the pile is large**: check the unscored pile with
    `python -m src.query crm` OR directly:
@@ -24,6 +27,8 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
      (reads `config/profile.yaml` + `data/pending_match.json`, writes `data/scores.json`), ingest.
    Be calibrated. NEVER score with a bare keyword-prescore `--limit` when a triaged pile is
    waiting; the prescore buries well-phrased strong matches. Report how many were shortlisted.
+   Dream-company rows (`dream: true`, from `dream_companies` in profile.yaml) sort first in
+   every export and shortlist at `dream_shortlist_threshold`; report them as their own line.
 
 4. **Inbox pull** (the `/jh-gmail-sync` flow): read Gmail for signals on open
    applications, write `data/gmail_pull.json`, run the dry run, present the batch
@@ -35,11 +40,13 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
 5. **Sync + star** (the `/jh-notion-sync` flow, both phases): PULL Notion edits first
    (`python -m src.notion_pull data/notion_pull.json --apply` after exporting the decisive rows),
    then push the pipeline back (upsert `python -m src.query crm` rows; statuses map
-   `withdrawn` -> `declined`, `backlog` -> `shortlisted`). Then **star EXACTLY the 5 jobs whose
-   Status is `shortlisted` with the highest Match** (set the ⭐ page icon on those 5, remove it
-   from every other row so exactly those 5 are starred). These 5 can include shortlisted jobs
+   `withdrawn` -> `declined`, `backlog` -> `shortlisted`; the `dream` field goes to the Dream
+   checkbox). Then **star EXACTLY 5 `shortlisted` jobs**: first up to 2 slots go to the
+   highest-Match shortlisted rows with `dream: true` (one per company), then the remaining
+   slots to the highest-Match shortlisted rows overall. Set the ⭐ page icon on those 5, remove
+   it from every other row so exactly those 5 are starred. These 5 can include shortlisted jobs
    from earlier sessions, not only ones from this discover run. Break ties in favor of the more
-   AI-forward or better-located role. Report the 5 starred (company, role, match).
+   AI-forward or better-located role. Report the 5 starred (company, role, match, dream or not).
 
 6. **Research the 5 starred**: for each of the 5, delegate to the **company-researcher** subagent
    (Sonnet) to write `research/companies/<slug>.md`. Resolve each with
@@ -51,11 +58,19 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
    the **resume-tailor** subagent to write `applications/pending/<company>-<id>/` (tailored resume, cover
    letter, match report) and render the one-page .docx. If a current application folder already
    exists for that job, refresh it rather than duplicating.
+   For a dream-company job (`dream: true` in `python -m src.query job <id>`) tell the
+   subagent so, and pass the job's `curated_note` / Curated block if the sheet has one; the
+   agent applies `dream_rule` and `relocation_line` from profile.yaml.
+   The main session (Fable) is the orchestrator; the **resume-tailor** agent is pinned to
+   `model: fable` in its definition so the tailored `SantiagoCoronadoResume.yaml` and cover letter
+   are always written by Fable. When spawning it, also pass `model: "fable"` explicitly so the
+   pin holds even if the agent definition changes.
 
 8. **Report**: run `python -m src.report` (regenerates `data/report.html`, free and
    deterministic; include its path and headline line), then the 5 starred jobs with their
    dossier paths and tailored application paths, the strongest hook and honest gaps for
-   each, and anything I should confirm before applying.
+   each, and anything I should confirm before applying. For a dream-company job also state
+   the matcher's `visa_path` and whether the cover letter carries the relocation line.
 
 Guardrails: only star, research, and tailor jobs with `shortlisted` status. Never overwrite
 human-progressed statuses (`applied`/`screen`/`interview`/`offer`/`rejected`/`ghosted`/`withdrawn`)

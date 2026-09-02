@@ -32,7 +32,8 @@ For EACH job output an object:
 ```json
 {"id": <int>, "score": <0-100>, "recommendation": "Strong Yes|Yes|Maybe|No",
  "seniority_fit": "under|match|over", "must_haves_met": true,
- "missing_skills": ["..."], "location_ok": true, "reasons": "<=2 sentences"}
+ "missing_skills": ["..."], "location_ok": true, "reasons": "<=2 sentences",
+ "visa_path": "<one line, dream-company rows only>"}
 ```
 
 A `triage_bucket` field (0-3) may appear on exported jobs: it decides coverage ORDER only
@@ -43,6 +44,13 @@ Scoring rubric (be honest and calibrated, most jobs are NOT strong matches):
   single authority; no summary of it lives here, because a stale summary silently corrupts every
   score. Judge the REQUIREMENT, not the office address.
 - **Dealbreaker present** (location_rule violation, wrong domain) → cap score at 25, `location_ok:false` or note it.
+- **Dream companies:** an exported row carrying `dream: true` is at one of `dream_companies` in
+  `config/profile.yaml`. Read `dream_rule` from that file and apply it VERBATIM (no summary lives
+  here). In short: the location cap and the comp floors do not apply, score on fit alone, still
+  set `location_ok:false` when US presence is required, and fill `visa_path`. ITAR / US-person /
+  citizens-only / clearance stay hard caps at 25 even there. If the row has a `curated_note`,
+  it is his own sheet's judgment (priority, work auth, why it fits): quote its priority in
+  `reasons`, never recompute it, and never let it inflate the fit score.
 - **Salary:** read the `comp` block in `config/profile.yaml` (the single authority). ANNUALIZE FIRST: postings mix periods and currencies, so a USD figure under 20,000 is a MONTHLY rate and must be multiplied by 12 before any comparison (a "5,000-7,000 USD" getonbrd row is 60k-84k/yr, not 5k-7k/yr). Apply the `comp.min_usd_latam_scope` floor ONLY when an annualized base is shown and is below it (then treat it as a dealbreaker). If salary is NOT listed, do NOT penalize; judge on fit and company quality. A strong fit or a notable, exciting company should still score high with no salary shown.
 - **Seniority mismatch** (job wants staff/principal, candidate is mid) → cap ~50.
 - **Core must-have stack missing** → cap ~55, list them in `missing_skills`.

@@ -25,8 +25,8 @@ cv:
         highlights:
           - "Designed an LLM workflow on the Anthropic & OpenAI APIs with custom prompt engineering and a multi-stage validation pipeline to generate and optimize 100+ product listings per month with competitor analysis and SEO, cutting content-creation time by 70% across Amazon and Mercado Libre."
           - "Built a cloud microservices architecture (Python on Heroku, AWS databases) orchestrating 10+ third-party APIs (Amazon, Mercado Libre, Inflow) to process 100K+ daily data points with hourly sync, reducing manual reporting from hours to minutes."
-          - "Built the company's internal operations platform, a React front end on AWS backed by SQL and Python ETL pipelines: a pricing dashboard, an inventory admin panel with cross-marketplace matching, discounting and ad-campaign tooling, and alerting, used daily by 4 operators to drive real-time pricing and inventory decisions while scaling to $8M USD revenue with a lean 9-person team."
-          - "Led a 9-person team with git-based workflows, code reviews, and agile delivery; established incident-response and data-validation systems that cut data-entry errors by 90%."
+          - "Built the company's internal operations platform, a React front end on AWS backed by SQL and Python ETL pipelines: a pricing dashboard, an inventory admin panel with cross-marketplace matching, discounting and ad-campaign tooling, and alerting, used daily by 4 operators to drive real-time pricing and inventory decisions while scaling to $8M USD revenue with a lean 7-person team."
+          - "Led a 7-person team with git-based workflows, code reviews, and agile delivery; established incident-response and data-validation systems that cut data-entry errors by 90%."
           - "Raised $500K+ from private investors and banking partners to fund inventory expansion and automation, achieving over $500K revenue-per-employee annually."
           - "Built a multi-stage product-validation framework (small-batch $1–5K tests) analyzing 100+ categories monthly with Helium10 and Nubimetrics, reaching 90% launch success and 100%+ ROI within 6 months."
 
@@ -62,8 +62,8 @@ cv:
         date: "2026"
         highlights:
           - "Built and open-sourced Kairos, a local-first macOS command center (CRM, tasks, quarterly OKRs) in Electron + TypeScript on SQLite, with a keyboard-driven command palette, natural-language quick capture, and one-way Markdown export."
-          - "Integrated Claude on two surfaces from one codebase: an in-app agent (Claude Agent SDK) and a standalone MCP (Model Context Protocol) server expose the same 46 tools via a single typed tool-definition layer (Zod schemas), letting both the app and Claude Code operate on live user data."
-          - "Engineered the desktop platform end to end: a React 19 + Tailwind UI with a cmdk command palette (global shortcut, inline create actions) and a custom drag-and-drop week/month calendar, a typed 80-channel IPC contract between Electron main and renderer, versioned SQLite migrations across 23 tables, and 228 Vitest tests over the core logic."
+          - "Integrated Claude on two surfaces from one codebase: an in-app agent (Claude Agent SDK) and a standalone MCP (Model Context Protocol) server expose the same 45 tools via a single typed tool-definition layer (Zod schemas), letting both the app and Claude Code operate on live user data."
+          - "Engineered the desktop platform end to end: a React 19 + Tailwind UI with a cmdk command palette (global shortcut, inline create actions) and a custom drag-and-drop week/month calendar, a typed 158-channel IPC contract between Electron main and renderer, versioned SQLite migrations across 24 tables, and 494 Vitest tests over the core logic."
           - "Built a voice layer on the ElevenLabs API: low-latency text-to-speech (Flash v2.5) daily briefings and hands-free Scribe speech-to-text capture, where one model call routes each spoken memo into the right task, note, event, or interaction."
       - name: "Hydrel Customer Energy Portal (Pragma AI client project)"
         date: "2026"
@@ -97,7 +97,7 @@ cv:
       - label: "Data & Tooling"
         details: "Real-time ETL, Multi-platform API Integration, Time-series Data, Workflow Automation, Internal Dashboards & Admin Tooling, System Monitoring, Google Apps Script; Claude Code, Cursor, Windsurf, VS Code"
       - label: "Product & Leadership"
-        details: "0-to-1 Product Development, MVP Scoping, Roadmapping, Stakeholder & Client Management, User-Centric Design, Agile, Team Leadership (9+)"
+        details: "0-to-1 Product Development, MVP Scoping, Roadmapping, Stakeholder & Client Management, User-Centric Design, Agile, Team Leadership (7+)"
 
     education:
       - institution: Universidad Iberoamericana

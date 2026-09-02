@@ -147,7 +147,7 @@ systems built that way.
 
 - **0-to-1, founder-scope ownership matches a 2-person eng team.** He built and shipped
   Eugenia.ai (React + Node on AWS) end to end, owned the product lifecycle, and later ran a
-  9-person team and $8M-revenue operation at Online Basics. Wonderdog's JD explicitly says "you
+  7-person team and $8M-revenue operation at Online Basics. Wonderdog's JD explicitly says "you
   don't need to be a CTO, you need to be smart, senior, and get a lot done," which matches a
   founder who is used to full ownership without a large team around him.
 - **Full-stack + API design + monorepo comfort** lines up directly with the JD's stated

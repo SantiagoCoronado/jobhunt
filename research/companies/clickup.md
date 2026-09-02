@@ -44,7 +44,7 @@ ClickUp is making an aggressive, all-in bet that in the AI era the moat is not t
 Supporting angles:
 - **Stack match is clean**: TypeScript, Node, React, and Python are all first-class in his master resume; he has AWS (EC2, RDS) experience, plus RAG, embeddings, vector DBs, function calling/tool-use, and prompt engineering. Frame the internal-tools work (LLM workflow with multi-stage validation, 10+ API orchestration, real-time ETL) as production internal-platform engineering.
 - **LLM-agnostic by habit**: he has built on both the Anthropic and OpenAI APIs; Brain2's multi-model routing rewards that provider-neutral instinct.
-- **Founder velocity fits the culture**: scrappy, high-ownership, "do hard things," ships 0-to-1. He scaled Online Basics to $8M with a 9-person team and led git-based, code-reviewed agile delivery, which maps to ClickUp's #SCRAPPY / #HARDWORK / #URGENCY values and its "Builders" framing.
+- **Founder velocity fits the culture**: scrappy, high-ownership, "do hard things," ships 0-to-1. He scaled Online Basics to $8M with a 7-person team and led git-based, code-reviewed agile delivery, which maps to ClickUp's #SCRAPPY / #HARDWORK / #URGENCY values and its "Builders" framing.
 - **Human-in-the-loop and stakeholder sense**: ClickUp's internal tools keep humans in review and serve GTM/Support/Product partners. Santiago's client-facing consulting, diagnostics, and stakeholder management are a direct asset for an internally deployed team that has non-engineer users.
 
 **Honest concerns / watch-outs**:

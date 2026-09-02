@@ -148,7 +148,7 @@ Supporting angles:
   reference AI dev tool. Santiago uses Claude Code daily, which is a credible, honest overlap with
   a company that names Claude Code in its own job posting.
 - Founder-operator credibility: 3x founder who has owned 0-to-1 product, client delivery, and team
-  leadership (9-person team, $8M revenue) is a real match for a "Lead" title that blends hands-on
+  leadership (7-person team, $8M revenue) is a real match for a "Lead" title that blends hands-on
   engineering with governance and stakeholder work across business units, not just IC coding.
 - LATAM fluency is a genuine, if secondary, asset: Nubank's entire growth story and next capital
   commitment ($4.2B through 2030) is concentrated in Mexico, and Santiago is Mexico City based

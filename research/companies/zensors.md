@@ -97,7 +97,7 @@ Best hook to lead with: Santiago has repeatedly built the exact kind of artifact
 a data-dense operational dashboard that turns messy real-time signals into decisions for
 non-technical operators. At Online Basics he built the company's internal React front end
 (pricing dashboard, inventory admin panel, alerting) that ran a $8M-revenue business day to day
-for a lean 9-person team; at Eugenia.ai he shipped a React/Node platform used by 10,000+ users
+for a lean 7-person team; at Eugenia.ai he shipped a React/Node platform used by 10,000+ users
 across 20+ buildings; in Plutus he built an 11-route React/TypeScript app with live charting and
 a real-time WebSocket/SSE layer. Zensors' Virtual Manager (turning airport/retail camera data
 into staffing and queue decisions for operators) is the same problem shape, just a different

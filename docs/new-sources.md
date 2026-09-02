@@ -107,6 +107,20 @@ undocumented endpoints for remote-LATAM engineering depth. That trio meaningfull
 single GetOnBrd source. Scraping OCC/Computrabajo is possible given the "any risk" stance but is the
 highest maintenance for the coverage.
 
+**Torre eligibility capture** (postmortem for job 18645, a Spain/UK-only "Full-Stack Engineer:
+Retail Media" at Constructor that got scored 84 and tailored before anyone saw it was Europe-only):
+the same `_search/` response the adapter already calls carries `timezones` (a GMT band, e.g.
+`["GMT+00:00","GMT+03:00"]`), `locations` (a country list, often empty when a role is
+timezone-gated rather than country-gated), and `opportunity` (agreement type: employee/contractor/
+flexible...). No per-job endpoint exists: `search.torre.co/opportunities/{id}` 404s, and the search
+body silently ignores an `id` filter. `src/adapters/torre.py` now builds a one-line
+`Eligibility: remote, timezone GMT+00:00 to GMT+03:00, agreement: employee.` header from those
+fields and PREPENDS it to `description` (so triage's 300-char snippet and the matcher's 3000-char
+export both see it), and still folds `locations` into `location` when present. `external_id` /
+`canonical_key` are untouched. `python -m src.adapters.torre` re-runs the config queries to backfill
+the header onto existing `discovered`/`shortlisted`/`backlog` Torre rows (status is never touched)
+and reports rows whose timezone band excludes GMT-6 (Mexico City).
+
 Sources: torre.ai/api, github.com/behagoras/torre-api, github.com/rfernand/bumeran, developers.bumeran.com.
 
 ---
@@ -197,3 +211,35 @@ Build adapters in the existing `src/adapters/` + `sources.yaml` style, in ROI or
   no auth bypass. Grey-zone only in that the API is undocumented, same footing as Torre.
 - **Caveat:** `department` is free text ("Engineering", "Data + Growth", and sometimes a company
   name), so the optional `departments:` filter matches loosely and defaults to off.
+
+### Yield sweep, 2026-08-27
+
+A `/jh-hunt` discover run had returned only 253 new rows. Diagnosis and what changed:
+
+- **himalayas**: `limit` is ignored server-side (always 20 rows); only `offset` moves the
+  window, so one call ever saw 20 of the board. Adapter now pages by offset (`pages:`).
+- **getonbrd**: the adapter never sent `page`, so every query stopped at page 1 of N.
+- **hackernews**: `hnrss.org/whoishiring/jobs.jsonfeed` now serves HTTP 502. Replaced with
+  HN's own Algolia API (`hn.algolia.com/api/v1`), which pages properly and can walk several
+  monthly threads back. `external_id` is still the `news.ycombinator.com/item?id=` URL, so
+  existing rows keep their identity.
+- **themuse**: `pages: 3` read 60 of the 1,196 rows behind the Software Engineering +
+  Flexible/Remote filter. Now 25 pages over two categories and four locations.
+- **careerjet**: the adapter hardcoded `page: 1`; the response reports ~25 pages per broad
+  MX keyword. `pages:` added.
+- **adzuna**: `countries: [mx, us]` supersedes the single `country:`. `where=remote` returns
+  zero, so US remote scope is expressed in the free-text query instead ("remote ai engineer").
+- **remotive**: not broken, just small. The entire live board was 18 rows.
+- **lever**: only 8 clients, most of them tiny. Four verified boards added.
+- **workday**: enabled. Verified tenants: nvidia, adobe, autodesk, intel, bbva, workday, paypal.
+- **smartrecruiters**: enabled with Endava. BoschGroup also answers (4,809 rows) but is
+  overwhelmingly Spanish-language manufacturing.
+- **workable / recruitee / bamboohr / personio**: probed and left off. Workable's widget API
+  now returns a Cloudflare security-challenge page for every slug; Recruitee subdomains 404;
+  BambooHR slugs NXDOMAIN or return empty; only two Personio slugs answered, neither LATAM.
+- **Role-family title gate**: added `title_filter:` in `config/sources.yaml`, applied centrally
+  in `src/discover.py`. Company boards return every open req a company has; measured against
+  the existing DB the gate keeps 101/101 rows that ever reached shortlisted-or-better while
+  dropping ~86% of rows triage had marked `irrelevant`. Titles only, never location.
+
+Result: 253 new rows -> 9,605 new rows in one run (10,169 further rows dropped by the gate).

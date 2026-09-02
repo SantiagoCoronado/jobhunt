@@ -23,6 +23,7 @@ import json
 
 from .config import ROOT
 from .db import connect
+from .dream import is_dream
 from .models import now_iso
 
 TRIAGE_DIR = ROOT / "data" / "triage"
@@ -53,13 +54,18 @@ def export(chunk: int, limit: int | None) -> None:
     for old in list(TRIAGE_DIR.glob("chunk_*.json")) + list(TRIAGE_DIR.glob("out_*.json")):
         old.unlink()
 
-    recs = [{
-        "id": r["id"],
-        "company": r["company"],
-        "title": r["title"],
-        "location": r["location"] or ("Remote" if r["remote"] else ""),
-        "snippet": (r["description"] or "")[:300],
-    } for r in rows]
+    recs = []
+    for r in rows:
+        rec = {
+            "id": r["id"],
+            "company": r["company"],
+            "title": r["title"],
+            "location": r["location"] or ("Remote" if r["remote"] else ""),
+            "snippet": (r["description"] or "")[:300],
+        }
+        if is_dream(r["company"]):
+            rec["dream"] = True   # profile.yaml dream_rule: never drop for pay or location
+        recs.append(rec)
 
     n = 0
     for i in range(0, len(recs), chunk):

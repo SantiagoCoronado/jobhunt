@@ -87,6 +87,20 @@ nice_to_have_skills:
   - internal platforms
   - business systems
   - data pipelines
+  # Ecommerce / marketplace DOMAIN signals (set 2026-08-27; Online Basics, five years).
+  # Keyword-prescore hints only; the framing lives in `notes` below.
+  - ecommerce
+  - e-commerce
+  - marketplaces
+  - amazon
+  - mercado libre
+  - shopify           # said in interviews; NOT yet in master_resume.yaml, add it there before claiming it in writing
+  - inventory
+  - pricing
+  - catalog
+  - order management
+  - retail media
+  - conversion optimization
 
 # Hard filters
 locations:
@@ -146,6 +160,56 @@ dealbreakers:
   - "annualized base shown and below comp.min_usd_latam_scope"
   - "requires US citizens only"   # you are TN-eligible, not a citizen, so flag these
 
+# Dream companies (set 2026-09-01). Source of truth for "which companies get the waiver";
+# src/dream.py matches `match` aliases against the posting's company on word boundaries.
+# For these the CONSTRAINTS are waived, the honesty is not: see dream_rule below.
+dream_companies:
+  - {name: "NVIDIA", match: [nvidia]}
+  - {name: "Cursor", match: [cursor, anysphere]}
+  - {name: "Riot Games", match: [riot games, riotgames]}   # not bare "riot": "Riot IQ" is a different company
+  - {name: "xAI", match: [xai, x.ai]}
+  - {name: "Bitso", match: [bitso]}
+  - {name: "Binance", match: [binance]}
+  - {name: "Nintendo", match: [nintendo, nintendo of america]}
+  - {name: "The Pokémon Company International", match: [pokemon, pokémon, pokemoncareers, the pokemon company]}
+  - {name: "Valve", match: [valve, valve software]}
+  - {name: "NBCUniversal", match: [nbcuniversal, nbcuniversal3, nbc universal, nbcu]}
+  - {name: "Steven.com", match: [steven.com, flightstory, flight story, diary of a ceo, doac]}
+  # added 2026-09-01 (second batch)
+  - {name: "Arga Labs", match: [arga labs, argalabs, arga], note: "YC S26, no job board; founders' cal.com link is on argalabs.com/careers, outreach is the path"}
+  - {name: "Framework Computer", match: [framework computer inc, frame.work], note: "board is Rippling slug 'framework' (jobs.frame.work); the name is the display name, so bare 'framework' is never an alias"}
+  - {name: "Secretlab", match: [secretlab, secret lab], note: "in-house API, every opening is Singapore-based; recruitment@secretlab.sg"}
+  - {name: "dbrand", match: [dbrand], note: "Pinpoint board, Mississauga; posts CAD bands"}
+  - {name: "ASUS", match: [asus, asustek, asus computer], note: "careers.asus.com is a brochure; US reqs sit on Taleo (phg.tbe.taleo.net/phg01), sheet-only"}
+  - {name: "Peec AI", match: [peec ai, peec], note: "Ashby slug 'peec', mostly Berlin on-site, a few NYC"}
+  # SpaceX stays listed so the ITAR block is visible in the pipeline rather than silent.
+  - {name: "SpaceX", match: [spacex, space x], note: "every posting carries an ITAR/US-person clause; TN does not satisfy it"}
+
+# THE authoritative dream-company rule. Agents cite this verbatim; no other file restates it.
+dream_rule: >
+  For a job at a dream company (dream_companies above; exported rows carry `dream: true`)
+  the constraints are WAIVED and the honesty is NOT. Waived: location_rule (he is open to
+  relocating to the US for these companies, on a TN visa the employer files), the comp
+  floors (comp.min_usd and comp.min_usd_latam_scope), and the on-site/hybrid dealbreaker.
+  Do NOT cap or penalize the score for location or pay: score on fit alone, set
+  `location_ok:false` when the role requires US presence, and add a one-line `visa_path`
+  (e.g. "TN, employer files; on-site Santa Clara" or "remote from Mexico OK"). STILL HARD
+  BLOCKS (cap at 25 / triage drop, no exceptions): ITAR or "US person" requirements (TN does
+  not satisfy them; SpaceX, and any SpaceX-policy posting at Cursor or xAI that carries the
+  clause), "US citizens only", and active security clearance. A role in the UK or EU needs a
+  visa that is not a TN: keep it, flag it in `visa_path`, no cap. Fit is still scored
+  honestly: a C++/Unreal build role at Riot is still a stretch and says so. The sheet's
+  own priority (Curated block in the description) is his judgment; report it, do not
+  recompute it.
+
+# The one relocation sentence application text may use for a dream-company role that
+# requires US presence. Plain voice, no kicker; the tailor copies it, never rewrites it.
+relocation_line: "I am based in Mexico City and open to relocating to the US for this role on a TN visa, which the employer files."
+
+# Shortlist cutoff for dream-company rows (the normal cutoff is shortlist_threshold above).
+# Lower on purpose: a Stretch-graded role at a dream company is still worth a tailored shot.
+dream_shortlist_threshold: 60
+
 notes: >
   Founder-engineer based in Mexico City, open to FOUR role families, all in-scope:
   (A) hands-on AI / full-stack engineering (AI products, agents, RAG);
@@ -160,6 +224,17 @@ notes: >
   internal analytics and data pipelines that ran an $8M business at Online Basics, Kairos (internal
   command center: CRM, tasks, OKRs), and internal automations for quoting, reporting, onboarding,
   and collections at Pragma AI.
+  Ecommerce is a DOMAIN angle, not a fifth role family (set 2026-08-27). An engineering role in
+  any of the four families at an ecommerce, marketplace, retail-tech, commerce-tooling, or
+  commerce-operations company (Shopify ecosystem, marketplace sellers, retail media, catalog,
+  pricing, inventory or order-management tooling, headless ERP for retailers) gets a strong domain
+  positive: he ran Online Basics for five years, an $8M USD multi-marketplace ecommerce business on
+  Amazon and Mercado Libre, and built its internal platform (pricing dashboard, inventory admin
+  with cross-marketplace matching, discounting and ad-campaign tooling, 10+ commerce APIs on
+  hourly sync), plus a 2026 e-commerce UX conversion audit. Do NOT extend this to
+  platform-specialist roles: Magento/Adobe Commerce, Salesforce Commerce Cloud, BigCommerce, VTEX
+  developers, marketplace-feed or ecommerce-operations specialists, and ecommerce product-manager
+  titles stay off-target and score on their own merits.
   For family B, weight his founder background, 0-to-1 product building, client and stakeholder
   management, and real AI-deployment work (built LLM workflows and a RAG "company brain," ran client
   AI consulting) as strong positives, and do NOT penalize a Director/Lead/Manager/Strategist title
@@ -174,3 +249,5 @@ notes: >
   keep the role in play, especially for a strong fit or a notably cool company.
   Two roles he flagged as ideal: ElevenLabs
   "Deployment Strategist Lead, Mexico" and Backblaze "AI Enablement Director, LATAM."
+  Dream companies (dream_companies + dream_rule above, set 2026-09-01) waive the location
+  and pay constraints; ITAR / US-person / citizens-only stay hard blocks everywhere.

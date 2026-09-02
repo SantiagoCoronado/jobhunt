@@ -46,7 +46,7 @@ Supporting angles:
 
 **Honest concerns / watch-outs**:
 - Golang: the JD requires "proficiency in Python and Golang." Santiago's resume shows no Go experience (Python, JS/TS, Swift, Java); this is a real, nameable gap to address head-on rather than paper over.
-- Company scale and maturity: Cresta is a $1.6B, 600+ person, Series D company selling into Fortune 500 regulated contact centers. Santiago's deployment experience is real but at founder/small-team scale (20+ buildings, 9-person team), not enterprise-vendor scale; he should frame this as directly transferable ownership and client-facing skill, not claim enterprise-SaaS scale he hasn't had.
+- Company scale and maturity: Cresta is a $1.6B, 600+ person, Series D company selling into Fortune 500 regulated contact centers. Santiago's deployment experience is real but at founder/small-team scale (20+ buildings, 7-person team), not enterprise-vendor scale; he should frame this as directly transferable ownership and client-facing skill, not claim enterprise-SaaS scale he hasn't had.
 - The listed base salary range ($185,000 to $235,000) is US-market pay for a US remote role; worth confirming how compensation and work authorization (TN visa) are handled for a Mexico-based, non-citizen candidate before or during the process.
 
 ## 8. Application-question angles

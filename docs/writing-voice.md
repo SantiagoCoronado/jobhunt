@@ -37,6 +37,12 @@ casual, done when the facts are done. Not a keynote, not a personal brand.
 12. **Length default is short.** A form answer over ~150 words needs a reason (e.g. the
     question explicitly has four parts).
 13. Zero em-dashes (existing house rule, still canonical).
+14. **Name projects only when the name carries information for the reader.** "Kairos
+    exposes 52 tools to Claude Code; Plutus has an MCP control plane" in a form answer
+    reads like a portfolio slide written by AI (Santiago flagged exactly this, 2026-08-24).
+    Say what was built ("MCP servers that let agents operate the products I've built");
+    the names live in the resume and repos, or come up when a question is about one
+    specific project.
 
 ## Quick self-check before delivering
 
