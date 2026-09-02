@@ -26,10 +26,14 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
 6. **Track** (`src/crm/viewer.py` local UI, or `/jh-notion-sync`), application status + follow-ups.
-   `/jh-gmail-sync` reads Gmail (STRICTLY read-only on the mailbox) for signals on open
-   applications: the skill classifies and writes `data/gmail_pull.json`, then
-   `python -m src.gmail_pull` validates and applies after human approval (forward-only moves,
-   never ghosted/withdrawn/offer decisions, evidence headers only, bodies never enter the DB).
+   `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
+   read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
+   one-line-per-thread manifest; the model classifies THAT (`show <id>` for unsettled lines,
+   never reads `data/mail_*`, never `query crm`/`query job` in that step), writes
+   `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies after human
+   approval (forward-only moves, never ghosted/withdrawn/offer decisions, evidence headers +
+   signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
+   fallback only when no account is configured. Setup + tuning: `docs/mail-setup.md`.
    `/jh-report` (`python -m src.report`) renders `data/report.html`, the offline dashboard.
 7. **Learn** (the intelligence layer). `/jh-upskill [id]`: gap analysis via `python -m src.gaps`
    (matcher missing_skills + lexicon scan vs `config/skills_lexicon.yaml`); vocabulary gaps become

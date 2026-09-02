@@ -1,6 +1,8 @@
 # Spec: portable multi-account inbox pull (`src/mail_fetch.py`)
 
-Status: v2. Phase A SHIPPED 2026-09-01 (`src/mail_fetch.py`, `config/mail_hints.yaml`, `tests/test_mail_fetch.py`, PR #9). Phase B SHIPPED 2026-09-01 (`/jh-gmail-sync` rewritten around the manifest, `gmail_pull` evidence gains account + thread_id, `ignore` signal, `--apply` records seen ids; `/jh-followups` reply-from-the-right-mailbox rule; `/jh-hunt` steps 2 and 4). C, D pending. v1 reviewed by a Fable sub-agent the same day;
+Status: v2. Phase A SHIPPED 2026-09-01 (`src/mail_fetch.py`, `config/mail_hints.yaml`, `tests/test_mail_fetch.py`, PR #9). Phase B SHIPPED 2026-09-01 (`/jh-gmail-sync` rewritten around the manifest, `gmail_pull` evidence gains account + thread_id, `ignore` signal, `--apply` records seen ids; `/jh-followups` reply-from-the-right-mailbox rule; `/jh-hunt` steps 2 and 4, PR #10).
+Phase C SHIPPED 2026-09-01 (`docs/mail-setup.md`, `.env.example` block, CLAUDE.md Track
+paragraph, pointer in the email spec, hint redirected). D pending. v1 reviewed by a Fable sub-agent the same day;
 its findings (job legend, hint-centered leads, receipt-cut gating, name stoplist, id format,
 thread exclusion, file split, Outlook correction, honest budget) are folded in below,
 together with the owner's server-side-search idea (A3). The reviewer's conditional Haiku

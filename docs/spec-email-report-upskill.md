@@ -7,6 +7,8 @@ and all generated text obeys the zero em-dash and writing-voice rules.
 
 Status: Phase 1 SHIPPED 2026-07-24 (`src/report.py`, stats compute/print split,
 `/jh-report`, `tests/test_report.py`; verified on the real DB and rendered in a browser).
+Phase 2 input side REPLACED 2026-09-01 by `docs/spec-mail-fetch.md` (multi-account IMAP
+pull, token-budgeted manifest); the applier contract below still holds.
 Phase 2 SHIPPED 2026-07-24 (`src/gmail_pull.py`, `/jh-gmail-sync`, `/jh-followups`
 refactor, `/jh-hunt` inbox-pull + report steps, CLAUDE.md Track paragraph,
 `tests/test_gmail_pull.py`). One deviation from 2c/2d as written: a rejection
