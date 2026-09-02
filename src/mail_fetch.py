@@ -585,9 +585,12 @@ def confirm_headers(msg: Message, jobs: list[JobKeys], own: set[str] | frozenset
         # A recruiter mailing from the company's own domain is a domain hit even when the
         # job url sits on an ATS board (no domain key) and the subject never names the
         # company: alejandro@wizeline.com about "We Would Like to Invite you" is Wizeline.
+        # For a weak-named company (google, linear, ...) the inferred hit stays WEAK
+        # (`domain_words`, not in STRONG_KINDS): cloud.google.com billing mail must not
+        # become a protected strong match that outranks recruiters and dodges the alert cut.
         elif msg.from_domain and any(job.name_re[key].search(_domain_words(msg.from_domain))
                                      for key, _ in job.names):
-            kinds.append("domain")
+            kinds.append("domain_words" if job.is_weak else "domain")
         for key, kind in job.names:
             rx = job.name_re[key]
             if rx.search(_fold(msg.from_name)) or rx.search(_fold(msg.from_addr.split("@")[0].replace(".", " "))):

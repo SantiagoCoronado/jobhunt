@@ -311,6 +311,21 @@ def test_corporate_sender_matches_company_by_its_own_domain(acct, hints, tmp_pat
     assert "m3@x" not in got
 
 
+def test_sender_domain_hit_stays_weak_for_weak_names(acct, hints, tmp_path):
+    """PR #12 review: the inferred domain hit must not route around weak_names."""
+    jobs = [mf.job_keys(row(33705, "Google", "https://boards.greenhouse.io/google/jobs/1"), hints)]
+    assert jobs[0].is_weak and jobs[0].domains == []
+    fake = FakeImap({"INBOX": [
+        mk(1, "Google Cloud <noreply@cloud.google.com>", "Your Google Cloud usage", "monthly usage summary",
+           headers={"List-Unsubscribe": "<u>", "Precedence": "bulk"}),
+        mk(2, "Ana <ana@google.com>", "Next steps", "Hi Santiago, we would like to schedule a chat."),
+    ]})
+    res = run(acct, fake, jobs, hints, tmp_path)
+    assert res.accounts[0].noise == {"alerts": 1}                       # the bulk cut applies again
+    assert [t["message_id"] for t in res.threads] == ["m2@x"]
+    assert res.threads[0]["match_on"] == ["domain_words"] and res.threads[0]["strength"] == "weak"
+
+
 def test_relay_pass_body_match_only_for_relay_domains(acct, hints, tmp_path):
     jobs = [mf.job_keys(row(1, "Acme Robotics", "https://boards.greenhouse.io/acmerobotics/jobs/1"), hints)]
     fake = FakeImap({"INBOX": [
@@ -463,9 +478,9 @@ def test_rank_then_cap_keeps_recruiter_reply(acct, hints, tmp_path):
     assert res.threads[0]["message_id"] == "m9@x" and res.threads[0]["match_on"] == ["name_subject", "relay"]
     assert res.threads[0]["strength"] == "strong"
     assert res.legend[0]["threads"] == 3 and res.legend[0]["capped"] == 3
-    # changelogs come from the company's own domain: a strong domain hit, ranked below the
-    # relay recruiter reply only because their sender is a no-reply style address
-    assert all("domain" in t["match_on"] and t["strength"] == "strong" for t in res.threads[1:])
+    # changelogs come from the company's own domain, but 'linear' is a weak name, so the
+    # inferred hit is a weak domain_words match and ranks below the relay recruiter reply
+    assert all(t["match_on"] == ["domain_words", "name_from"] and t["strength"] == "weak" for t in res.threads[1:])
 
 
 def test_auto_demotion_and_tune_line(acct, hints, tmp_path):
