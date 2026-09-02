@@ -181,6 +181,7 @@ def test_seen_batch_covers_accepted_proposals_only(conn, tmp_path):
     recorded = {(e["evidence"].get("message_id") or e["evidence"].get("thread_id")).strip("<>"): e["signal"]
                 for e in p["seen_batch"]}
     assert recorded == {"m1@acme": "interview_invite", "amb@x": "ambiguous", "root3": "ignore", "touch@x": "reply"}
+
     state = tmp_path / "mail_state.json"
     assert record_seen(p["seen_batch"], state, today="2026-09-01") == 6
     seen = json.loads(state.read_text())["seen"]
@@ -192,3 +193,17 @@ def test_seen_batch_covers_accepted_proposals_only(conn, tmp_path):
     apply_changes(conn, p)
     payload = json.loads(conn.execute("SELECT payload FROM events WHERE kind='email_signal' AND job_id=1").fetchone()[0])
     assert payload["signal"] == "interview_invite" and payload["thread_id"] == "root1"
+
+
+def test_folded_and_superseded_touches_are_still_recorded(conn):
+    """Phase D finding: a touch folded into a status change (or beaten by a later touch on
+    the same job) left no seen id, so its message resurfaced on the next sweep."""
+    _insert(conn, 1)
+    props = [_prop(1, ev={**EV, "message_id": "invite@x"}),                                          # change
+             {"job_id": 1, "signal": "reply", "proposed_status": None, "contact_date": "2026-07-21",
+              "evidence": {"message_id": "cal@x"}},                                                 # folded touch
+             {"job_id": 1, "signal": "reply", "proposed_status": None, "contact_date": "2026-07-19",
+              "evidence": {"message_id": "older@x"}}]                                               # superseded touch
+    p = plan(conn, props)
+    assert p["touches"] == []
+    assert {e["evidence"]["message_id"] for e in p["seen_batch"]} == {"invite@x", "cal@x", "older@x"}

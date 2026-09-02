@@ -137,9 +137,11 @@ model reads. Full snippets live in `data/mail_snippets.jsonl` and come out only 
 never enter the database, `data/gmail_pull.json`, or any report; the applier stores
 headers plus the classification signal.
 
-Budget, projected for a 91-application pipeline (the spec derives it; Phase D replaces it with measured numbers): roughly 250 tokens per surviving email,
-6k to 10k per weekly sweep, 25k to 35k for a first run over two months of mail. Every sweep
-prints its own thread counts so you can check it.
+Budget, measured on 2026-09-01 over two Gmail accounts and 91 open applications: the first
+run over two months of mail surfaced 53 threads and cost about 12k tokens all-in (printout,
+one `show` call, writing 53 proposals, the dry run); the next run the same day surfaced 2
+threads for about 2k. Per surviving email that is roughly 200 tokens. Every sweep prints
+its own thread counts so you can check it; the detail is in `docs/spec-mail-fetch.md` A6.
 
 ## 6. Commands
 

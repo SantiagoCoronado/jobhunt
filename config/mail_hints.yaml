@@ -57,7 +57,9 @@ hints:
 # templates reuse these subjects).
 receipts:
   - "application (was |has been )?received"
-  - "thank(s| you) for (applying|your application|your interest)"
+  - "received your application"
+  - "we got your application"
+  - "thank(s| you) for (applying|your (\\w+ )?application|your interest)"
   - "we('ve| have) received your"
   - "application confirmation"
   - "gracias por (tu|su) (postulaci[óo]n|aplicaci[óo]n|inter[ée]s)"
@@ -84,8 +86,15 @@ weak_names:
   - resend
   - openai
 
-# Addresses or domains that are never matched (companies you are a customer of).
-ignore_senders: []
+# Addresses or domains that are never matched (companies you are a customer of, and
+# infrastructure senders that would otherwise match a company by domain).
+ignore_senders:
+  - accounts.google.com          # security alerts match a Google application by domain
+  - calendar-notification@google.com
+  - workspace-noreply@google.com
+  - googledevelopers-noreply@google.com
+  - tm.openai.com                # API billing, not recruiting
+  - welcome@supabase.com         # product newsletter
 
 # Company -> extra names and domains that appear in their mail.
 aliases:

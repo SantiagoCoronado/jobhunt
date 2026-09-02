@@ -1,8 +1,12 @@
 # Spec: portable multi-account inbox pull (`src/mail_fetch.py`)
 
-Status: v2. Phase A SHIPPED 2026-09-01 (`src/mail_fetch.py`, `config/mail_hints.yaml`, `tests/test_mail_fetch.py`, PR #9). Phase B SHIPPED 2026-09-01 (`/jh-gmail-sync` rewritten around the manifest, `gmail_pull` evidence gains account + thread_id, `ignore` signal, `--apply` records seen ids; `/jh-followups` reply-from-the-right-mailbox rule; `/jh-hunt` steps 2 and 4, PR #10).
+Status: v2. ALL PHASES SHIPPED. Phase A SHIPPED 2026-09-01 (`src/mail_fetch.py`, `config/mail_hints.yaml`, `tests/test_mail_fetch.py`, PR #9). Phase B SHIPPED 2026-09-01 (`/jh-gmail-sync` rewritten around the manifest, `gmail_pull` evidence gains account + thread_id, `ignore` signal, `--apply` records seen ids; `/jh-followups` reply-from-the-right-mailbox rule; `/jh-hunt` steps 2 and 4, PR #10).
 Phase C SHIPPED 2026-09-01 (`docs/mail-setup.md`, `.env.example` block, CLAUDE.md Track
-paragraph, pointer in the email spec, hint redirected). D pending. v1 reviewed by a Fable sub-agent the same day;
+paragraph, pointer in the email spec, hint redirected, PR #11). Phase D SHIPPED 2026-09-01
+(both real accounts swept; fixes forced by real mail: per-folder body fetch, company name
+matched against the sender's own domain, seen applied per thread group with older
+siblings, folded touches recorded, HTML in text/plain, zero-candidate counter per day;
+measured budget in A6). v1 reviewed by a Fable sub-agent the same day;
 its findings (job legend, hint-centered leads, receipt-cut gating, name stoplist, id format,
 thread exclusion, file split, Outlook correction, honest budget) are folded in below,
 together with the owner's server-side-search idea (A3). The reviewer's conditional Haiku
@@ -406,6 +410,25 @@ have threads; dry-run header and totals about 100. Call it **2k to 3k**.
 Two consequences the spec commits to: the 5k figure from v1 is withdrawn; and the run prints
 `threads` per account so every sweep can be checked against this table. If steady state
 lands above 15k, the cuts or the ranking are wrong, not the model.
+
+**Measured 2026-09-01 (Phase D, two Gmail accounts, All Mail + Spam, 91 open rows, mail
+back to 2026-07-04):**
+
+| | first run | second run, same day, after `--apply` |
+|---|---|---|
+| candidates (server-side search hits) | 168 | 107 |
+| cut before the model: receipts / ignored / own / echoes / collapsed / seen | 38 / 10 / 6 / 4 / 10 / 0 | 32 / 10 / 4 / 0 / 1 / 32 |
+| manifest lines | 53 | 2 |
+| printout (summary + legend + manifest), chars | 19.8k (about 5.8k tokens) | 4.6k with 9 tune lines, about 1.3k tokens |
+| `show` calls / ids | 1 / 8 (about 1.3k tokens) | 0 |
+| proposals written | 53 (about 4k output tokens) | 0 |
+| orchestrator total, all-in | about 12k to 13k | about 2k |
+| wall clock | 98 s | 75 s |
+
+The first run came in well under the 25k to 35k projection because the receipt cut and
+the per-job search removed most of the pile before the model saw a line; the projection
+had assumed 100 to 130 surviving lines and reality was 53. The batch moved 21 statuses
+(2 to screen, 19 rejected) and 6 touches that the Gmail-MCP sweep had never seen.
 
 ### A7. Tests (`tests/test_mail_fetch.py`, hermetic)
 

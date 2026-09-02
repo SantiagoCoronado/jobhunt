@@ -244,6 +244,19 @@ def test_sweep_end_to_end_read_only(acct, hints, tmp_path):
     assert "swept_at" in state["accounts"]["apps"]
 
 
+def test_bodies_fetched_from_each_message_own_folder(acct, hints, tmp_path):
+    """Phase D finding: snippets came back empty for every folder but the last one selected."""
+    jobs = [mf.job_keys(row(1, "Acme", "https://acme.com/jobs/1"), hints),
+            mf.job_keys(row(2, "Beta Corp", "https://beta.io/jobs/1"), hints)]
+    acct.folders = ["INBOX", "Archive"]
+    fake = FakeImap({"INBOX": [mk(1, "hr@acme.com", "Acme next steps", "the acme body text")],
+                     "Archive": [mk(1, "hr@beta.io", "Beta next steps", "the beta body text", mid="b1@x")]})   # same UID, other folder
+    res = run(acct, fake, jobs, hints, tmp_path)
+    snippets = {t["subject"]: res.snippets[t["id"]] for t in res.threads}
+    assert snippets == {"Acme next steps": "the acme body text", "Beta next steps": "the beta body text"}
+    assert all(c[2] is True for c in fake.calls if c[0] == "select")
+
+
 def test_gmail_capability_detected_not_hostname(acct, hints, tmp_path):
     jobs = [mf.job_keys(row(1, "Wizeline", "https://boards.wizeline.com/x"), hints)]
     fake = FakeImap({"INBOX": []}, gmail=True)
@@ -279,6 +292,40 @@ def test_local_confirmation_word_boundary_and_window(acct, hints, tmp_path):
     assert got["m5@x"]["match_on"] == ["domain", "name_from"] and got["m5@x"]["strength"] == "strong"
 
 
+def test_corporate_sender_matches_company_by_its_own_domain(acct, hints, tmp_path):
+    """Phase D finding: ATS-hosted job (no domain key) + recruiter on the company domain +
+    a subject that never names the company. Wizeline and Caylent were both invisible."""
+    jobs = [mf.job_keys(row(21109, "Wizeline", "https://boards.greenhouse.io/wizeline/jobs/1", applied="2026-08-31"), hints),
+            mf.job_keys(row(28813, "Caylent", "https://jobs.ashbyhq.com/caylent/x", applied="2026-08-31"), hints)]
+    fake = FakeImap({"INBOX": [
+        mk(1, "Alejandro Yoria Guzman <alejandro.yoria@wizeline.com>", "We Would Like to Invite you to a Zoom Interview",
+           "Hello Santiago, I will be in charge of your selection process. Could you share your availability?"),
+        mk(2, "Leticia Alves <leticia.silveira@caylent.com>", "Let's schedule the Talent Interview",
+           "Hi Santiago, Thank you for your interest in Caylent. Please pick a slot."),
+        mk(3, "Someone <x@wizelinefans.org>", "Wizeline fan club", "Wizeline is great"),   # not the company's domain
+    ]})
+    res = run(acct, fake, jobs, hints, tmp_path)
+    got = {t["message_id"]: t for t in res.threads}
+    assert got["m1@x"]["job_ids"] == [21109] and got["m1@x"]["match_on"] == ["domain"] and got["m1@x"]["strength"] == "strong"
+    assert got["m2@x"]["job_ids"] == [28813] and "domain" in got["m2@x"]["match_on"]
+    assert "m3@x" not in got
+
+
+def test_sender_domain_hit_stays_weak_for_weak_names(acct, hints, tmp_path):
+    """PR #12 review: the inferred domain hit must not route around weak_names."""
+    jobs = [mf.job_keys(row(33705, "Google", "https://boards.greenhouse.io/google/jobs/1"), hints)]
+    assert jobs[0].is_weak and jobs[0].domains == []
+    fake = FakeImap({"INBOX": [
+        mk(1, "Google Cloud <noreply@cloud.google.com>", "Your Google Cloud usage", "monthly usage summary",
+           headers={"List-Unsubscribe": "<u>", "Precedence": "bulk"}),
+        mk(2, "Ana <ana@google.com>", "Next steps", "Hi Santiago, we would like to schedule a chat."),
+    ]})
+    res = run(acct, fake, jobs, hints, tmp_path)
+    assert res.accounts[0].noise == {"alerts": 1}                       # the bulk cut applies again
+    assert [t["message_id"] for t in res.threads] == ["m2@x"]
+    assert res.threads[0]["match_on"] == ["domain_words"] and res.threads[0]["strength"] == "weak"
+
+
 def test_relay_pass_body_match_only_for_relay_domains(acct, hints, tmp_path):
     jobs = [mf.job_keys(row(1, "Acme Robotics", "https://boards.greenhouse.io/acmerobotics/jobs/1"), hints)]
     fake = FakeImap({"INBOX": [
@@ -308,10 +355,17 @@ def test_cut_reasons(hints):
     cuts = mf.Cuts({"root9": "rejection", "rcpt": "ignore", "amb": "ambiguous"},
                    {"kraken.com"}, {ME, "alias@apps.example"}, hints.receipts, {1: job})
     cr = mf.cut_reason
-    assert cr(_msg("a@acme.com", "x", refs=["root9", "m2"]), cuts) == "seen"        # rejection silences the thread
-    assert cr(_msg("a@acme.com", "x", mid="rcpt"), cuts) == "seen"                   # the ignored message itself
-    assert cr(_msg("a@acme.com", "Re: x", refs=["rcpt"], reply_to="rcpt"), cuts) is None   # a reply on it survives
-    assert cr(_msg("a@acme.com", "Re: x", refs=["amb"], reply_to="amb"), cuts) is None     # ambiguous is not terminal
+    seen = cuts.seen
+    assert mf.collapse_threads([_msg("a@acme.com", "x", refs=["root9", "m2"])], seen) == ([], 1)   # rejection root
+    assert mf.collapse_threads([_msg("a@acme.com", "x", mid="rcpt")], seen) == ([], 1)             # the ignored message
+    reply = _msg("a@acme.com", "Re: x", mid="r2", refs=["rcpt"], reply_to="rcpt", day="2026-09-02")
+    kept, n = mf.collapse_threads([_msg("a@acme.com", "x", mid="rcpt"), reply], seen)              # newer reply survives
+    assert [m.message_id for m in kept] == ["r2"] and n == 1 and kept[0].thread_len == 1
+    older = _msg("a@acme.com", "x", mid="old", day="2026-08-30")
+    kept, n = mf.collapse_threads([older, _msg("a@acme.com", "x", mid="rcpt")], seen)              # older sibling too
+    assert kept == [] and n == 2
+    amb_reply = _msg("a@acme.com", "Re: x", mid="r3", refs=["amb"], reply_to="amb")
+    assert mf.collapse_threads([amb_reply], seen)[0] == [amb_reply]                                 # ambiguous not terminal
     assert cr(_msg("bot@news.kraken.com", "x"), cuts) == "ignored"
     assert cr(_msg("alias@apps.example", "Re: x"), cuts) == "own"
     assert cr(_msg("hr@acme.com", "x", headers={"Auto-Submitted": "auto-replied"}), cuts) == "autoreply"
@@ -328,7 +382,6 @@ def test_cut_reasons(hints):
                    reply_to="m0"), cuts) is None                              # not first in thread
     cuts.enabled = False
     assert cr(_msg("jobs-noreply@linkedin.com", "New jobs for you"), cuts) is None
-    assert cr(_msg("a@acme.com", "x", refs=["root9"]), cuts) == "seen"       # seen survives --keep-noise
 
 
 def test_ignored_receipt_does_not_hide_the_reply_on_its_thread(acct, hints, tmp_path):
@@ -344,13 +397,30 @@ def test_ignored_receipt_does_not_hide_the_reply_on_its_thread(acct, hints, tmp_
            refs=["orig@acme"], reply_to="orig@acme"),
     ]})
     res = run(acct, fake, jobs, hints, tmp_path)
-    assert [t["message_id"] for t in res.threads] == ["m2@x"] and res.threads[0]["hints"] == ["schedule?"]
+    assert [t["message_id"] for t in res.threads] == ["m2@x"] and "schedule?" in res.threads[0]["hints"]
     assert res.accounts[0].noise == {"seen": 1}
     # a rejection on the root DOES silence the follow-up
     state.write_text(json.dumps({"seen": {"orig@acme": {"signal": "rejection", "at": "2026-08-12"}},
                                  "accounts": {}, "zero_candidates": {}}))
     res = run(acct, FakeImap({"INBOX": fake.folders["INBOX"]}), jobs, hints, tmp_path)
     assert res.threads == [] and res.accounts[0].noise == {"seen": 2}
+
+
+def test_seen_receipt_does_not_resurface_its_older_sibling(acct, hints, tmp_path):
+    """Phase D finding: two receipts collapsed into one line, the newest recorded as seen,
+    then the older one came back as 'new' on the next sweep."""
+    jobs = [mf.job_keys(row(1, "Acme", "https://acme.com/jobs/1", applied="2026-08-10"), hints)]
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"seen": {"r2@acme": {"signal": "ignore", "at": "2026-09-01"}},
+                                 "accounts": {}, "zero_candidates": {}}))
+    fake = FakeImap({"INBOX": [
+        mk(1, "hr@acme.com", "Update on your application", "still reviewing", day="20 Aug 2026", mid="r1@acme"),
+        mk(2, "hr@acme.com", "Update on your application", "still reviewing, again", day="22 Aug 2026", mid="r2@acme"),
+        mk(3, "hr@acme.com", "Update on your application", "we would like to schedule a call", day="25 Aug 2026", mid="r3@acme"),
+    ]})
+    res = run(acct, fake, jobs, hints, tmp_path, keep_noise=True)      # seen applies even under --keep-noise
+    assert [t["message_id"] for t in res.threads] == ["r3@acme"] and res.threads[0]["thread_len"] == 1
+    assert res.accounts[0].noise == {"seen": 2}
 
 
 def test_prune_seen_by_date():
@@ -408,8 +478,9 @@ def test_rank_then_cap_keeps_recruiter_reply(acct, hints, tmp_path):
     assert res.threads[0]["message_id"] == "m9@x" and res.threads[0]["match_on"] == ["name_subject", "relay"]
     assert res.threads[0]["strength"] == "strong"
     assert res.legend[0]["threads"] == 3 and res.legend[0]["capped"] == 3
-    # 'linear' is weak (yaml), so the changelog lines carry the flag
-    assert all(t["strength"] == "weak" for t in res.threads[1:])
+    # changelogs come from the company's own domain, but 'linear' is a weak name, so the
+    # inferred hit is a weak domain_words match and ranks below the relay recruiter reply
+    assert all(t["match_on"] == ["domain_words", "name_from"] and t["strength"] == "weak" for t in res.threads[1:])
 
 
 def test_auto_demotion_and_tune_line(acct, hints, tmp_path):
@@ -427,28 +498,40 @@ def test_auto_demotion_and_tune_line(acct, hints, tmp_path):
     assert not jobs2[0].demoted and res2.tune == [] and res2.threads[0]["strength"] == "strong"
 
 
-def test_zero_candidate_tune_after_three_sweeps(acct, hints, tmp_path):
+def test_zero_candidate_tune_after_three_sweep_days(acct, hints, tmp_path):
     jobs = [mf.job_keys(row(3077, "Ghostco", "https://ghostco.com/jobs/1", title="Software Engineer"), hints)]
-    tune = []
-    for _ in range(3):
-        res = run(acct, FakeImap({"INBOX": []}), jobs, hints, tmp_path)
-        tune = res.tune
-    assert any("job 3077 (Ghostco, Software Engineer) produced 0 candidates in 3" in t and "aliases" in t
-               for t in tune)
+    from datetime import timedelta
+    for _ in range(3):                                   # three runs on the SAME day count once
+        res = run(acct, FakeImap({"INBOX": []}), jobs, hints, tmp_path, today=TODAY)
+    assert res.tune == [] and json.loads((tmp_path / "state.json").read_text())["zero_candidates"] == {"apps": {"3077": 1}}
+    for d in (1, 2):
+        res = run(acct, FakeImap({"INBOX": []}), jobs, hints, tmp_path, today=TODAY + timedelta(days=d))
+    assert any("job 3077 (Ghostco, Software Engineer) produced 0 candidates on 3 sweep days" in t and "aliases" in t
+               for t in res.tune)
     state = json.loads((tmp_path / "state.json").read_text())
     assert state["zero_candidates"] == {"apps": {"3077": 3}}
+    # many silent jobs: capped at TUNE_LINES_MAX plus one summary line
+    many = [mf.job_keys(row(100 + i, f"Silent{i} Corp", f"https://silent{i}.com/j"), hints) for i in range(8)]
+    tmp2 = tmp_path / "many"
+    tmp2.mkdir()
+    for d in range(3):
+        res = run(acct, FakeImap({"INBOX": []}), many, hints, tmp2, today=TODAY + timedelta(days=d))
+    lines = [t for t in res.tune if t.startswith("tune:")]
+    assert len(lines) == mf.TUNE_LINES_MAX + 1 and lines[-1].startswith("tune: 3 more jobs")
 
 
 def test_zero_candidate_tune_waits_for_every_mailbox(acct, hints, tmp_path):
     """--account apps three times must not blame the company for mail on `personal`."""
     jobs = [mf.job_keys(row(3077, "Ghostco", "https://ghostco.com/jobs/1"), hints)]
-    for _ in range(4):
-        res = run(acct, FakeImap({"INBOX": []}), jobs, hints, tmp_path, all_labels=["apps", "personal"])
+    from datetime import timedelta
+    for d in range(4):
+        res = run(acct, FakeImap({"INBOX": []}), jobs, hints, tmp_path, all_labels=["apps", "personal"],
+                  today=TODAY + timedelta(days=d))
     assert not any("produced 0 candidates" in t for t in res.tune)
     # a sweep where the account errors must not move the counter either
     bad = mf.MailAccount("apps", ME, "pw", "imap.x.com")
     res = mf.sweep(None, [bad], hints, jobs=jobs, state_path=tmp_path / "state.json",
-                   client_factory=factory_for(FakeImap({}, fail_login=True)), today=TODAY)
+                   client_factory=factory_for(FakeImap({}, fail_login=True)), today=TODAY + timedelta(days=9))
     assert json.loads((tmp_path / "state.json").read_text())["zero_candidates"] == {"apps": {"3077": 4}}
 
 
@@ -486,6 +569,9 @@ def test_extract_and_clean_text():
     assert len(long) <= 104 and long.endswith("...")
     sig = mf.clean_text("Short note about the interview slot tomorrow morning.\nSent from my iPhone")
     assert sig == "Short note about the interview slot tomorrow morning."
+    assert mf.clean_text("Creative Chaos ------------------------------- Your application") == "Creative Chaos Your application"
+    _, raw = mk(1, "a@b.com", "s", "<p>Hi Santiago,</p><p>After review&nbsp;we moved on.</p>")   # html in text/plain
+    assert mf.extract_text(raw).split() == "Hi Santiago, After review we moved on.".split()
 
 
 def test_hints_and_lead(hints):

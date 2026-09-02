@@ -56,7 +56,8 @@ WINDOW_PAD_DAYS = 2
 RECEIPT_GRACE_DAYS = 3
 FALLBACK_THREAD_GAP_DAYS = 7
 DEMOTE_DOMAIN_THRESHOLD = 5      # distinct sender domains before a name key is demoted
-ZERO_CANDIDATE_SWEEPS = 3        # sweeps with 0 candidates before the aliases tune line
+ZERO_CANDIDATE_SWEEPS = 3        # DAYS with 0 candidates before the aliases tune line (one count per day)
+TUNE_LINES_MAX = 5               # per category per run; the rest is summarized
 THREAD_TERMINAL_SIGNALS = frozenset({"rejection"})   # only these let a seen id silence its whole thread
 SHOW_MAX_IDS = 25
 HEADER_FIELDS = ("FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES "
@@ -98,7 +99,9 @@ FREEMAIL = frozenset({
     "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com",
     "icloud.com", "me.com", "proton.me", "protonmail.com", "gmx.com", "aol.com",
 })
-NOREPLY_RE = re.compile(r"(^|[.\-_])(no-?reply|do-?not-?reply|notifications?|mailer-daemon|bounce)", re.I)
+NOREPLY_RE = re.compile(
+    r"(^|[.\-_])(no-?reply|do-?not-?reply|notifications?|mailer-daemon|bounce|updates?|newsletters?|news|"
+    r"marketing|digest|billing|welcome|alerts?)\d*($|[.\-_@+])", re.I)
 ECHO_SUBJECT_RE = re.compile(r"^(accepted|declined|tentative|updated invitation|aceptad[oa]|rechazad[oa]):", re.I)
 REPLY_PREFIX_RE = re.compile(r"^\s*((re|fwd?|fw|rv|aw|sv)\s*:\s*)+", re.I)
 EXTERNAL_PREFIX_RE = re.compile(r"^\s*\[(external|externo|ext)\]\s*", re.I)
@@ -501,7 +504,10 @@ def extract_text(raw: bytes) -> str:
             text = payload.decode("utf-8", errors="replace")
         (plain if ctype == "text/plain" else htmls).append(text)
     if plain:
-        return "\n".join(plain)
+        text = "\n".join(plain)
+        if re.search(r"</?(p|br|div|span|a|td|table)\b", text, re.I):   # HTML shipped as text/plain
+            text = html_to_text(text)
+        return text
     if htmls:
         return html_to_text("\n".join(htmls))
     return ""
@@ -540,6 +546,7 @@ def clean_text(text: str, limit: int = 800) -> str:
         s = s[:m.start()]
     s = _FOOTER_RE.sub("", s)
     s = _URL_RE.sub(lambda mm: mm.group(1), s)
+    s = re.sub(r"([-_=*~])\1{3,}", " ", s)                      # ----- separators
     s = re.sub(r"[ \t ​‌͏]+", " ", s)
     s = re.sub(r"\s*\n\s*", " ", s)
     s = re.sub(r"\s{2,}", " ", s).strip()
@@ -549,6 +556,11 @@ def clean_text(text: str, limit: int = 800) -> str:
 
 
 # ----------------------------------------------------------------------------- matching
+
+def _domain_words(domain: str) -> str:
+    """'mail.frame-work.co.uk' -> 'mail frame work co uk', for word-boundary name matching."""
+    return re.sub(r"[.\-_]+", " ", _fold(domain)).strip()
+
 
 def _domain_in(domain: str, pool: Iterable[str]) -> bool:
     return any(domain == d or domain.endswith("." + d) for d in pool)
@@ -570,6 +582,15 @@ def confirm_headers(msg: Message, jobs: list[JobKeys], own: set[str] | frozenset
         kinds: list[str] = []
         if msg.from_domain and _domain_in(msg.from_domain, job.domains):
             kinds.append("domain")
+        # A recruiter mailing from the company's own domain is a domain hit even when the
+        # job url sits on an ATS board (no domain key) and the subject never names the
+        # company: alejandro@wizeline.com about "We Would Like to Invite you" is Wizeline.
+        # For a weak-named company (google, linear, ...) the inferred hit stays WEAK
+        # (`domain_words`, not in STRONG_KINDS): cloud.google.com billing mail must not
+        # become a protected strong match that outranks recruiters and dodges the alert cut.
+        elif msg.from_domain and any(job.name_re[key].search(_domain_words(msg.from_domain))
+                                     for key, _ in job.names):
+            kinds.append("domain_words" if job.is_weak else "domain")
         for key, kind in job.names:
             rx = job.name_re[key]
             if rx.search(_fold(msg.from_name)) or rx.search(_fold(msg.from_addr.split("@")[0].replace(".", " "))):
@@ -638,14 +659,10 @@ def _receipt_shaped(subject: str, patterns: list[re.Pattern[str]]) -> bool:
 
 
 def cut_reason(msg: Message, cuts: Cuts) -> str | None:
-    """Return the noise category that removes this message, or None to keep it."""
-    # A seen id silences ITSELF. It silences the rest of its thread only when it was a
-    # terminal signal (a rejection): recruiters reply on the receipt thread all the time,
-    # so an ignored receipt must never hide the interview invite that follows it.
-    if msg.message_id and msg.message_id in cuts.seen:
-        return "seen"
-    if msg.thread_root != msg.message_id and cuts.seen.get(msg.thread_root) in THREAD_TERMINAL_SIGNALS:
-        return "seen"
+    """Return the noise category that removes this message, or None to keep it.
+    The `seen` cut is not here: it is applied per thread group in collapse_threads, so it
+    can drop a seen message together with everything OLDER in its thread while letting a
+    newer reply through."""
     if not cuts.enabled:
         return None
     if msg.from_addr in cuts.ignore_senders or _domain_in(msg.from_domain, cuts.ignore_senders):
@@ -712,9 +729,16 @@ def _norm_subject(s: str) -> str:
     return re.sub(r"\s+", " ", REPLY_PREFIX_RE.sub("", _fold(s))).strip()
 
 
-def collapse_threads(msgs: list[Message]) -> list[Message]:
+def collapse_threads(msgs: list[Message], seen: dict[str, str] | None = None) -> tuple[list[Message], int]:
     """One survivor per thread (the newest), thread_len recorded. Fallback key for mail
-    without References: subject + sender domain, never across a 7-day gap."""
+    without References: subject + sender domain, never across a 7-day gap.
+
+    `seen` (id -> signal) is applied per group here, not per message: a seen message
+    silences itself and everything OLDER in its thread (the model already judged that
+    state), a seen REJECTION silences the whole thread, and anything newer than a
+    non-terminal seen message still surfaces (recruiters reply on the receipt thread).
+    Returns (survivors, number of messages dropped as seen)."""
+    seen = seen or {}
     groups: dict[str, list[Message]] = defaultdict(list)
     fallback: list[Message] = []
     for m in msgs:
@@ -736,8 +760,19 @@ def collapse_threads(msgs: list[Message]) -> list[Message]:
             key = f"{base}|{m.date}"
             open_groups[base] = groups[key] = [m]
     out: list[Message] = []
+    dropped = 0
     for key, grp in groups.items():
         grp.sort(key=lambda m: (m.date, m.uid))
+        ids = {m.message_id for m in grp if m.message_id} | {key}
+        if any(seen.get(i) in THREAD_TERMINAL_SIGNALS for i in ids):
+            dropped += len(grp)
+            continue
+        last_seen = max((i for i, m in enumerate(grp) if m.message_id and m.message_id in seen), default=-1)
+        if last_seen >= 0:
+            dropped += last_seen + 1
+            grp = grp[last_seen + 1:]
+            if not grp:
+                continue
         newest = grp[-1]
         newest.thread_len = len(grp)
         newest.thread_key = key if (newest.references or newest.in_reply_to) else newest.message_id or key
@@ -745,7 +780,7 @@ def collapse_threads(msgs: list[Message]) -> list[Message]:
             for jid, kinds in m.matches.items():
                 newest.matches.setdefault(jid, kinds)
         out.append(newest)
-    return out
+    return out, dropped
 
 
 def rank_key(msg: Message, jobs_by_id: dict[int, JobKeys]) -> tuple:
@@ -894,10 +929,18 @@ def _scan_folder(client: ImapClient, account: MailAccount, folder: str, jobs: li
 
 
 def _fetch_bodies(client: ImapClient, msgs: list[Message]) -> None:
+    """UIDs are per folder, so reselect each message's folder (read-only) before fetching.
+    Without this, a fetch after the folder loop runs against whichever folder was selected
+    last and every other folder's bodies come back empty."""
     need = [m for m in msgs if m.body is None]
-    raw = _fetch_batches(client, [m.uid for m in need], "BODY.PEEK[]")
+    by_folder: dict[str, list[Message]] = defaultdict(list)
     for m in need:
-        m.body = extract_text(raw[m.uid]) if m.uid in raw else ""
+        by_folder[m.folder].append(m)
+    for folder, group in by_folder.items():
+        client.select(folder, readonly=True)
+        raw = _fetch_batches(client, [m.uid for m in group], "BODY.PEEK[]")
+        for m in group:
+            m.body = extract_text(raw[m.uid]) if m.uid in raw else ""
 
 
 def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: Hints, *,
@@ -981,7 +1024,9 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
                 if m.message_id and m.message_id in by_mid:           # cross-account duplicate
                     by_mid[m.message_id].accounts_seen.append(acct.label)
                     continue
-                reason = cut_reason(m, cuts)
+                # a seen message skips the other cuts: collapse_threads counts it as seen
+                # and uses it to silence what is older in its thread
+                reason = None if (m.message_id and m.message_id in seen) else cut_reason(m, cuts)
                 if reason == "receipts" and body_has_signal(m, hints):
                     reason = None
                 if reason:
@@ -992,9 +1037,11 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
                     by_mid[m.message_id] = m
                 kept.append(m)
             before = len(kept)
-            kept = collapse_threads(kept)
-            if before > len(kept):
-                noise["collapsed"] = before - len(kept)
+            kept, seen_dropped = collapse_threads(kept, seen)
+            if seen_dropped:
+                noise["seen"] = seen_dropped
+            if before - seen_dropped > len(kept):
+                noise["collapsed"] = before - seen_dropped - len(kept)
             _fetch_bodies(client, kept)
             for m in kept:
                 m.snippet = clean_text(m.body or "", snippet_chars) if snippet_chars else "(no text)"
@@ -1028,25 +1075,35 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
                                        for a, v in raw_zero.items() if isinstance(v, dict)}
     swept_ok = {r.label for r in reports if r.status == "ok"} if not scan_all else set()
     job_ids = {str(j.job_id) for j in jobs}
+    prev_accounts = state.get("accounts") or {}
     for label in swept_ok:
         counts = zero.setdefault(label, {})
+        # a re-run on the same day is not new evidence: the counter moves once per day
+        new_day = str((prev_accounts.get(label) or {}).get("swept_at") or "")[:10] != today.isoformat()
         for job in jobs:
             key = str(job.job_id)
-            counts[key] = 0 if hits_by_acct[label].get(job.job_id) else counts.get(key, 0) + 1
+            if hits_by_acct[label].get(job.job_id):
+                counts[key] = 0
+            elif new_day:
+                counts[key] = counts.get(key, 0) + 1
     if swept_ok and labels_all and labels_all <= set(zero):
-        for job in jobs:
-            key = str(job.job_id)
-            n = min(zero[label].get(key, 0) for label in labels_all)
-            if n >= ZERO_CANDIDATE_SWEEPS:
-                tune.append(
-                    f"tune: job {job.job_id} ({job.company}, {job.title}) produced 0 candidates in {n} "
-                    f"consecutive sweeps of every mailbox.\n      If they wrote from another name or domain: "
-                    f"add it under aliases in config/mail_hints.yaml, or run with --keep-noise to see what was cut")
+        silent = [(job, min(zero[label].get(str(job.job_id), 0) for label in labels_all)) for job in jobs]
+        silent = [(job, n) for job, n in silent if n >= ZERO_CANDIDATE_SWEEPS]
+        for job, n in silent[:TUNE_LINES_MAX]:
+            tune.append(
+                f"tune: job {job.job_id} ({job.company}, {job.title}) produced 0 candidates on {n} "
+                f"sweep days across every mailbox.\n      If they wrote from another name or domain: "
+                f"add it under aliases in config/mail_hints.yaml, or run with --keep-noise to see what was cut")
+        if len(silent) > TUNE_LINES_MAX:
+            tune.append(f"tune: {len(silent) - TUNE_LINES_MAX} more jobs with no candidates on "
+                        f"{ZERO_CANDIDATE_SWEEPS}+ sweep days; ids: "
+                        + ", ".join(str(j.job_id) for j, _ in silent[TUNE_LINES_MAX:]))
     state["zero_candidates"] = {a: {k: v for k, v in c.items() if k in job_ids} for a, c in zero.items()}
     state.setdefault("accounts", {})
     for r in reports:
         if r.status == "ok":
-            state["accounts"][r.label] = {"swept_at": datetime.now(UTC).isoformat(timespec="seconds")}
+            state["accounts"][r.label] = {"swept_at": datetime.combine(today, datetime.now(UTC).time(), UTC)
+                                          .isoformat(timespec="seconds")}
     save_state(state_path, state)
 
     threads_out: list[dict] = []
