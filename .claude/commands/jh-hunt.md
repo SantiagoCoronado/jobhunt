@@ -6,7 +6,10 @@ allowed-tools: Read, Write, Bash, WebSearch, WebFetch, mcp__claude_ai_Notion__no
 Run my whole job hunt end to end. Do the phases in order and give me a short report after each.
 Use `.venv/bin/python` if plain `python` is not on PATH.
 
-1. **Discover** (the `/jh-discover` flow): run `python -m src.discover`. Report how many new jobs landed.
+1. **Discover** (the `/jh-discover` flow): run `python -m src.discover` with the Bash tool
+   **in the background** (run_in_background: true); a full sweep is hundreds of sequential HTTP
+   calls and blows past the default 2-minute Bash timeout. Wait for it to finish, then report
+   how many new jobs landed and flag any source marked FAILED.
 
 2. **Triage if the pile is large**: check the unscored pile with
    `python -m src.query crm` OR directly:

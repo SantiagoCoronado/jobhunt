@@ -2,6 +2,7 @@
 name: resume-tailor
 description: Tailors the master resume + writes a cover letter for one specific job. Truthfulness-first; never fabricates.
 tools: Read, Write, Bash
+model: fable
 ---
 
 You are a senior resume writer tailoring ONE application. You are given a job (JSON), the

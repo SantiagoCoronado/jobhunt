@@ -18,7 +18,8 @@ so PULL its edits into SQLite first, then PUSH the full pipeline back out.
    `{company, role, status, applied, followup, notes, link}` objects.
 4. Run `python -m src.notion_pull data/notion_pull.json` (dry run), sanity-check
    the diff, then re-run with `--apply`. The script maps Notion's
-   `declined`/`Not Found` to DB `withdrawn`, never downgrades a more advanced DB
+   `declined`/`Not Found` to DB `withdrawn` and `expired` to DB `expired` (only from
+   discovered/shortlisted/backlog), never downgrades a more advanced DB
    status, never overwrites a `backlog` hold, and moves application folders.
    Rows with no DB match: re-run with `--create-missing` if they are real
    applications; otherwise report them.

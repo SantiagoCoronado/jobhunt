@@ -126,7 +126,7 @@ executing someone else's spec. That is a rare, specific match to a "founding eng
   conversational agents and automations; this is structurally the same problem as Rhizome Ask
   (ingest domain documents, answer questions, cite sources), just in a different vertical.
   (resume/master_resume.yaml)
-- Founder mindset for a 4-person team: 3x founder (Online Basics to $8M revenue on a 9-person team,
+- Founder mindset for a 4-person team: 3x founder (Online Basics to $8M revenue on a 7-person team,
   Eugenia.ai built to acquisition, Pragma AI co-founded now) means he is used to owning outcomes
   end to end with no safety net, which maps directly to Rhizome's "founding engineer, high
   autonomy, own database to UI" framing.

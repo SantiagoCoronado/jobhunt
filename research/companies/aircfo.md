@@ -145,7 +145,7 @@ Honest concerns / watch-outs:
 - No salary or equity information is public anywhere (job DB, HN posting); profile.yaml's $65k
   minimum-base dealbreaker cannot be checked before applying, this needs to be raised early.
 - The role reports to a part-time/fractional CTO, not a resident engineering team or manager;
-  Santiago has led a 9-person team before but here he would likely be the only full-time engineer,
+  Santiago has led a 7-person team before but here he would likely be the only full-time engineer,
   a much more solo setup than Online Basics or Pragma AI.
 - Domain gap: no direct bookkeeping, GAAP, revenue-recognition, or tax-compliance experience on the
   resume; the role explicitly needs someone who can build a RAG layer "over all our tools," which

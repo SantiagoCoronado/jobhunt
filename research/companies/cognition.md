@@ -164,7 +164,7 @@ Supporting angles:
   alongside Devin. He can speak to agent tooling interop from direct build experience, not just as
   a user of Devin.
 - Cognition's own team composition (careers page: "high concentration of former founders")
-  suggests a real cultural fit for someone who has raised capital, led a 9-person team, and built
+  suggests a real cultural fit for someone who has raised capital, led a 7-person team, and built
   and exited a company (Eugenia.ai) and scaled another to $8M revenue (Online Basics).
 
 **Honest concerns / watch-outs**:

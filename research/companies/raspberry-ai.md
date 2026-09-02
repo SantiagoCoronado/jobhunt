@@ -143,7 +143,7 @@ production-ready systems."
 
 Secondary hook: founder-level ownership and 0-to-1 experience fits a 67-person Series A team that
 explicitly values "Be an Owner" ("don't wait for permission") and "Bias to Solution." Santiago has
-been the person responsible for outcomes (CEO/founder at two companies, 9-person team lead), not
+been the person responsible for outcomes (CEO/founder at two companies, 7-person team lead), not
 just a task-taker, which is a good match for a small team scaling fast off a $24M raise.
 
 Honest gaps and watch-outs:

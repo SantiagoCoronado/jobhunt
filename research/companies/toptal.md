@@ -125,7 +125,7 @@ posting asks for, not resume-listed familiarity.
   users). Matches "develop and maintain applications across frontend, backend, APIs, and data
   layers."
 - Remote-native, high-autonomy operator: 3x founder who has run lean, fully accountable teams
-  (9-person team scaled to $8M revenue) without heavy oversight, a good match for Toptal's
+  (7-person team scaled to $8M revenue) without heavy oversight, a good match for Toptal's
   stated "we care about results, not hours" culture and its explicit warning that the pace is
   intense and self-directed.
 - Bootstrapped-builder affinity: Santiago's own ventures (Online Basics, Eugenia.ai) were

@@ -7,10 +7,14 @@ fast-growing private company: raised a $400M Series D in January 2026 at a $15B 
 (more than double its ~$6.35B Series C valuation from May 2025), and reported over $250M ARR
 and 4,000+ customers by May 2026. HQ in the San Francisco Bay Area with a European entity
 (ClickHouse B.V.) in Amsterdam; globally distributed team operating in 20+ countries, remote-friendly.
-The role in question ("AI Product Engineer - ClickStack," Greenhouse posting) is fully remote, US.
+Current role in context: **AI Operations Engineer** (Greenhouse 6143997004, job id 18857 in this
+pipeline), listed location "AMER," a newly formed internal AI Ops function inside IT Operations
+(Technical Lead plus one or two AI Ops Engineers, reporting to the IT Business Systems Manager);
+posted salary $170,000 to $220,000 US base / $200,000 to $250,000 in US premium markets.
 [clickhouse.com/blog Series D](https://clickhouse.com/blog/clickhouse-raises-400-million-series-d-acquires-langfuse-launches-postgres),
 [Open House 2026 milestones](https://clickhouse.com/blog/clickhouse-tops-250m-arr-and-4000-customers),
-[Wikipedia](https://en.wikipedia.org/wiki/ClickHouse)
+[Wikipedia](https://en.wikipedia.org/wiki/ClickHouse),
+[Job posting: AI Operations Engineer (Greenhouse 6143997004)](https://job-boards.greenhouse.io/clickhouse/jobs/6143997004)
 
 ## 2. Core narrative
 ClickHouse spent a decade proving it has the fastest, most efficient engine for real-time
@@ -18,13 +22,21 @@ analytics at petabyte scale (born at Yandex in 2009-2012, open-sourced in 2016).
 converting that speed advantage into an "agentic data stack" bet: rather than just selling a
 database, it is building the full loop that lets AI agents query, investigate, and act on live
 telemetry and business data themselves, evidenced by the January 2026 acquisition of the LLM
-observability tool Langfuse, the public beta of Claude-powered "ClickHouse Agents," and a
-purpose-built MCP server for its ClickStack observability product. The company is explicit that
-in 2026 "a complete data platform is more than a database, it is a database plus the tools that
-make it accessible to AI agents and the instrumentation to understand how those agents behave."
+observability tool Langfuse, the public beta of Claude-powered "ClickHouse Agents," a
+purpose-built MCP server for its ClickStack observability product, and the August 2026 launch of
+ClickHouse Labs (a new database-research division led by Carnegie Mellon's Andy Pavlo). The
+company practices what it sells internally, too: its own data warehouse team built "DWAINE," an
+internal Claude- and MCP-based natural-language analyst that now fields roughly 200+ daily
+messages from 250+ employees and cut ad hoc analyst requests by 50 to 70 percent, the same
+pattern of internal AI-agent enablement the AI Operations Engineer role is now being asked to
+formalize company-wide. The company is explicit that in 2026 "a complete data platform is more
+than a database, it is a database plus the tools that make it accessible to AI agents and the
+instrumentation to understand how those agents behave."
 [The Agentic Data Stack](https://clickhouse.com/blog/the-agentic-data-stack),
 [Managed ClickStack MCP Server](https://clickhouse.com/blog/announcing-managed-clickstack-mcp-server),
-[AI is redrawing the database market](https://clickhouse.com/blog/ai-redrawing-database-market)
+[AI is redrawing the database market](https://clickhouse.com/blog/ai-redrawing-database-market),
+[How we made our internal data warehouse AI-first](https://clickhouse.com/blog/ai-first-data-warehouse),
+[ClickHouse Labs launch](https://clickhouse.com/blog/andy-pavlo-founding-clickhouse-labs)
 
 ## 3. Mission & product
 - Core product: ClickHouse, an open-source, column-oriented SQL database built for speed at
@@ -36,16 +48,21 @@ make it accessible to AI agents and the instrumentation to understand how those 
   [Open House 2026 milestones](https://clickhouse.com/blog/clickhouse-tops-250m-arr-and-4000-customers)
 - ClickStack: the open-source observability stack (logs, metrics, traces, session replay) built
   on ClickHouse and OpenTelemetry, with HyperDX as the UI layer; also offered as a managed
-  service in ClickHouse Cloud. [ClickStack blog](https://clickhouse.com/blog/clickstack-a-high-performance-oss-observability-stack-on-clickhouse),
-  [ClickStack use case page](https://clickhouse.com/use-cases/observability)
-- New in 2026: ClickHouse Postgres (public beta, built with Ubicloud, over 5x TPS vs AWS RDS,
-  native CDC) for unified transactional + analytical workloads; Langfuse V4 (LLM observability,
-  200x query performance improvement post-acquisition); ClickHouse Agents (Claude-powered
-  agentic analytics, public beta, no-code agent builder). [Series D blog](https://clickhouse.com/blog/clickhouse-raises-400-million-series-d-acquires-langfuse-launches-postgres),
-  [Open House Day 1](https://clickhouse.com/blog/open-house-2026-day-1)
+  service in ClickHouse Cloud, with continued feature work (richer trace navigation, broader
+  metrics support, smarter dashboards/alerts/APIs) through June and July 2026.
+  [ClickStack blog](https://clickhouse.com/blog/clickstack-a-high-performance-oss-observability-stack-on-clickhouse),
+  [What's new in ClickStack, June + July 2026](https://clickhouse.com/blog/whats-new-in-clickstack-june-2026)
+- 2026 releases: ClickHouse Postgres (public beta, built with Ubicloud, over 5x TPS vs AWS RDS,
+  native CDC); Langfuse V4 (LLM observability, 200x query performance improvement
+  post-acquisition); ClickHouse Agents (Claude-powered agentic analytics, public beta, no-code
+  agent builder); and, in the July 26.6 core release, AI embedding functions and "hypothetical
+  skip indexes" (preview an index's performance gain before building it).
+  [Series D blog](https://clickhouse.com/blog/clickhouse-raises-400-million-series-d-acquires-langfuse-launches-postgres),
+  [Open House Day 1](https://clickhouse.com/blog/open-house-2026-day-1),
+  [July 2026 newsletter](https://clickhouse.com/blog/202607-newsletter)
 - Customers span AI-native companies and global enterprises: Anthropic, Meta, Cursor, Sony,
   Tesla, Capital One, Lovable, Decagon, Polymarket, Airwallex, Lyft, Instacart, and CERN's LHCb
-  experiment. [Job posting (Greenhouse 6014112004)](https://job-boards.greenhouse.io/clickhouse/jobs/6014112004),
+  experiment. [Job posting (Greenhouse 6143997004)](https://job-boards.greenhouse.io/clickhouse/jobs/6143997004),
   [customer search results](https://clickhouse.com/user-stories)
 
 ## 4. Culture & voice
@@ -57,7 +74,7 @@ make it accessible to AI agents and the instrumentation to understand how those 
   [clickhouse.com/company/careers](https://clickhouse.com/company/careers)
 - Fully remote-friendly, globally distributed team (20+ countries per the job posting); the
   careers page tone is approachable and informal ("we'll definitely click!").
-  [job posting](https://job-boards.greenhouse.io/clickhouse/jobs/6014112004),
+  [job posting](https://job-boards.greenhouse.io/clickhouse/jobs/6143997004),
   [clickhouse.com/company/careers](https://clickhouse.com/company/careers)
 - Engineering culture is pragmatic and experimentation-heavy rather than top-down: no company
   mandate to use AI coding agents, but voluntary, wide adoption (Claude Code/Opus as the
@@ -67,9 +84,14 @@ make it accessible to AI agents and the instrumentation to understand how those 
 - 10-year open-source milestone (celebrated at Open House 2026) suggests real pride in
   open-source roots and community, not just enterprise sales motion.
   [Open House 2026 Day 2](https://clickhouse.com/blog/open-house-2026-day-2)
+- New in mid-2026: expanding beyond pure tech marketing into sports sponsorship, named Principal
+  Partner and Front of Shirt Sponsor of Fulham Football Club (Men's First Team) on July 21, 2026,
+  a signal of brand-building ambitions beyond the developer community.
+  [Fulham sponsorship (Yahoo Finance/press coverage)](https://finance.yahoo.com/technology/articles/clickhouse-announced-principal-partner-front-080000850.html)
 
 ## 5. Recent news (last ~12 months, dated)
-- **May 2025**: Series C, $350M at ~$6.35B valuation, led by Khosla Ventures.
+- **May 2025**: Series C, $350M at ~$6.35B valuation, led by Khosla Ventures. Included here as
+  funding-history context (outside the strict 12-month window from this refresh date).
   [Wikipedia](https://en.wikipedia.org/wiki/ClickHouse)
 - **January 16, 2026**: Series D, $400M at $15B valuation, led by Dragoneer Investment Group
   (Bessemer, GIC, Index, Khosla, Lightspeed, T. Rowe Price accounts, WCM participating);
@@ -94,14 +116,31 @@ make it accessible to AI agents and the instrumentation to understand how those 
   [Open House milestones](https://clickhouse.com/blog/clickhouse-tops-250m-arr-and-4000-customers),
   [Open House Day 1](https://clickhouse.com/blog/open-house-2026-day-1),
   [BusinessWire](https://www.businesswire.com/news/home/20260527813115/en/ClickHouse-Tops-$250M-ARR-and-4000-Customers-Launches-Claude-Powered-Agents-at-Open-House-2026)
-- **June 8, 2026**: Appointed a new APAC leader and expanded global go-to-market leadership,
-  signaling continued international scale-up.
+- **June 8, 2026**: Appointed Ed Lenta as Vice President for Asia Pacific and Japan, expanding
+  global go-to-market leadership, signaling continued international scale-up.
   [BusinessWire](https://www.businesswire.com/news/home/20260608754768/en/ClickHouse-Appoints-New-Leader-for-Asia-Pacific-and-Expands-Global-Go-To-Market-Leadership-Team)
 - **June 24, 2026**: Announced the Managed ClickStack MCP server in ClickHouse Cloud, exposing
   purpose-built observability investigation tools (event-pattern clustering via Drain3, trend
   correlation, trace inspection, dashboard persistence) to AI agents; internal benchmarks
   showed 25% fewer tool calls, 2.5x consistency, and ~20% higher eval scores versus a generic
   ClickHouse MCP server. [Managed ClickStack MCP Server](https://clickhouse.com/blog/announcing-managed-clickstack-mcp-server)
+- **July 17-23, 2026**: Ran its first virtual summer hackathon (with Trigger.dev, EUR 10,000 in
+  prizes) focused on building AI agent chat experiences on ClickHouse.
+  [July 2026 newsletter](https://clickhouse.com/blog/202607-newsletter)
+- **July 21, 2026**: Named Principal Partner and Front of Shirt Sponsor of Fulham Football Club.
+  [Press coverage](https://finance.yahoo.com/technology/articles/clickhouse-announced-principal-partner-front-080000850.html)
+- **August 3, 2026**: Launched ClickHouse Labs, a new research group focused on foundational
+  database and data-architecture research (query processing, systems performance,
+  infrastructure) for both ClickHouse and PostgreSQL, led by Andy Pavlo (Carnegie Mellon
+  database researcher) as VP of Database Research.
+  [ClickHouse Labs launch](https://clickhouse.com/blog/andy-pavlo-founding-clickhouse-labs),
+  [BusinessWire](https://www.businesswire.com/news/home/20260803890510/en/ClickHouse-Launches-ClickHouse-Labs-With-Andy-Pavlo-as-VP-of-Database-Research)
+- **Mid-August 2026** (posted August 14, 2026): Opened the AI Operations Engineer requisition,
+  standing up a net-new AI Ops function inside IT Operations to centralize agent/LLM tooling,
+  model evaluation, cost visibility, and AI training across People, Finance, Legal, and
+  Engineering, a concrete internal-hiring signal that the company is scaling its own
+  AI-enablement practice (the DWAINE precedent below) into a dedicated team.
+  [Job posting (Greenhouse 6143997004)](https://job-boards.greenhouse.io/clickhouse/jobs/6143997004)
 
 ## 6. Engineering & AI direction
 - Core engine is written for raw speed at petabyte scale (the open-source ClickHouse project,
@@ -112,6 +151,13 @@ make it accessible to AI agents and the instrumentation to understand how those 
   MCP server for observability investigation; Langfuse for LLM tracing, evaluation, and cost
   monitoring (integrated post-acquisition, V4 shipped with 200x query performance gains).
   [clickhouse.com/ai](https://clickhouse.com/ai), [ClickHouse Agents beta](https://clickhouse.com/blog/clickhouse-agents-beta)
+- Internal precedent for exactly the kind of function the AI Operations Engineer role is hiring
+  for: ClickHouse's own data warehouse team built "DWAINE" (Data Warehouse AI Natural Expert),
+  an internal natural-language analyst on Claude 4 (via AWS Bedrock), LibreChat as the chat UI,
+  and MCP servers over ClickHouse Cloud, backed by a business glossary and data-quality rules;
+  by the time of the write-up it served 250+ internal users, 200+ daily messages, and cut analyst
+  request volume by 50 to 70 percent, while a hard 70/30 split kept certified financial metrics
+  on traditional BI. [How we made our internal data warehouse AI-first](https://clickhouse.com/blog/ai-first-data-warehouse)
 - Explicit product philosophy for the ClickStack MCP server: agents perform much better with
   purpose-built, semantic investigation primitives (event-pattern clustering, trend/anomaly
   correlation, trace root-cause tools) than with raw SQL generation, with a SQL "escape hatch"
@@ -122,74 +168,95 @@ make it accessible to AI agents and the instrumentation to understand how those 
   discipline rather than blind trust. [Agentic coding at ClickHouse](https://clickhouse.com/blog/agentic-coding)
 - Strategic thesis (stated by the company): databases are shifting from "passive data stores"
   to "agent-facing resources" that AI systems discover and query autonomously; the acquisition
-  of Langfuse and the open "Agentic Data Stack" reference architecture (LibreChat + ClickHouse/MCP
-  + Langfuse) are the concrete bets behind that thesis. [The Agentic Data Stack](https://clickhouse.com/blog/the-agentic-data-stack)
+  of Langfuse, the open "Agentic Data Stack" reference architecture (LibreChat + ClickHouse/MCP
+  + Langfuse), and the new ClickHouse Labs research division (foundational work on query
+  processing and infrastructure "powering the next generation of ... AI applications") are the
+  concrete bets behind that thesis. [The Agentic Data Stack](https://clickhouse.com/blog/the-agentic-data-stack),
+  [ClickHouse Labs launch](https://clickhouse.com/blog/andy-pavlo-founding-clickhouse-labs)
+- July 2026 core release (26.6) shipped AI embedding functions directly in the database and
+  "hypothetical skip indexes" for previewing index performance gains, plus experimental
+  continuous queries. [July 2026 newsletter](https://clickhouse.com/blog/202607-newsletter)
 
-## 7. Why-fit angles for Santiago
-**Best hook to lead with:** Santiago has already built, end to end, the exact category of
-system this role is hiring for: an LLM research agent exposed through an MCP control plane
-(Plutus), plus a from-scratch MCP server exposing a typed tool layer to both an in-app agent
-and Claude Code (Kairos). That is not adjacent experience, it is the same architecture
-(agent + tool design + MCP + evals-in-practice) the ClickStack AI Product Engineer role asks
-for, just built solo instead of at petabyte scale.
+## 7. Why-fit angles for Santiago (AI Operations Engineer, Greenhouse 6143997004)
+**Best hook to lead with:** Santiago has already built, solo and at a smaller scale, the exact
+thing this new internal function exists to formalize: an internal, agent-driven operations layer
+that lets non-engineers run real workflows through Claude and MCP. At Pragma AI he co-built the
+firm's internal operating platform, a hosted, authenticated MCP "brain" service (per-operator
+tokens, rate limits) exposing 15 agent definitions and 10 reusable routines so operators run
+quoting, diagnostics, discovery research, and delivery work as tools inside Claude Code. That is
+a small, self-built version of the same job ClickHouse's new IT Ops AI function is standing up:
+agent infrastructure, access control for non-human actors, and AI adoption across business teams,
+which is also exactly what ClickHouse's own DWAINE case study describes doing at company scale.
 
-- **MCP and agent-stack ownership**: Kairos exposes 18 tools through a single typed
-  tool-definition layer consumed by both an in-app Claude Agent SDK agent and a standalone MCP
-  server, mirroring the job's ask for someone who has "hit the limits of generic copilots" and
-  can "own the agent stack end-to-end" (context engineering, tool design, evals, tracing, cost).
-  [resume/master_resume.yaml]
-- **Building agents against a live data substrate**: Plutus pairs an autonomous discovery
-  engine (vectorized signal scans, evidence-backed candidate inbox) with an LLM research agent
-  that drafts memos and converts natural language into backtestable rules, on a
-  Postgres/TimescaleDB + Celery/Redis backend. That is a close structural match to "build agents
-  that investigate incidents... using ClickStack as their substrate."
-  [resume/master_resume.yaml]
-- **SQL and data-pipeline fluency**: 7+ years building on relational/time-series databases
-  (SQLAlchemy, TimescaleDB, PostgreSQL) and, earlier, orchestrating 10+ third-party APIs into
-  hourly-synced pipelines processing 100K+ daily data points at Online Basics; the JD explicitly
-  wants someone who "can write ClickHouse queries directly."
-- **Production-minded, ship-fast bias**: founder background (Eugenia.ai exit, Online Basics to
-  $8M revenue) shows comfort owning ambiguous 0-to-1 problems and shipping under real
-  constraints, which lines up with ClickHouse's own "no top-down AI mandates, validate every
-  change, keep shipping" engineering ethos.
+- **Agent infrastructure and identity/access control for non-human actors**: Pragma AI's MCP
+  brain service issues per-operator tokens and rate limits; Kairos exposes 52 tools through one
+  typed tool layer to both an in-app Claude Agent SDK agent and a standalone MCP server. The JD
+  explicitly asks for "provision, credential, and de-provision AI agent access" and "identity and
+  access controls for automated/non-human actors." [resume/master_resume.yaml]
+- **Internal AI adoption and enablement across business functions**: Pragma AI ships
+  conversational agents and internal automations for quoting, reporting, onboarding, and
+  collections for non-technical operators, and ran an adoption-blocker analysis that reshaped
+  onboarding after dogfooding the RAG brain internally. The JD's core mandate is building AI
+  workflows across People, Finance, Legal, and Engineering and driving "AI fluency and literacy
+  org-wide." [resume/master_resume.yaml]
+- **Internal dashboards and cost/operations visibility**: at Online Basics, Santiago built the
+  company's internal operations platform (pricing dashboard, inventory admin panel, alerting)
+  used daily by 4 operators, and orchestrated 10+ third-party APIs into hourly-synced pipelines
+  processing 100K+ daily data points. The JD wants someone who can "build dashboards and
+  reporting for AI/LLM spend" and "implement tagging, monitoring, and alerting for cost
+  anomalies," a structurally similar build even though the previous domain was e-commerce spend,
+  not LLM spend. [resume/master_resume.yaml]
+- **Model evaluation instinct**: Pragma AI's RAG "company brain" shipped with an automated eval
+  harness and deterministic no-answer/citation gating; Santiago has hands-on production use of
+  both Anthropic and OpenAI APIs plus ElevenLabs, giving him real, if informal, cross-provider
+  comparison experience to build on for the JD's "compare and evaluate AI models across
+  providers" ask.
 
 **Honest concerns / watch-outs:**
-- **Seniority and track record gap**: the JD wants "5+ years of software engineering including
-  1-2 years on LLM-powered systems or agents in production," ideally with a track record of
-  opinions formed from having shipped agents and dealt with their failure modes at scale.
-  Santiago's agent work (Plutus, Kairos, the Pragma AI personal-finance agent) is real and
-  recent but is founder/solo-project scale, not production systems serving external customers
-  at ClickHouse's petabyte scale; this is a legitimate gap to be upfront about, not a
-  fabrication he should paper over.
-- **TypeScript/Node.js depth**: the role wants strong backend skills in TypeScript/Node.js
-  and/or Python "comfortable in both." Santiago's resume shows strong Python and JavaScript/
-  React/Node.js from Eugenia.ai, but his most recent, deepest agent work (Plutus) is
-  Python-first (FastAPI); worth being honest that Node.js is less recently exercised.
-- **Kubernetes**: the JD lists "comfort with Docker and Kubernetes." Santiago's resume shows
-  Docker (Plutus, Kairos) but no explicit Kubernetes experience; this should be named as a gap
-  rather than implied.
-- **No explicit columnar-database or OpenTelemetry experience**: listed only as a "bonus" in
-  the JD, so not a blocker, but worth knowing before an interview.
+- **No formal training/enablement delivery track record**: the JD wants someone who designs and
+  delivers "company-wide AI training programs" and runs "onboarding sessions, office hours, and
+  workshops" for mixed technical/non-technical audiences. Santiago has run client AI diagnostics
+  and onboarding at Pragma AI, but there is no evidence of formal, recurring internal-training
+  program delivery at his scale; worth naming as an area he would be building out rather than
+  repeating.
+- **This is an internal IT Operations role, not a product/customer-facing engineering seat**: the
+  team reports to the IT Business Systems Manager, not an engineering leader, and the scope is
+  explicitly internal tooling (HRIS, ATS, ERP, procurement, ticketing, CLM) rather than
+  ClickHouse's product surface. That is a genuine fit for Santiago's "internal tooling" strength
+  (Family D), but he should walk into interviews clear that this is an IT/business-systems
+  function, not a core product engineering track, and be ready to say why that scope appeals to
+  him specifically.
+- **No named production experience with enterprise SaaS integrations** the JD calls out (HRIS,
+  ATS, ERP, CLM/Matter Management, procurement orchestration); his integration experience is
+  real (Amazon, Mercado Libre, Inflow APIs at Online Basics; internal CRM at Kairos and Pragma)
+  but not with these specific enterprise system categories, a legitimate gap to name rather than
+  imply away.
+- **Formal GRC/security process experience is thin**: the JD wants support for "model risk
+  assessments and due diligence alongside Security and GRC" and "data privacy, security, and
+  compliance considerations." Santiago's access-control work (per-operator tokens, rate limits,
+  sensitivity labeling at ingest in Pragma's RAG brain) is a reasonable proof point, but he has
+  not worked inside a formal GRC process before.
 
 ## 8. Application-question angles
-- **Why this company**: Lead with the Core narrative, ClickHouse is not just betting that its
-  database is fast, it is betting that databases become "agent-facing resources," and it just
-  put real capital behind that bet (Langfuse acquisition, Claude-powered ClickHouse Agents, a
-  purpose-built ClickStack MCP server). Frame Santiago's interest as wanting to build inside
-  that specific thesis (agents that operate on live telemetry, not toy datasets) rather than a
-  generic "I like fast databases" answer.
-- **Why you fit**: Anchor on the MCP/agent architecture parallel: Santiago already designed and
-  shipped a typed tool-definition layer serving both an in-app agent and an MCP server (Kairos),
-  and an agent that turns raw signal into an investigated, evidence-backed output (Plutus's
-  discovery engine and research agent). Name this as "I've built the small version of what
-  ClickStack is hiring to build at petabyte scale," then be candid that the production-scale,
-  team-based agent experience is the part he is actively growing into.
-- **Anything else**: Use this slot for the honest gap rather than more selling: flag directly
-  that his agent and MCP experience comes from founder-scale/solo projects rather than
-  production systems serving thousands of customers, and that Kubernetes is not yet in his
-  toolkit, while pointing to his track record of picking up unfamiliar infrastructure fast
-  (Swift and Java for Nextia.mx, cloud microservices for Online Basics) as evidence he closes
-  gaps quickly on the job.
+- **Why this company**: Lead with the internal-mirror version of the Core narrative: ClickHouse
+  does not just sell agent-facing infrastructure to customers (ClickStack MCP server, Langfuse,
+  Claude-powered ClickHouse Agents), it already proved the model works on itself with DWAINE, an
+  internal Claude and MCP agent that took real load off its own analyst team. Frame Santiago's
+  interest as wanting to help ClickHouse turn that proven, ad hoc internal pattern into a
+  disciplined, company-wide practice, rather than a generic "I like fast databases" answer.
+- **Why you fit**: Anchor on the Pragma AI internal-platform parallel: Santiago already built a
+  hosted, access-controlled MCP agent layer that lets non-engineers run real business workflows
+  (quoting, diagnostics, onboarding, collections) as Claude Code tools, plus the dashboards and
+  API-orchestration muscle from Online Basics to give that platform cost and operations
+  visibility. Name this directly as "I have already built a small version of what this team is
+  standing up," then be candid that the enterprise-system integrations and formal training
+  delivery are the parts he would be growing into.
+- **Anything else**: Use this slot for the honest gaps rather than more selling: no direct
+  experience integrating with the specific enterprise systems named in the JD (HRIS, ATS, ERP,
+  CLM) and no formal GRC process background, while pointing to a track record of picking up
+  unfamiliar systems fast (Swift and Java at Nextia.mx, cloud microservices at Online Basics,
+  the MCP brain service and access-control work at Pragma AI) as evidence he closes this kind of
+  gap quickly on the job.
 
 ## 9. Sources
 - [ClickHouse Series D announcement (funding, Langfuse acquisition, Postgres launch)](https://clickhouse.com/blog/clickhouse-raises-400-million-series-d-acquires-langfuse-launches-postgres)
@@ -197,11 +264,12 @@ for, just built solo instead of at petabyte scale.
 - [ClickHouse product/homepage](https://clickhouse.com/clickhouse)
 - [ClickHouse Docs: What is ClickHouse](https://clickhouse.com/docs/intro)
 - [ClickStack overview blog](https://clickhouse.com/blog/clickstack-a-high-performance-oss-observability-stack-on-clickhouse)
-- [ClickStack use case page](https://clickhouse.com/use-cases/observability)
+- [What's new in ClickStack, June + July 2026](https://clickhouse.com/blog/whats-new-in-clickstack-june-2026)
 - [Managed ClickStack MCP Server announcement](https://clickhouse.com/blog/announcing-managed-clickstack-mcp-server)
 - [The Agentic Data Stack blog](https://clickhouse.com/blog/the-agentic-data-stack)
 - [AI is redrawing the database market blog](https://clickhouse.com/blog/ai-redrawing-database-market)
 - [Agentic coding at ClickHouse (internal AI-agent adoption)](https://clickhouse.com/blog/agentic-coding)
+- [How we made our internal data warehouse AI-first (DWAINE)](https://clickhouse.com/blog/ai-first-data-warehouse)
 - [ClickHouse Agents public beta announcement](https://clickhouse.com/blog/clickhouse-agents-beta)
 - [clickhouse.com/ai (AI platform positioning)](https://clickhouse.com/ai)
 - [Open House 2026 milestones ($250M ARR, 4,000 customers)](https://clickhouse.com/blog/clickhouse-tops-250m-arr-and-4000-customers)
@@ -209,9 +277,13 @@ for, just built solo instead of at petabyte scale.
 - [Open House 2026 Day 2 recap (10 years open source)](https://clickhouse.com/blog/open-house-2026-day-2)
 - [BusinessWire: Open House 2026 milestones](https://www.businesswire.com/news/home/20260527813115/en/ClickHouse-Tops-$250M-ARR-and-4000-Customers-Launches-Claude-Powered-Agents-at-Open-House-2026)
 - [BusinessWire: APAC leader appointment / GTM expansion](https://www.businesswire.com/news/home/20260608754768/en/ClickHouse-Appoints-New-Leader-for-Asia-Pacific-and-Expands-Global-Go-To-Market-Leadership-Team)
+- [July 2026 newsletter (26.6 release, hackathon, AI embedding functions)](https://clickhouse.com/blog/202607-newsletter)
+- [Fulham FC sponsorship coverage](https://finance.yahoo.com/technology/articles/clickhouse-announced-principal-partner-front-080000850.html)
+- [ClickHouse Labs launch (Andy Pavlo, VP of Database Research)](https://clickhouse.com/blog/andy-pavlo-founding-clickhouse-labs)
+- [BusinessWire: ClickHouse Labs launch](https://www.businesswire.com/news/home/20260803890510/en/ClickHouse-Launches-ClickHouse-Labs-With-Andy-Pavlo-as-VP-of-Database-Research)
 - [ClickHouse company careers page (values, culture)](https://clickhouse.com/company/careers)
 - [Wikipedia: ClickHouse (founding history, funding history, HQ)](https://en.wikipedia.org/wiki/ClickHouse)
-- [Job posting: AI Product Engineer - ClickStack (Greenhouse 6014112004)](https://job-boards.greenhouse.io/clickhouse/jobs/6014112004)
+- [Job posting: AI Operations Engineer (Greenhouse 6143997004)](https://job-boards.greenhouse.io/clickhouse/jobs/6143997004)
 - [config/profile.yaml, resume/master_resume.yaml (internal, for fit angles)]
 
-researched: 2026-07-07
+researched: 2026-08-17

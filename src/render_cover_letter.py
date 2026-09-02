@@ -15,6 +15,7 @@ warns loudly that any existing PDF is now stale.
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -29,6 +30,51 @@ from src.render_docx import to_pdf
 NAVY = "1F3864"
 GREY = "444444"
 FONT = "Arial"
+
+# CoverLetter.md is supposed to be plain text (see .claude/agents/resume-tailor.md), but a
+# tailor run can slip Markdown syntax in anyway. Rather than copy it verbatim into the docx
+# (which shows up as literal "#"/"**" in the PDF), normalize the common Markdown markers so
+# the rendered letter always looks like plain text, and warn loudly when we had to.
+_HEADING_RE = re.compile(r"^#{1,6}\s+")
+_INLINE_MD_RE = re.compile(
+    r"(\*\*.+?\*\*|__.+?__|\*[^\s*].*?\*|_[^\s_].*?_|`[^`]+`)"
+)
+
+
+def _parse_inline(text: str) -> list[tuple[str, bool, bool]]:
+    """Split text on Markdown bold/italic/code markers into (text, bold, italic) runs."""
+    runs: list[tuple[str, bool, bool]] = []
+    pos = 0
+    for m in _INLINE_MD_RE.finditer(text):
+        if m.start() > pos:
+            runs.append((text[pos:m.start()], False, False))
+        token = m.group(0)
+        if token.startswith("**") and token.endswith("**"):
+            runs.append((token[2:-2], True, False))
+        elif token.startswith("__") and token.endswith("__"):
+            runs.append((token[2:-2], True, False))
+        elif token.startswith("`") and token.endswith("`"):
+            runs.append((token[1:-1], False, False))
+        elif token.startswith("*") and token.endswith("*"):
+            runs.append((token[1:-1], False, True))
+        elif token.startswith("_") and token.endswith("_"):
+            runs.append((token[1:-1], False, True))
+        pos = m.end()
+    if pos < len(text):
+        runs.append((text[pos:], False, False))
+    if not runs:
+        runs.append(("", False, False))
+    return runs
+
+
+def _strip_heading(line: str) -> tuple[str, bool]:
+    """Strip a leading '#'..'######' Markdown heading marker. Returns (text, was_heading)."""
+    stripped = _HEADING_RE.sub("", line, count=1)
+    return stripped, stripped != line
+
+
+def _has_markdown(text: str) -> bool:
+    return bool(_INLINE_MD_RE.search(text)) or bool(_HEADING_RE.match(text))
 
 
 def _run(p, text, size, color="000000", bold=False, italic=False):
@@ -49,6 +95,14 @@ def _run(p, text, size, color="000000", bold=False, italic=False):
     return r
 
 
+def _run_markdown(p, text, size, color="000000", base_bold=False, base_italic=False):
+    """Render text into paragraph p, splitting inline Markdown emphasis into separate runs."""
+    for chunk, bold, italic in _parse_inline(text):
+        if not chunk:
+            continue
+        _run(p, chunk, size, color, bold=base_bold or bold, italic=base_italic or italic)
+
+
 def _bottom_border(p, color=NAVY, size=6):
     """Draw a thin bottom rule under paragraph p (size in eighths of a point)."""
     ppr = p._p.get_or_add_pPr()
@@ -67,15 +121,18 @@ def render(md_path: Path) -> Path:
     if "—" in raw:
         print("WARNING: em-dash (U+2014) found in source; house rule forbids it.", file=sys.stderr)
 
-    # Split into blank-line-separated blocks; join wrapped lines within a block.
+    # Split into blank-line-separated blocks; join wrapped lines within a block. A block that
+    # is only a "---" horizontal rule is a Markdown separator, not content, so drop it.
     blocks: list[list[str]] = []
     for chunk in raw.replace("\r\n", "\n").split("\n\n"):
         lines = [ln.strip() for ln in chunk.split("\n") if ln.strip()]
-        if lines:
+        if lines and not all(re.fullmatch(r"-{3,}", ln) for ln in lines):
             blocks.append(lines)
 
     if not blocks:
         raise SystemExit(f"empty cover letter: {md_path}")
+
+    found_markdown = any(_has_markdown(ln) for block in blocks for ln in block)
 
     doc = Document()
     sect = doc.sections[0]
@@ -84,17 +141,17 @@ def render(md_path: Path) -> Path:
 
     # --- letterhead ---
     head = blocks[0]
-    name = head[0]
+    name, _ = _strip_heading(head[0])
     contact = "  |  ".join(head[1:]) if len(head) > 1 else ""
 
     p = doc.add_paragraph()
     p.paragraph_format.space_after = Pt(1)
-    _run(p, name, 16, NAVY, bold=True)
+    _run_markdown(p, name, 16, NAVY, base_bold=True)
 
     if contact:
         pc = doc.add_paragraph()
         pc.paragraph_format.space_after = Pt(6)
-        _run(pc, contact, 9.5, GREY)
+        _run_markdown(pc, contact, 9.5, GREY)
         _bottom_border(pc)
     else:
         _bottom_border(p)
@@ -104,13 +161,21 @@ def render(md_path: Path) -> Path:
 
     # --- body ---
     for block in blocks[1:]:
-        text = " ".join(block)
+        text = " ".join(_strip_heading(ln)[0] for ln in block)
         p = doc.add_paragraph()
         pf = p.paragraph_format
         pf.space_after = Pt(9)
         pf.line_spacing = 1.15
         pf.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        _run(p, text, 10.5, "000000")
+        _run_markdown(p, text, 10.5, "000000")
+
+    if found_markdown:
+        print(
+            f"WARNING: Markdown syntax found in {md_path} and normalized for rendering "
+            "(headings/**bold**/*italic*/`code` stripped or converted). CoverLetter.md must "
+            "be plain text; fix the source so this cannot recur.",
+            file=sys.stderr,
+        )
 
     out = md_path.with_suffix(".docx")
     doc.save(str(out))

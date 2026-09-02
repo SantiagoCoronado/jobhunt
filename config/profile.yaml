@@ -87,6 +87,20 @@ nice_to_have_skills:
   - internal platforms
   - business systems
   - data pipelines
+  # Ecommerce / marketplace DOMAIN signals (set 2026-08-27; Online Basics, five years).
+  # Keyword-prescore hints only; the framing lives in `notes` below.
+  - ecommerce
+  - e-commerce
+  - marketplaces
+  - amazon
+  - mercado libre
+  - shopify           # said in interviews; NOT yet in master_resume.yaml, add it there before claiming it in writing
+  - inventory
+  - pricing
+  - catalog
+  - order management
+  - retail media
+  - conversion optimization
 
 # Hard filters
 locations:
@@ -160,6 +174,17 @@ notes: >
   internal analytics and data pipelines that ran an $8M business at Online Basics, Kairos (internal
   command center: CRM, tasks, OKRs), and internal automations for quoting, reporting, onboarding,
   and collections at Pragma AI.
+  Ecommerce is a DOMAIN angle, not a fifth role family (set 2026-08-27). An engineering role in
+  any of the four families at an ecommerce, marketplace, retail-tech, commerce-tooling, or
+  commerce-operations company (Shopify ecosystem, marketplace sellers, retail media, catalog,
+  pricing, inventory or order-management tooling, headless ERP for retailers) gets a strong domain
+  positive: he ran Online Basics for five years, an $8M USD multi-marketplace ecommerce business on
+  Amazon and Mercado Libre, and built its internal platform (pricing dashboard, inventory admin
+  with cross-marketplace matching, discounting and ad-campaign tooling, 10+ commerce APIs on
+  hourly sync), plus a 2026 e-commerce UX conversion audit. Do NOT extend this to
+  platform-specialist roles: Magento/Adobe Commerce, Salesforce Commerce Cloud, BigCommerce, VTEX
+  developers, marketplace-feed or ecommerce-operations specialists, and ecommerce product-manager
+  titles stay off-target and score on their own merits.
   For family B, weight his founder background, 0-to-1 product building, client and stakeholder
   management, and real AI-deployment work (built LLM workflows and a RAG "company brain," ran client
   AI consulting) as strong positives, and do NOT penalize a Director/Lead/Manager/Strategist title

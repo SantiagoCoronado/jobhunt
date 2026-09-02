@@ -154,13 +154,13 @@ Supporting angles:
   in production and cut content-creation time 70%, i.e. he owned an LLM system through its full
   lifecycle (build, validate, operate, iterate), which maps to the JD's ask for "full lifecycle of
   building, testing, deploying, and scaling ML/LLM architectures."
-- **Remote-async fluency**: seven-plus years running lean, distributed teams (9-person team at
+- **Remote-async fluency**: seven-plus years running lean, distributed teams (7-person team at
   Online Basics, git-based workflows, code review, agile delivery) is a real, defensible match for
   Zapier's async-first, no-office culture, not just a stated preference.
 
 **Honest gaps and watch-outs**:
 - Scale mismatch: his AI/LLM production work has been at founder/small-team scale (his own products,
-  or a 9-person team), not operating a shared platform consumed by many other engineering teams
+  or a 7-person team), not operating a shared platform consumed by many other engineering teams
   inside a ~800-person company. He should be ready to explicitly reframe his tool-layer and
   API-orchestration work as "platform for other consumers," since that is the leverage this specific
   role is testing for, not just "I shipped an AI feature."

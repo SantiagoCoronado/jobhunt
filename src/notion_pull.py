@@ -48,7 +48,10 @@ NOTION_TO_DB = {
     "rejected": "rejected", "ghosted": "ghosted",
     "declined": "withdrawn",   # user declined / could not apply
     "Not Found": "withdrawn",  # posting no longer available
+    "expired": "expired",      # posting gone before applying (added to Notion 2026-08-27)
 }
+# 'expired' only ever replaces a pre-application state; it must never erase an application.
+EXPIRABLE = {"discovered", "shortlisted", "backlog"}
 RANK = {"discovered": 0, "shortlisted": 1, "applied": 2, "screen": 3,
         "interview": 4, "offer": 5}
 TERMINAL = {"rejected", "ghosted", "withdrawn"}
@@ -106,7 +109,9 @@ def plan(conn: sqlite3.Connection, rows: list[dict]) -> dict:
         db_status = job["status"]
         if target and target != db_status:
             advances = target in TERMINAL or RANK.get(target, -1) > RANK.get(db_status, 99)
-            if db_status == "backlog" and target not in TERMINAL:
+            if target == "expired":
+                advances = db_status in EXPIRABLE
+            if db_status == "backlog" and target not in TERMINAL and target != "expired":
                 skipped.append(f"#{job['id']} {job['company']}: kept 'backlog' (deliberate hold) over Notion '{notion_status}'")
             elif advances:
                 c["status"] = target

@@ -9,6 +9,7 @@ only fire when a retry can help (429/5xx/timeouts). A 404 or 401 fails fast.
 """
 from __future__ import annotations
 
+import re
 import threading
 import time
 from urllib.parse import urlsplit
@@ -84,6 +85,63 @@ def get_text(url: str, *, params: dict | None = None, headers: dict | None = Non
     none, and it is the sole fetch path for sitemap/RSS sources like softserve)."""
     return _request("GET", url, params=params, headers=headers, auth=auth,
                     timeout=timeout, retries=retries).text
+
+
+# ---- role-family title gate (ATS boards only) ----
+#
+# The broad company boards (Greenhouse/Ashby/Lever/SmartRecruiters/Workday/...)
+# return every open req a company has, so ~half of what they hand us is nursing,
+# manufacturing, or sales. That junk costs a Haiku triage call each. `keep_title`
+# gates on the TITLE only (never on location: the location_rule is the matcher's
+# job) using the shared `title_filter:` block in config/sources.yaml. Any source
+# can override with its own `title_filter:` key, or switch it off entirely with
+# `title_filter: {enabled: false}`.
+_TITLE_FILTER: dict | None = None
+_TERM_RE: dict[str, re.Pattern[str]] = {}
+
+
+def _shared_title_filter() -> dict:
+    global _TITLE_FILTER
+    if _TITLE_FILTER is None:
+        from ..config import load_yaml
+        try:
+            _TITLE_FILTER = load_yaml("sources.yaml").get("title_filter") or {}
+        except FileNotFoundError:
+            _TITLE_FILTER = {}
+    return _TITLE_FILTER
+
+
+def _terms_re(terms) -> re.Pattern[str] | None:
+    r"""Word-boundary alternation over a term list (cached).
+
+    Boundaries matter: a bare substring test for "ai" matches "Maintenance",
+    "Trainer", and "Retail"; \bai\b does not.
+    """
+    if not terms:
+        return None
+    key = "\x00".join(str(t) for t in terms)
+    rx = _TERM_RE.get(key)
+    if rx is None:
+        rx = re.compile("|".join(rf"\b{re.escape(str(t).lower())}\b" for t in terms))
+        _TERM_RE[key] = rx
+    return rx
+
+
+def keep_title(cfg: dict, title: str) -> bool:
+    """True when `title` looks like one of the profile's role families."""
+    f = cfg.get("title_filter")
+    if f is None:
+        f = _shared_title_filter()
+    if not f or f.get("enabled") is False:
+        return True
+    t = (title or "").lower()
+    if not t:
+        return True  # nothing to judge: keep it and let triage decide
+    exclude = _terms_re(f.get("exclude"))
+    if exclude is not None and exclude.search(t):
+        return False
+    include = _terms_re(f.get("include"))
+    return include is None or bool(include.search(t))
 
 
 # ---- shared normalization helpers (use these in every adapter) ----

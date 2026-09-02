@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import importlib
 
+from .adapters import keep_title
 from .config import load_yaml
 from .db import connect
 from .models import now_iso
@@ -28,7 +29,7 @@ def main() -> None:
     sources = load_yaml("sources.yaml")
     conn = connect()
     now = now_iso()
-    total_new = total_seen = 0
+    total_new = total_seen = total_dropped = 0
 
     for name in ADAPTERS:
         cfg = sources.get(name) or {}
@@ -58,9 +59,13 @@ def main() -> None:
         conn.commit()
         total_new += new
         total_seen += seen
-        print(f"  ✓ {name:15s} {new:4d} new  {seen:4d} seen  ({len(jobs)} pulled)")
+        total_dropped += dropped
+        off_family = f"  [-{dropped} off-family]" if dropped else ""
+        print(f"  ✓ {name:15s} {new:4d} new  {seen:4d} seen  "
+              f"({len(jobs)} kept of {pulled} pulled){off_family}")
 
-    print(f"\nDone. {total_new} new jobs added, {total_seen} already known.")
+    print(f"\nDone. {total_new} new jobs added, {total_seen} already known, "
+          f"{total_dropped} dropped by the role-family title gate.")
 
     from .maintain import run as maintain
     m = maintain(conn)

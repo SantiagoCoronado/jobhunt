@@ -1,8 +1,9 @@
 """Careerjet affiliate job search (Mexico via es_MX locale). Needs a partner affid.
 GET http://public.api.careerjet.net/search   (a Referer header is required)
 NOTE: the legacy public endpoint now serves only pre-existing legacy affiliates; new
-partners must use the v4 API (https://www.careerjet.com/partners/api). Ships DISABLED
-until a working affid is confirmed live. cfg.keywords: search terms.
+partners must use the v4 API (https://www.careerjet.com/partners/api).
+cfg.keywords: search terms. cfg.pages: how deep to page each term (the response
+reports `pages`, and a single MX keyword like "developer" spans ~25 pages of 50).
 """
 from __future__ import annotations
 
@@ -22,28 +23,40 @@ def fetch(cfg: dict) -> list[Job]:
     locale = cfg.get("locale_code", "es_MX")
     location = cfg.get("location", "Mexico")
     pagesize = cfg.get("pagesize", 50)
+    max_pages = cfg.get("pages", 1)
     keywords = cfg.get("keywords") or [""]
     headers = {"Referer": "https://github.com/ (jobhunt personal search)"}
 
     jobs: list[Job] = []
     for kw in keywords:
+        jobs.extend(_keyword(kw, locale, location, pagesize, max_pages, affid, headers))
+    return jobs
+
+
+def _keyword(kw, locale, location, pagesize, max_pages, affid, headers) -> list[Job]:
+    out: list[Job] = []
+    for page in range(1, max_pages + 1):
         params = {
             "locale_code": locale, "location": location, "keywords": kw,
-            "affid": affid, "pagesize": pagesize, "page": 1,
+            "affid": affid, "pagesize": pagesize, "page": page,
             "user_ip": "127.0.0.1", "user_agent": "jobhunt/0.1",
         }
         try:
-            data = get_json("http://public.api.careerjet.net/search", params=params, headers=headers)
-        except Exception as e:  # noqa: BLE001, skip a bad query, keep the rest
-            print(f"    · careerjet '{kw}' failed: {e}")
-            continue
+            data = get_json("http://public.api.careerjet.net/search",
+                            params=params, headers=headers)
+        except Exception as e:  # noqa: BLE001, skip a bad page, keep the rest
+            print(f"    · careerjet '{kw}' p{page} failed: {e}")
+            break
         if data.get("type") != "JOBS":
-            print(f"    · careerjet '{kw}': {data.get('error') or data.get('type')}")
-            continue
-        for j in data.get("jobs", []):
+            print(f"    · careerjet '{kw}' p{page}: {data.get('error') or data.get('type')}")
+            break
+        batch = data.get("jobs", [])
+        if not batch:
+            break
+        for j in batch:
             url = j.get("url", "")
             locs = j.get("locations", location)
-            jobs.append(Job(
+            out.append(Job(
                 source="careerjet",
                 external_id=hashlib.sha1(url.encode()).hexdigest()[:16],
                 url=url,
@@ -55,4 +68,6 @@ def fetch(cfg: dict) -> list[Job]:
                 posted_at=j.get("date"),
                 raw={},
             ))
-    return jobs
+        if page >= (data.get("pages") or max_pages):
+            break
+    return out
