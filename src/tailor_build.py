@@ -95,7 +95,16 @@ def split_draft(folder: Path, keep: bool = False) -> list[str]:
     if not parts:
         raise BuildError("draft.md has no `=== FILE: <name> ===` sections")
     for name, body in parts.items():
-        text = "\n".join(body).strip("\n") + "\n"
+        lines = [ln for ln in body]
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines and lines[0].lstrip().startswith("```"):        # a fenced section is the likeliest model slip
+            lines.pop(0)
+        if lines and lines[-1].strip().startswith("```"):
+            lines.pop()
+        text = "\n".join(lines).strip("\n") + "\n"
         (folder / name).write_text(text, encoding="utf-8")
     if not keep:
         draft.unlink()
@@ -130,16 +139,33 @@ def _norm(s: str) -> str:
     return " ".join(s.split()).lower()
 
 
+# Markers of a posting located outside the TN countries (US, Mexico, Canada). A dream row
+# here must NOT carry the TN relocation line; the letter needs a visa note instead.
+OUTSIDE_TN_MARKERS = (
+    "berlin", "germany", "munich", "london", "united kingdom", " uk", "england", "dublin", "ireland",
+    "paris", "france", "amsterdam", "netherlands", "madrid", "barcelona", "spain", "lisbon", "portugal",
+    "zurich", "switzerland", "stockholm", "sweden", "copenhagen", "denmark", "warsaw", "poland",
+    "europe", " eu ", "emea", "singapore", "tokyo", "japan", "sydney", "australia", "india", "bangalore",
+    "bengaluru", "taipei", "taiwan", "seoul", "korea", "dubai", "uae", "tel aviv", "israel", "apac",
+)
+
+
+def outside_tn_countries(location: str | None) -> bool:
+    loc = f" {(location or '').lower()} "
+    return any(m in loc for m in OUTSIDE_TN_MARKERS)
+
+
 def resolve_job(folder: Path, job: dict | None) -> dict:
-    """{id, company, dream}. Explicit `job` wins (tests); else the folder name's -<id> + DB."""
+    """{id, company, dream, location}. Explicit `job` wins (tests); else the folder's -<id> + DB."""
     if job:
-        return {"id": job.get("id"), "company": job.get("company"), "dream": bool(job.get("dream"))}
+        return {"id": job.get("id"), "company": job.get("company"), "dream": bool(job.get("dream")),
+                "location": job.get("location")}
     jid = folder_job_id(folder.name)
     if jid is None:
-        return {"id": None, "company": None, "dream": False}
-    row = connect().execute("SELECT company FROM jobs WHERE id=?", (jid,)).fetchone()
+        return {"id": None, "company": None, "dream": False, "location": None}
+    row = connect().execute("SELECT company, location FROM jobs WHERE id=?", (jid,)).fetchone()
     company = row["company"] if row else None
-    return {"id": jid, "company": company, "dream": is_dream(company)}
+    return {"id": jid, "company": company, "dream": is_dream(company), "location": row["location"] if row else None}
 
 
 def _pdf_pages(pdf: Path) -> int | None:
@@ -211,10 +237,21 @@ def build(folder: Path, job: dict | None = None, no_pdf: bool = False, keep_draf
     if v.warnings and v.ok:
         tail += f" with {len(v.warnings)} warning(s)"
     v.lines.append(f"RESULT  {tail} (exit {0 if v.ok else 1})")
-    v.lines = v.lines[:12]
+    v.lines = _cap(v.lines, 12)
     (folder / "build.json").write_text(json.dumps(v.to_dict(), indent=1), encoding="utf-8")
     update_state(folder, "built", job_id=v.job_id, ok=v.ok)
     return v
+
+
+def _cap(lines: list[str], n: int) -> list[str]:
+    """Keep the verdict under n lines: FAIL and RESULT lines are never dropped."""
+    if len(lines) <= n:
+        return lines
+    for prefix in ("FILES", "WARN", "AUDIT"):
+        while len(lines) > n and any(ln.startswith(prefix) for ln in lines):
+            idx = max(i for i, ln in enumerate(lines) if ln.startswith(prefix))
+            lines.pop(idx)
+    return lines
 
 
 def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool, strict_review: bool) -> None:
@@ -264,7 +301,14 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     reloc = relocation_line()
     letter_reloc = bool(reloc) and _norm(reloc) in _norm(letter["text"])
     v.metrics["relocation_line"] = letter_reloc
-    if info["dream"]:
+    if info["dream"] and outside_tn_countries(info.get("location")):
+        if letter_reloc or header_reloc:
+            v.failures.append(f"dream row located outside the TN countries ({info.get('location')}): drop the TN "
+                              "relocation line and the relocation header; the letter needs a plain visa note instead")
+        elif "visa" not in letter["text"].lower():
+            v.warnings.append(f"dream row located outside the TN countries ({info.get('location')}) and the letter "
+                              "has no visa note")
+    elif info["dream"]:
         if header_reloc and not letter_reloc:
             v.failures.append(f"header says open to US relocation but the letter lacks relocation_line verbatim: {reloc!r}")
         elif letter_reloc and not header_reloc:
@@ -296,13 +340,17 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
 
     # ---- pdf + page count
     pages: int | None = None
+    page_note = ", pdf skipped" if no_pdf else ""
     if not no_pdf:
         pdf = rd.to_pdf(docx)
         if not pdf:
             raise EnvError("LibreOffice (soffice) not found; rerun with --no-pdf or install it")
         pages = _pdf_pages(pdf)
         v.metrics["pages"] = pages
-        if pages is not None and pages > 1:
+        if pages is None:
+            page_note = ", page count skipped: pypdf missing or PDF unreadable"
+            v.warnings.append("page count skipped: pypdf missing or PDF unreadable (pip install -r requirements.txt)")
+        elif pages > 1:
             v.failures.append(f"rendered PDF has {pages} pages; cut real content until it is one")
 
     # ---- cover letter
@@ -312,7 +360,7 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
             raise EnvError("LibreOffice (soffice) not found for the cover letter PDF")
 
     # ---- verdict lines
-    page_txt = f", {pages} page{'s' if pages != 1 else ''} (pdf)" if pages is not None else (", pdf skipped" if no_pdf else "")
+    page_txt = f", {pages} page{'s' if pages != 1 else ''} (pdf)" if pages is not None else page_note
     v.lines.append(f"RESUME  fit level {level}, {pct:.0f}% fill{page_txt}"
                    f"        {'FAIL' if any('page' in f or 'resume' in f for f in v.failures) else 'OK'}")
     if findings:
@@ -322,7 +370,7 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
                        + ("   FAIL" if len(findings) >= AUDIT_FAIL_AT else "   WARN"))
     else:
         v.lines.append("AUDIT   clean                                         OK")
-    lstate = "OK" if not any("CoverLetter" in f for f in v.failures) else "FAIL"
+    lstate = "OK" if not any("letter" in f.lower() for f in v.failures) else "FAIL"
     v.lines.append(f"LETTER  {letter['body_words']} words, {'plain text' if not letter['markdown_lines'] else 'MARKDOWN'}, "
                    f"relocation line {'present' if letter_reloc else 'absent'}   {lstate}")
     if answers_ok is None:
@@ -332,6 +380,13 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
         v.lines.append(f"ANSWERS why-company {'filled' if answers_ok else 'NOT filled'}                       {'OK' if answers_ok else 'FAIL'}")
     v.lines.append(f"EMDASH  {len(hits)}                                            {'OK' if not hits else 'FAIL'}")
     _review(folder, v, strict_review)
+    audit_set = set(findings)
+    for f in v.failures:
+        if not any(ln.startswith("FAIL") and f in ln for ln in v.lines):
+            v.lines.append(f"FAIL    {f}")
+    for w in v.warnings:
+        if w not in audit_set and not any(w in ln for ln in v.lines):
+            v.lines.append(f"WARN    {w}")
     v.files = sorted(p.name for p in folder.iterdir() if p.is_file() and p.name not in ("build.json", "state.json"))
     v.lines.append("FILES   " + " ".join(v.files))
 

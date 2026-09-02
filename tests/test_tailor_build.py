@@ -216,3 +216,57 @@ def test_missing_folder_fails_without_writing(tmp_path):
     v = tb.build(tmp_path / "gone-9", job=JOB, no_pdf=True)
     assert not v.ok and "not a folder" in v.failures[0]
     assert not (tmp_path / "gone-9").exists()
+
+
+def test_failures_and_warnings_print_in_verdict_lines(folder):
+    (folder / "match_report.md").write_text("line one\nbad \u2014 dash\n")
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert any(ln.startswith("FAIL") and "match_report.md:2" in ln for ln in v.lines)
+    res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
+    (folder / "match_report.md").write_text("clean\n")
+    (folder / "SantiagoCoronadoResume.yaml").write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
+    v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
+    assert any(ln.startswith("LETTER") and ln.rstrip().endswith("FAIL") for ln in v.lines)
+    assert any(ln.startswith("FAIL") and "relocation_line" in ln for ln in v.lines)
+    assert any(ln.startswith("WARN") and "fills only" in ln for ln in v.lines)   # small fixture is under 90%
+    assert v.lines[-1].startswith("RESULT") and len(v.lines) <= 12
+
+
+def test_split_strips_code_fences(folder):
+    (folder / "SantiagoCoronadoResume.yaml").unlink()
+    draft = ("=== FILE: SantiagoCoronadoResume.yaml ===\n```yaml\n"
+             + yaml.safe_dump(small_resume(), allow_unicode=True, sort_keys=False)
+             + "```\n=== FILE: CoverLetter.md ===\n```\n" + letter() + "```\n")
+    (folder / "draft.md").write_text(draft)
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert v.ok, v.failures
+    assert not (folder / "SantiagoCoronadoResume.yaml").read_text().startswith("```")
+
+
+def test_non_us_dream_row_rejects_tn_line_and_wants_visa_note(folder):
+    berlin = {"id": 7, "company": "Peec", "dream": True, "location": "Berlin"}
+    (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
+    v = tb.build(folder, job=berlin, no_pdf=True)
+    assert not v.ok and any("outside the TN countries" in f for f in v.failures)
+    (folder / "CoverLetter.md").write_text(letter(240))
+    v = tb.build(folder, job=berlin, no_pdf=True)
+    assert v.ok and any("no visa note" in w for w in v.warnings)
+    (folder / "CoverLetter.md").write_text(letter(240, "A German or EU work visa would be needed."))
+    v = tb.build(folder, job=berlin, no_pdf=True)
+    assert v.ok and not any("visa" in w for w in v.warnings)
+
+
+def test_missing_pypdf_is_a_printed_warning_not_a_silent_pass(folder, monkeypatch):
+    monkeypatch.setattr(tb.rd, "to_pdf", lambda docx: docx.with_suffix(".pdf"))
+    monkeypatch.setattr(tb, "_pdf_pages", lambda pdf: None)
+    v = tb.build(folder, job=JOB, no_pdf=False)
+    assert v.ok
+    assert any(ln.startswith("RESUME") and "page count skipped" in ln for ln in v.lines)
+    assert any("pypdf" in w for w in v.warnings)
+
+
+def test_cap_keeps_fail_and_result_lines():
+    lines = ["BUILD x", "RESUME y", "AUDIT z"] + [f"WARN {i}" for i in range(6)] + ["FAIL a", "FAIL b", "FILES f", "RESULT FAIL"]
+    out = tb._cap(list(lines), 12)
+    assert len(out) <= 12 and "FAIL a" in out and "FAIL b" in out and out[-1] == "RESULT FAIL"
+    assert "FILES f" not in out

@@ -155,7 +155,11 @@ RESULT  OK with 1 warning (exit 0)
 ```
 
 Exit codes: 0 green or warnings only, 1 the agent must fix (each FAIL line says what,
-including a resume YAML that does not parse), 2 environment problem (LibreOffice missing). `--json` prints the same as
+including a resume YAML that does not parse), 2 environment problem (LibreOffice missing).
+The "outside the US" test in step 3 is a keyword heuristic on the job's location string
+(`OUTSIDE_TN_MARKERS` in `tailor_build.py`: EU/UK/APAC cities and countries); a location it
+does not recognise is treated as TN territory, and a missing pypdf downgrades the page count
+to a printed warning rather than a silent pass. `--json` prints the same as
 one object for tests and for `/jh-hunt`'s report.
 
 Two more things the build always does, for other agents rather than for the tailor:
