@@ -1173,7 +1173,7 @@ def format_show(doc: dict, snippets: dict[int, str], ids: list[int]) -> list[str
 
 def _hint_no_accounts() -> str:
     return ("no mail accounts configured: set MAIL_ACCOUNTS (and MAIL_<LABEL>_USER / _PASS) in .env, "
-            "see docs/spec-mail-fetch.md (A1)")
+            "see docs/mail-setup.md")
 
 
 def main(argv: list[str] | None = None) -> int:
