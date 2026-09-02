@@ -43,7 +43,7 @@ from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from .config import CONFIG_DIR, ROOT, get_secret, load_yaml
-from .db import connect
+from .db import STATUSES, connect
 
 DATA_DIR = ROOT / "data"
 INBOX_PATH = DATA_DIR / "mail_inbox.json"
@@ -343,12 +343,15 @@ def search_args(job: JobKeys, gmail: bool) -> tuple[str, ...] | None:
     if not keys:
         return None
     if gmail:
+        # Gmail's index is word-based, so `from:<domain>` is exact and cheap; the standard
+        # branch below has only substring TEXT, so it searches the domain as text instead.
+        # Recall differs slightly by backend on purpose; local confirmation equalizes it.
         terms = []
         for n, _ in job.names:
             if _ascii(n):
                 terms.append(f'"{n}"' if " " in n else n)
         terms += [f"from:{d}" for d in job.domains if _ascii(d)]
-        q = " OR ".join(terms) + " after:" + job.window.replace("-", "/")
+        q = "(" + " OR ".join(terms) + ") after:" + job.window.replace("-", "/")   # explicit group: after: binds to all
         return ("X-GM-RAW", _imap_quote(q))
     crit = f"TEXT {_imap_quote(keys[-1])}"
     for k in reversed(keys[:-1]):          # IMAP OR is prefix-binary: OR a OR b c
@@ -386,7 +389,7 @@ def _fetch_batches(client: ImapClient, uids: list[int], what: str) -> dict[int, 
 
 # ----------------------------------------------------------------------------- messages
 
-@dataclass
+@dataclass(eq=False)          # identity semantics: hashable, `in` never compares field by field
 class Message:
     uid: int
     account: str
@@ -635,7 +638,7 @@ def _receipt_shaped(subject: str, patterns: list[re.Pattern[str]]) -> bool:
 
 def cut_reason(msg: Message, cuts: Cuts) -> str | None:
     """Return the noise category that removes this message, or None to keep it."""
-    if msg.message_id and msg.message_id in cuts.seen or msg.thread_root in cuts.seen:
+    if (msg.message_id and msg.message_id in cuts.seen) or msg.thread_root in cuts.seen:
         return "seen"
     if not cuts.enabled:
         return None
@@ -696,7 +699,7 @@ def collapse_threads(msgs: list[Message]) -> list[Message]:
             groups[m.thread_root].append(m)
         else:
             fallback.append(m)
-    rooted = [m for m in fallback if m.message_id and m.message_id in groups]   # the thread's first message
+    rooted = {m for m in fallback if m.message_id and m.message_id in groups}   # the thread's first message
     for m in rooted:
         groups[m.message_id].append(m)
     fallback = sorted((m for m in fallback if m not in rooted), key=lambda m: m.date)
@@ -879,8 +882,14 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
           client_factory: ClientFactory = _default_client, since: str | None = None,
           max_days: int = 120, statuses: Iterable[str] = OPEN_STATUSES, limit_per_job: int = 3,
           snippet_chars: int = 800, scan_all: bool = False, full: bool = False,
-          keep_noise: bool = False, today: date | None = None) -> SweepResult:
+          keep_noise: bool = False, today: date | None = None,
+          all_labels: Iterable[str] | None = None) -> SweepResult:
+    """`all_labels`: every credentialed account the user has configured, even ones left out
+    of this run by --account. The zero-candidate tune line only fires once ALL of them have
+    reported no mail for a job; a partial sweep must not blame the company for the other
+    mailbox's silence."""
     today = today or date.today()
+    labels_all = set(all_labels) if all_labels is not None else {a.label for a in accounts if a.password}
     if jobs is None:
         if conn is None:
             raise ValueError("sweep needs a db connection or an explicit jobs list")
@@ -903,7 +912,7 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
 
     reports: list[AccountReport] = []
     survivors: list[Message] = []
-    per_job_hits: dict[int, int] = defaultdict(int)
+    hits_by_acct: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
     tune: list[str] = [floor_note] if floor_note else []
     by_mid: dict[str, Message] = {}
 
@@ -926,7 +935,7 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
         try:
             for folder in acct.folders:
                 try:
-                    msgs = _scan_folder(client, acct, folder, jobs, horizon, scan_all, per_job_hits)
+                    msgs = _scan_folder(client, acct, folder, jobs, horizon, scan_all, hits_by_acct[acct.label])
                 except Exception as e:  # noqa: BLE001 - a missing folder is reported, not fatal
                     rep.status = f"error: {folder}: {type(e).__name__}: {str(e).splitlines()[0] if str(e) else ''}"
                     continue
@@ -988,19 +997,29 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
                 f'tune: "{job.company}" only ever matched mail you never classified as a signal.\n'
                 f"      If you are a customer, not a candidate: add {job.domains[0]} to ignore_senders "
                 f"in config/mail_hints.yaml")
-    # tune 3: an open job that never produces a candidate
-    zero: dict[str, int] = {str(k): int(v) for k, v in (state.get("zero_candidates") or {}).items()}
-    swept = any(r.status == "ok" for r in reports) and not scan_all
-    for job in jobs:
-        key = str(job.job_id)
-        if swept:
-            zero[key] = 0 if per_job_hits.get(job.job_id) else zero.get(key, 0) + 1
-        if swept and zero.get(key, 0) >= ZERO_CANDIDATE_SWEEPS:
-            tune.append(
-                f"tune: job {job.job_id} ({job.company}, {job.title}) produced 0 candidates in {zero[key]} "
-                f"consecutive sweeps.\n      If they wrote from another name or domain: add it under aliases in "
-                f"config/mail_hints.yaml, or run with --keep-noise to see what was cut")
-    state["zero_candidates"] = {k: v for k, v in zero.items() if k in {str(j.job_id) for j in jobs}}
+    # tune 3: an open job that never produces a candidate in ANY configured mailbox.
+    # Counters are per account so `--account personal` cannot blame the company for
+    # mail that lands on the other address.
+    raw_zero = state.get("zero_candidates") or {}
+    zero: dict[str, dict[str, int]] = {str(a): {str(j): int(n) for j, n in (v or {}).items()}
+                                       for a, v in raw_zero.items() if isinstance(v, dict)}
+    swept_ok = {r.label for r in reports if r.status == "ok"} if not scan_all else set()
+    job_ids = {str(j.job_id) for j in jobs}
+    for label in swept_ok:
+        counts = zero.setdefault(label, {})
+        for job in jobs:
+            key = str(job.job_id)
+            counts[key] = 0 if hits_by_acct[label].get(job.job_id) else counts.get(key, 0) + 1
+    if swept_ok and labels_all and labels_all <= set(zero):
+        for job in jobs:
+            key = str(job.job_id)
+            n = min(zero[label].get(key, 0) for label in labels_all)
+            if n >= ZERO_CANDIDATE_SWEEPS:
+                tune.append(
+                    f"tune: job {job.job_id} ({job.company}, {job.title}) produced 0 candidates in {n} "
+                    f"consecutive sweeps of every mailbox.\n      If they wrote from another name or domain: "
+                    f"add it under aliases in config/mail_hints.yaml, or run with --keep-noise to see what was cut")
+    state["zero_candidates"] = {a: {k: v for k, v in c.items() if k in job_ids} for a, c in zero.items()}
     state.setdefault("accounts", {})
     for r in reports:
         if r.status == "ok":
@@ -1131,7 +1150,7 @@ def format_show(doc: dict, snippets: dict[int, str], ids: list[int]) -> list[str
 
 def _hint_no_accounts() -> str:
     return ("no mail accounts configured: set MAIL_ACCOUNTS (and MAIL_<LABEL>_USER / _PASS) in .env, "
-            "see docs/mail-setup.md")
+            "see docs/spec-mail-fetch.md (A1)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1141,7 +1160,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--account", action="append", help="only these labels")
     run.add_argument("--since", help="YYYY-MM-DD, overrides the per-job horizon")
     run.add_argument("--max-days", type=int, default=120)
-    run.add_argument("--status", nargs="+", default=list(OPEN_STATUSES))
+    run.add_argument("--status", nargs="+", default=list(OPEN_STATUSES), choices=STATUSES, metavar="STATUS",
+                     help=f"pipeline statuses to sweep (default: {' '.join(OPEN_STATUSES)})")
     run.add_argument("--limit-per-job", type=int, default=3)
     run.add_argument("--snippet-chars", type=int, default=800)
     run.add_argument("--scan-all", action="store_true", help="horizon-wide header pull instead of per-job search")
@@ -1172,10 +1192,11 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(format_show(load_result(INBOX_PATH), load_snippets(SNIPPETS_PATH), args.ids)))
         return 0
 
-    accounts = mail_accounts()
+    configured = mail_accounts()
+    accounts = configured
     if args.account:
         wanted = {a.lower() for a in args.account}
-        accounts = [a for a in accounts if a.label in wanted]
+        accounts = [a for a in configured if a.label in wanted]
     hints = load_hints()
     conn = connect()
     if not accounts:
@@ -1183,7 +1204,8 @@ def main(argv: list[str] | None = None) -> int:
     res = sweep(conn, accounts, hints, state_path=STATE_PATH, client_factory=_default_client,
                 since=args.since, max_days=args.max_days, statuses=args.status,
                 limit_per_job=args.limit_per_job, snippet_chars=args.snippet_chars,
-                scan_all=args.scan_all, full=args.full, keep_noise=args.keep_noise)
+                scan_all=args.scan_all, full=args.full, keep_noise=args.keep_noise,
+                all_labels=[a.label for a in configured if a.password])
     write_result(res, INBOX_PATH, SNIPPETS_PATH)
     doc = load_result(INBOX_PATH)
     print("\n".join(format_summary(doc)))

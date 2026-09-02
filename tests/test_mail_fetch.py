@@ -202,7 +202,7 @@ def test_search_args(hints):
     assert std == ('SINCE 18-Aug-2026 OR TEXT "framework computer" OR TEXT "framework" TEXT "frame.work"',)
     gm = mf.search_args(fw, gmail=True)
     assert gm[0] == "X-GM-RAW"
-    assert gm[1] == '"\\"framework computer\\" OR framework OR from:frame.work after:2026/08/18"'
+    assert gm[1] == '"(\\"framework computer\\" OR framework OR from:frame.work) after:2026/08/18"'
     assert mf.search_args(mf.job_keys(row(7, "日本", None), hints), gmail=False) is None
 
 
@@ -401,6 +401,34 @@ def test_zero_candidate_tune_after_three_sweeps(acct, hints, tmp_path):
         tune = res.tune
     assert any("job 3077 (Ghostco, Software Engineer) produced 0 candidates in 3" in t and "aliases" in t
                for t in tune)
+    state = json.loads((tmp_path / "state.json").read_text())
+    assert state["zero_candidates"] == {"apps": {"3077": 3}}
+
+
+def test_zero_candidate_tune_waits_for_every_mailbox(acct, hints, tmp_path):
+    """--account apps three times must not blame the company for mail on `personal`."""
+    jobs = [mf.job_keys(row(3077, "Ghostco", "https://ghostco.com/jobs/1"), hints)]
+    for _ in range(4):
+        res = run(acct, FakeImap({"INBOX": []}), jobs, hints, tmp_path, all_labels=["apps", "personal"])
+    assert not any("produced 0 candidates" in t for t in res.tune)
+    # a sweep where the account errors must not move the counter either
+    bad = mf.MailAccount("apps", ME, "pw", "imap.x.com")
+    res = mf.sweep(None, [bad], hints, jobs=jobs, state_path=tmp_path / "state.json",
+                   client_factory=factory_for(FakeImap({}, fail_login=True)), today=TODAY)
+    assert json.loads((tmp_path / "state.json").read_text())["zero_candidates"] == {"apps": {"3077": 4}}
+
+
+def test_cli_rejects_unknown_status(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(mf, "connect", lambda: connect(tmp_path / "jobs.db"))
+    with pytest.raises(SystemExit) as e:
+        mf.main(["--status", "aplied"])
+    assert e.value.code == 2 and "invalid choice" in capsys.readouterr().err
+
+
+def test_message_identity_semantics():
+    a = _msg("a@acme.com", "x")
+    b = _msg("a@acme.com", "x")
+    assert a != b and len({a, b}) == 2 and a in [a] and b not in [a]
 
 
 # ----------------------------------------------------------------------------- text
