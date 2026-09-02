@@ -1,0 +1,96 @@
+# Tuning knobs for the inbox pull (python -m src.mail_fetch, docs/spec-mail-fetch.md).
+# The fetcher prints `tune:` lines that point at the key to edit; it never edits this file.
+# Every regex is case-insensitive. A hint tags a thread for the model; it never decides a status.
+
+hints:
+  en:
+    reject:
+      - "unfortunately"
+      - "other candidates"
+      - "not (be )?moving forward"
+      - "decided to (pursue|proceed with|move forward with)"
+      - "not selected"
+      - "will not be (moving|proceeding)"
+      - "no longer (under )?consider"
+    schedule:
+      - "calendly"
+      - "schedule"
+      - "availability"
+      - "zoom"
+      - "google meet"
+      - "interview"
+      - "book a (time|call|slot)"
+    assessment:
+      - "assessment"
+      - "take-?home"
+      - "coding challenge"
+      - "hackerrank"
+      - "codility"
+      - "hackereval"
+      - "technical (test|exercise)"
+    offer:
+      - "offer letter"
+      - "pleased to offer"
+      - "compensation package"
+      - "verbal offer"
+  es:
+    reject:
+      - "lamentamos"
+      - "otros candidatos"
+      - "no continuar"
+      - "no seguir adelante"
+      - "no ha sido seleccionad"
+    schedule:
+      - "entrevista"
+      - "agendar"
+      - "disponibilidad"
+    assessment:
+      - "prueba t[ée]cnica"
+      - "evaluaci[óo]n t[ée]cnica"
+      - "reto t[ée]cnico"
+    offer:
+      - "carta (de )?oferta"
+      - "propuesta econ[óo]mica"
+
+# Receipt-shaped subjects. Cut only when the message is the first in its thread AND dated
+# within 3 days of applied_at; a later one is kept and tagged receipt? (ATS rejection
+# templates reuse these subjects).
+receipts:
+  - "application (was |has been )?received"
+  - "thank(s| you) for (applying|your application|your interest)"
+  - "we('ve| have) received your"
+  - "application confirmation"
+  - "gracias por (tu|su) (postulaci[óo]n|aplicaci[óo]n|inter[ée]s)"
+  - "hemos recibido (tu|su)"
+
+# Single-token company names that collide with ordinary mail. Matched only as weak
+# (ranked last, flagged in the manifest). The fetcher auto-demotes names it sees from
+# many sender domains and prints a tune: line suggesting an entry here.
+weak_names:
+  - google
+  - socket
+  - tailor
+  - handle
+  - landing
+  - linear
+  - kraken
+  - mercury
+  - dropbox
+  - warp
+  - ramp
+  - clara
+  - consider
+  - primero
+  - resend
+  - openai
+
+# Addresses or domains that are never matched (companies you are a customer of).
+ignore_senders: []
+
+# Company -> extra names and domains that appear in their mail.
+aliases:
+  "Framework Computer":
+    names: ["Framework"]
+    domains: ["frame.work"]
+  "Handle":
+    domains: ["usehandle.ai"]
