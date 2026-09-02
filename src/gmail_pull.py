@@ -124,6 +124,7 @@ def _resolve_conflicts(proposals: list[dict]) -> tuple[list[dict], list[dict]]:
 def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
     changes: list[dict] = []
     touches: dict[int, dict] = {}
+    touch_evidence: list[dict] = []        # every accepted touch, folded or superseded included
     ambiguous: list[dict] = []
     skipped: list[str] = []
     ignored: list[dict] = []
@@ -133,6 +134,7 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
         if not when:
             skipped.append(f"#{job['id']} {job['company']}: touch with no date, skipped")
             return
+        touch_evidence.append({"signal": p.get("signal") or "reply", "evidence": p.get("evidence") or {}})
         prev = touches.get(job["id"])
         if prev is None or when > prev["contact_date"]:
             touches[job["id"]] = {"id": job["id"], "company": job["company"],
@@ -191,7 +193,7 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
     kept_touches = [t for t in touches.values() if t["id"] not in change_ids]
     # what --apply records as seen: everything the plan accepted, nothing it refused
     seen_batch = ([{"signal": c["signal"], "evidence": c["evidence"]} for c in changes]
-                  + [{"signal": t["signal"], "evidence": t["evidence"]} for t in kept_touches]
+                  + touch_evidence
                   + [{"signal": "ambiguous", "evidence": a.get("evidence") or {}} for a in ambiguous]
                   + [{"signal": "ignore", "evidence": i.get("evidence") or {}} for i in ignored])
     return {"changes": changes, "touches": kept_touches, "ambiguous": ambiguous,
