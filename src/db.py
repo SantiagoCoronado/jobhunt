@@ -24,7 +24,24 @@ STATUSES = [
 ATS_SOURCES = (
     "greenhouse", "lever", "ashby", "workable", "recruitee",
     "smartrecruiters", "personio", "bamboohr", "workday", "softserve",
+    "teamtailor",   # added 2026-09-01 (migration 4 rebuilt the view for it)
+    "pinpoint", "rippling", "secretlab",   # added 2026-09-01 (migration 5)
 )
+
+# The canonical_jobs view body. Migration 2 created it; any later migration that
+# changes ATS_SOURCES or ALTERs the jobs table must DROP and re-CREATE it with
+# this same string (SQLite expands `SELECT *` at CREATE VIEW time).
+_CANONICAL_VIEW = f"""
+    CREATE VIEW IF NOT EXISTS canonical_jobs AS
+    SELECT * FROM (
+        SELECT jobs.*, ROW_NUMBER() OVER (
+            PARTITION BY canonical_key
+            ORDER BY CASE WHEN source IN ({", ".join(f"'{s}'" for s in ATS_SOURCES)})
+                     THEN 0 ELSE 1 END, id
+        ) AS canonical_rank
+        FROM jobs
+    ) WHERE canonical_rank = 1;
+"""
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -87,17 +104,7 @@ MIGRATIONS: list[str] = [
     #    the non-deterministic bare `GROUP BY canonical_key` in match/triage.
     #    NOTE: SQLite expands `SELECT *` at CREATE VIEW time, so any future
     #    migration that ALTERs the jobs table MUST also DROP and recreate this view.
-    f"""
-    CREATE VIEW IF NOT EXISTS canonical_jobs AS
-    SELECT * FROM (
-        SELECT jobs.*, ROW_NUMBER() OVER (
-            PARTITION BY canonical_key
-            ORDER BY CASE WHEN source IN ({", ".join(f"'{s}'" for s in ATS_SOURCES)})
-                     THEN 0 ELSE 1 END, id
-        ) AS canonical_rank
-        FROM jobs
-    ) WHERE canonical_rank = 1;
-    """,
+    _CANONICAL_VIEW,
     # 3: event log, the memory the intelligence layer runs on. `status` alone
     #    loses history (you can't compute applied -> first-reply latency from
     #    one column). set_status/touch_contact write events automatically.
@@ -121,6 +128,11 @@ MIGRATIONS: list[str] = [
         FROM jobs WHERE applied_at IS NOT NULL
         AND id NOT IN (SELECT job_id FROM events WHERE kind='status_change');
     """,
+    # 4: rebuild canonical_jobs so the 2026-09-01 ATS addition (teamtailor) ranks
+    #    ahead of aggregators. DROP + CREATE is idempotent.
+    "DROP VIEW IF EXISTS canonical_jobs;" + _CANONICAL_VIEW,
+    # 5: same rebuild for pinpoint / rippling / secretlab (dream-company boards).
+    "DROP VIEW IF EXISTS canonical_jobs;" + _CANONICAL_VIEW,
 ]
 
 

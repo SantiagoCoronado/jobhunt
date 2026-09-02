@@ -42,6 +42,10 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
    USD" getonbrd row is 60k-84k/yr, not 5k-7k/yr). Never drop a monthly rate as if it were annual.
    NEVER drop for location, city, on-site, hybrid, remote, or country. Location is judged later with
    the full JD. Give each KEPT job a bucket 0-3 (0 weak, 1 plausible, 2 good, 3 strong fit).
+   DREAM COMPANIES: a row carrying `"dream": true` is at one of `dream_companies` in
+   `config/profile.yaml` (its `dream_rule` is the authority). For those rows rule (3) (pay) does
+   NOT apply and location never did; rules (1) off-field and (2) clearance / citizens-only /
+   ITAR / "US person" still drop. When in doubt on a dream row, keep it and bucket honestly.
 
 3. Verify every chunk has a complete out file (ids match its chunk), re-running any that fell short.
 

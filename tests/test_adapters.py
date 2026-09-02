@@ -81,7 +81,8 @@ def test_adzuna_missing_keys_yields_nothing(monkeypatch, capsys):
 
 @pytest.mark.parametrize("adapter_name", ["greenhouse", "adzuna", "lever", "ashby",
                                           "remoteok", "themuse", "torre", "findwork",
-                                          "posthog"])
+                                          "posthog", "teamtailor", "dreamsheet",
+                                          "pinpoint", "rippling", "secretlab"])
 def test_adapters_import_and_expose_fetch(adapter_name):
     import importlib
     mod = importlib.import_module(f"src.adapters.{adapter_name}")

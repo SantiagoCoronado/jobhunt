@@ -7,9 +7,12 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    Sources live in `config/sources.yaml` (one block per adapter in `src/adapters/`, each a
    `fetch(cfg) -> list[Job]`). Keyed sources read `.env` (copy `.env.example`) via
    `src.config.get_secret`; a source with no key prints a hint and yields nothing (never breaks the run).
-   Active new sources: Adzuna (MX, keyed), The Muse, Findwork (keyed), Torre (remote-LATAM),
-   PostHog cool-tech-jobs (curated dev-tool boards, no key). Opt-in via
-   `enabled:`: Careerjet, Personio, BambooHR, Workday, Consider, YC (see `docs/new-sources.md`).
+   Active new sources: Adzuna (MX + US, keyed), The Muse, Findwork (keyed), Torre (remote-LATAM),
+   PostHog cool-tech-jobs (curated dev-tool boards, no key), Careerjet, SmartRecruiters, Workday.
+   Opt-in via `enabled:`: Personio, BambooHR, Consider, YC (see `docs/new-sources.md`).
+   A shared `title_filter:` block in `config/sources.yaml` gates off-family titles centrally in
+   `src/discover.py` (word-boundary match; calibrated 2026-08-27 to keep every row that ever reached
+   shortlisted); a source can opt out of it (hackernews does). Never filter by location there.
 2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
    `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
    sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become
@@ -42,6 +45,19 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 
 `/jh-hunt` runs the whole loop end to end: discover, match, sync + star the top 5 shortlisted,
 research those 5, then tailor those 5.
+
+**Dream companies** (set 2026-09-01): `dream_companies` + `dream_rule` + `relocation_line` +
+`dream_shortlist_threshold` in `config/profile.yaml` are the single authority; `src/dream.py`
+computes `is_dream(company)` from them (never stored, so editing the list never goes stale).
+For those companies the location rule and comp floors are waived, the title gate is skipped,
+match export sorts them first with `dream: true`, ingest shortlists them at the lower cutoff,
+`/jh-hunt` reserves up to 2 of the 5 stars for them, and the tailor adds the relocation line
+when US presence is required. ITAR / US-person / citizens-only / clearance stay hard blocks.
+The hand-curated sheet (`dreamsheet` in `config/sources.yaml`, private Google Sheet) is read
+by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses.
+Dream-company boards added for it: Teamtailor (Steven.com), Pinpoint (dbrand), Rippling
+(Framework Computer), Secretlab's in-house API, plus Greenhouse/Lever/Ashby tokens. Arga Labs
+and ASUS have no usable board: sheet rows and outreach only.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for

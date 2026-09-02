@@ -19,17 +19,25 @@ import sys
 
 from .config import followup_days
 from .db import STATUSES, connect, set_status as _set_status, touch_contact
+from .dream import is_dream
+
+
+def _with_dream(r) -> dict:
+    """Row -> dict plus `dream` (profile.yaml dream_companies; computed, never stored)."""
+    d = dict(r)
+    d["dream"] = is_dream(d.get("company"))
+    return d
 
 
 def _dump(rows):
-    print(json.dumps([dict(r) for r in rows], indent=2, default=str))
+    print(json.dumps([_with_dream(r) for r in rows], indent=2, default=str))
 
 
 def job(job_id: str) -> None:
     r = connect().execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
     if not r:
         sys.exit(f"No job with id {job_id}")
-    print(json.dumps(dict(r), indent=2, default=str))
+    print(json.dumps(_with_dream(r), indent=2, default=str))
 
 
 def crm() -> None:

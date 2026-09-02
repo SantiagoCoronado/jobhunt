@@ -2,6 +2,14 @@
 
 Run:  python -m src.discover
 Config: config/sources.yaml  (which ATS tokens / aggregators to pull)
+
+Every fetched row passes the shared role-family title gate (`title_filter:` in
+sources.yaml, applied here so no adapter has to repeat it) before it is upserted.
+Company boards return every open req they have, and roughly half of that is
+nursing/manufacturing/sales that would otherwise cost a Haiku triage call each.
+The gate reads TITLES only: location is the matcher's job (profile.location_rule).
+Dream companies (profile.dream_companies) skip the gate when
+`title_filter.skip_dream_companies` is on: their boards are small and hand-picked.
 """
 from __future__ import annotations
 
@@ -10,13 +18,17 @@ import importlib
 from .adapters import keep_title
 from .config import load_yaml
 from .db import connect
+from .dream import is_dream
 from .models import now_iso
 
 # adapter module name -> friendly label
 ADAPTERS = [
     # ATS boards
     "greenhouse", "lever", "ashby", "workable",
-    "personio", "bamboohr", "workday", "softserve",
+    "personio", "bamboohr", "workday", "softserve", "teamtailor",
+    "pinpoint", "rippling", "secretlab",
+    # The hand-curated dream-company sheet (data/dream_sheet.md)
+    "dreamsheet",
     # Aggregators
     "remoteok", "remotive", "weworkremotely", "hackernews", "getonbrd",
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",
@@ -27,6 +39,7 @@ ADAPTERS = [
 
 def main() -> None:
     sources = load_yaml("sources.yaml")
+    skip_dream = bool((sources.get("title_filter") or {}).get("skip_dream_companies", True))
     conn = connect()
     now = now_iso()
     total_new = total_seen = total_dropped = 0
@@ -42,6 +55,11 @@ def main() -> None:
             print(f"  ! {name:15s} FAILED: {e}")
             _record_run(conn, now, name, ok=False, error=str(e)[:300])
             continue
+
+        pulled = len(jobs)
+        jobs = [j for j in jobs
+                if keep_title(cfg, j.title) or (skip_dream and is_dream(j.company))]
+        dropped = pulled - len(jobs)
 
         new = seen = 0
         for job in jobs:

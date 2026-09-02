@@ -22,8 +22,14 @@ weworkremotely:
     - remote-full-stack-programming-jobs
     - remote-front-end-programming-jobs
     - remote-devops-sysadmin-jobs
-hackernews:
-  enabled: true                    # monthly "Who is Hiring" thread
+    - remote-product-jobs
+hackernews:                        # monthly "Who is Hiring" thread, via HN's Algolia API
+  enabled: true
+  months: 3                        # walk this many monthly threads
+  pages: 6                         # x100 comments each
+  # HN ad "titles" are company names ("Acme", "FusionAuth"), not role titles, so
+  # the shared role-family gate would drop ~80% of real ads. Off for this source.
+  title_filter: {enabled: false}
 getonbrd:                          # LatAm / Mexico
   enabled: true
   per_page: 100
@@ -79,19 +85,64 @@ recruitee:                         # per-company (Recruitee ATS); add slugs then
   # company name; capture a real one from a careers page before enabling.
   companies: []
 smartrecruiters:                   # per-company; list endpoint has no description (title-only match)
-  enabled: false
-  companies: []
+  enabled: true
+  # Verified 2026-08-27. Endava is a LATAM/EU delivery shop that hires remote in
+  # Mexico. BoschGroup also answers (4,809 rows) but is overwhelmingly Spanish-
+  # language manufacturing; deliberately left out.
+  companies: [Endava,
+              NBCUniversal3]           # dream company, verified 2026-09-01 (title-only rows)
 
 # Company ATS boards (verified tokens). AI-forward + remote/LatAm-friendly first.
 greenhouse:
   enabled: true
-  tokens: [anthropic, gitlab, vercel, mercury, clara, nubank, planetscale, scaleai, bitso, netlify, lovable, brex, cresta, fal, assemblyai, warp, labelbox, prisma, clickhouse, grafanalabs, tailscale, descript, cockroachlabs, knock, typeface, imbue, bold, hightouch, fivetran, webflow, galileo, turing, backblaze]
+  tokens: [anthropic, gitlab, vercel, mercury, clara, nubank, planetscale, scaleai, bitso, netlify,
+           lovable, brex, cresta, assemblyai, warp, labelbox, prisma, clickhouse, grafanalabs,
+           tailscale, descript, cockroachlabs, knock, typeface, imbue, bold, hightouch, fivetran,
+           webflow, galileo, turing, backblaze,
+           # added 2026-08-27, each curl-verified 200 with a non-empty jobs array
+           databricks, stripe, datadog, mongodb, okta, elastic, cloudflare, canonical, samsara,
+           affirm, remotecom, coinbase, figma, reddit, twilio, robinhood, asana, instacart,
+           mixpanel, gusto, chainguard, duolingo, sigmacomputing, temporaltechnologies, discord,
+           pagerduty, amplitude, wizeline, alloy, starburst, modernhealth, make, airtable,
+           lithic, consensys,
+           # dream companies (profile.yaml dream_companies, 2026-09-01), each curl-verified
+           # 200: riotgames 164 rows, xai 251, nintendo 50, pokemoncareers 27. bitso above.
+           riotgames, xai, nintendo, pokemoncareers]
+  # Display names for tokens whose Title()-cased slug is not the company name. Matters
+  # for dream companies: the dream-sheet row and the ATS row must share a canonical_key.
+  names:
+    riotgames: "Riot Games"
+    xai: "xAI"
+    pokemoncareers: "The Pokémon Company International"
 lever:
   enabled: true
-  companies: [mistral, kavak, yuno, neon, xepelin, fintual, dlocal, anyscale]
+  # mistral answers 200 with an empty list right now (board between postings); kept.
+  companies: [mistral, kavak, yuno, neon, xepelin, fintual, dlocal, anyscale,
+              matchgroup, jumpcloud, tekton, swissborg,
+              binance]                 # dream company, verified 2026-09-01
 ashby:
   enabled: true
-  clients: [openai, harvey, elevenlabs, cohere, ramp, plaid, notion, replit, baseten, deepgram, writer, supabase, sentry, perplexity, linear, render, posthog, zapier, airbyte, railway, sierra, resend, belvo, reka, pinecone, gorgias, weaviate, modal, browserbase, temporal, abridge, crusoe, langchain, synthesia, kueski, decagon, braintrust, tavus, cerebras, langfuse, vapi, bland, openevidence, mercor, workos, stytch, coder, 1password, runpod, poolside, suno, doppler, cognition, gamma, inngest, zed, windmill, infisical, prefect, astronomer, nomic, distyl, cluely, clickup, character, artisan, julius, granola, andela, vellum, motherduck, sardine]
+  # fal-ai: fal.ai moved off Greenhouse (token 'fal' 404s) onto Ashby, slug
+  # verified 2026-08-27 via fal.ai/careers -> jobs.ashbyhq.com/fal-ai (31 jobs live).
+  # windmill and vellum dropped 2026-08-27: both posting-api 404 now. windmill.dev/careers
+  # has no ATS board at all (just a "send general application" mailto). vellum.ai/careers
+  # renders a jobs.ashbyhq.com/vellum page but the public posting-api 404s (no live postings
+  # exposed via API); re-add if they reopen a public board.
+  # nubank: its Greenhouse token now returns 0 jobs; the live board is here (120 roles).
+  clients: [openai, harvey, elevenlabs, cohere, ramp, plaid, notion, replit, baseten, deepgram,
+            writer, supabase, sentry, perplexity, linear, render, posthog, zapier, airbyte,
+            railway, sierra, resend, belvo, reka, pinecone, gorgias, weaviate, modal, browserbase,
+            temporal, abridge, crusoe, langchain, synthesia, kueski, decagon, braintrust, tavus,
+            cerebras, langfuse, vapi, bland, openevidence, mercor, workos, stytch, coder,
+            1password, runpod, poolside, suno, doppler, cognition, gamma, inngest, zed, infisical,
+            prefect, astronomer, nomic, distyl, cluely, clickup, character, artisan, julius,
+            granola, andela, motherduck, sardine, fal-ai,
+            # added 2026-08-27, each curl-verified 200 with a non-empty jobs array
+            cursor, nubank, attio, n8n, hex, antithesis, dust, alchemy, mintlify, column, numeric,
+            signoz, phantom, persona, pylon, opusclip, netbird, namespace, footprint, pika,
+            propel, uniswap, unify, oso, nango, neon, unit, materialize, lightdash, magiceden,
+            deepnote, runa, depot,
+            peec]                    # Peec AI, dream company, verified 2026-09-01 (27 rows)
 workable:
   enabled: false
   # Probed 2026-08-27: apply.workable.com/api/v1/widget/accounts/<slug> now answers
@@ -241,8 +292,51 @@ bamboohr:                          # net-new company coverage; no key
 workday:                           # large enterprises on Workday CxS (POST, no key)
   enabled: true
   limit: 20
-  pages: 3
-  sites: []                        # e.g. [{tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite}]
+  pages: 5
+  # Verified 2026-08-27 (POST returns a jobPostings array). The list endpoint has
+  # no description text, so these rows match on title + location only; `search`
+  # keeps each tenant's slice engineering-shaped.
+  sites:
+    - {tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite, search: "software engineer"}
+    # NVIDIA is a dream company (profile.yaml): its SA / agentic reqs never say "software
+    # engineer", so two more slices (same tenant, dedupes on the posting path).
+    - {tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite, search: "solutions architect"}
+    - {tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite, search: "agentic"}
+    - {tenant: adobe, wd: 5, site: external_experienced, search: "engineer"}
+    - {tenant: autodesk, wd: 1, site: Ext, search: "engineer"}
+    - {tenant: intel, wd: 1, site: External, search: "software engineer"}
+    - {tenant: bbva, wd: 3, site: BBVA, search: "ingeniero"}
+    - {tenant: workday, wd: 5, site: Workday, search: "engineer"}
+    - {tenant: paypal, wd: 1, site: jobs, search: "engineer"}
+
+teamtailor:                        # per-company JSON Feed ({slug}.teamtailor.com/jobs.json), no key
+  enabled: true
+  # flightstory = Steven.com / The Diary of a CEO (dream company), verified 2026-09-01,
+  # 32 rows with full descriptions and schema.org locations.
+  companies: [flightstory]
+  names:
+    flightstory: "Steven.com"
+
+pinpoint:                          # Pinpoint ATS, {subdomain}.pinpointhq.com/postings.json, no key
+  enabled: true
+  companies: [dbrand]              # dream company, verified 2026-09-01 (5 rows, CAD bands)
+rippling:                          # Rippling ATS public board API, no key
+  enabled: true
+  companies: [framework]           # Framework Computer (jobs.frame.work), verified 2026-09-01
+  names:
+    framework: "Framework Computer"
+secretlab:                         # Secretlab's in-house openings API (single company), no key
+  enabled: true                    # dream company, verified 2026-09-01 (19 rows, all Singapore)
+
+# The hand-curated dream-company sheet (Google Sheets, private: its CSV export 401s).
+# `/jh-discover` reads it through the Drive tool and saves the markdown table to `path`;
+# this adapter only parses that file. Rows bypass the title gate (they are hand-picked)
+# and land with the sheet's priority / work-auth / notes as a "Curated:" block.
+dreamsheet:
+  enabled: true
+  file_id: 16XQsIRN8NSiSZ9NnH68kdKUb5mD8PA9q-NwttMyGVDc
+  path: data/dream_sheet.md
+  title_filter: {enabled: false}
 
 # Grey-zone boards (need endpoint/session work before they return rows)
 consider:                          # VC talent boards; client-rendered, endpoint not yet captured
@@ -269,6 +363,10 @@ workatastartup:                    # YC WaaS; job API needs a browser session (4
 # ---------------------------------------------------------------------------
 title_filter:
   enabled: true
+  # Dream companies (profile.yaml dream_companies) skip the gate entirely: their boards
+  # are small (xAI 251, Riot 164) and the titles worth chasing there ("Member of Technical
+  # Staff", "Head of Data Intelligence") are exactly the ones a keyword gate drops.
+  skip_dream_companies: true
   include:
     # generic engineering
     - engineer

@@ -19,7 +19,12 @@ Tailor my application for job id **$ARGUMENTS**.
    answers; list them at the end under "needs your input" instead.
 
 3. Delegate to the **resume-tailor** subagent with that job, `resume/master_resume.yaml`,
-   `config/profile.yaml`, and the company dossier if present. It writes the tailored resume, cover
+   `config/profile.yaml`, and the company dossier if present. If the job JSON says
+   `"dream": true`, say so explicitly in the delegation (the agent then applies
+   `dream_rule` and `relocation_line` from profile.yaml) and pass along any
+   "Curated (dream sheet)" block from the job description or its sheet twin. The agent is pinned to
+   `model: fable` (Fable writes the resume YAML and cover letter); pass `model: "fable"`
+   explicitly when spawning it too. It writes the tailored resume, cover
    letter, and match report into `applications/pending/<company>-$ARGUMENTS/`, then renders the one-page
    .docx (house design) via
    `python -m src.render_docx applications/pending/<company>-$ARGUMENTS/SantiagoCoronadoResume.yaml --pdf`.
