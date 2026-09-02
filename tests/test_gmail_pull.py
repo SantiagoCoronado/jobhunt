@@ -182,7 +182,7 @@ def test_seen_batch_covers_accepted_proposals_only(conn, tmp_path):
                 for e in p["seen_batch"]}
     assert recorded == {"m1@acme": "interview_invite", "amb@x": "ambiguous", "root3": "ignore", "touch@x": "reply"}
     state = tmp_path / "mail_state.json"
-    assert record_seen(p["seen_batch"], state, today="2026-09-01") == 5
+    assert record_seen(p["seen_batch"], state, today="2026-09-01") == 6
     seen = json.loads(state.read_text())["seen"]
     assert seen["root1"] == {"signal": "interview_invite", "at": "2026-09-01"}
     assert seen["ambthread@x"]["signal"] == "ambiguous" and "oos@x" not in seen and "nosuch@x" not in seen
