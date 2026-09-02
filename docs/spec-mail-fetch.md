@@ -1,6 +1,6 @@
 # Spec: portable multi-account inbox pull (`src/mail_fetch.py`)
 
-Status: v2. Phase A SHIPPED 2026-09-01 (`src/mail_fetch.py`, `config/mail_hints.yaml`, `tests/test_mail_fetch.py`, 42 tests, suite green); B, C, D pending. v1 reviewed by a Fable sub-agent the same day;
+Status: v2. Phase A SHIPPED 2026-09-01 (`src/mail_fetch.py`, `config/mail_hints.yaml`, `tests/test_mail_fetch.py`, PR #9). Phase B SHIPPED 2026-09-01 (`/jh-gmail-sync` rewritten around the manifest, `gmail_pull` evidence gains account + thread_id, `ignore` signal, `--apply` records seen ids; `/jh-followups` reply-from-the-right-mailbox rule; `/jh-hunt` steps 2 and 4). C, D pending. v1 reviewed by a Fable sub-agent the same day;
 its findings (job legend, hint-centered leads, receipt-cut gating, name stoplist, id format,
 thread exclusion, file split, Outlook correction, honest budget) are folded in below,
 together with the owner's server-side-search idea (A3). The reviewer's conditional Haiku
@@ -485,9 +485,15 @@ needs it.
 
 - `_headers()` whitelists `account` and `thread_id` alongside from/subject/date/message_id;
   `_note()` gains `[<account>]` when present.
-- `--apply` appends every `message_id` and `thread_id` of the batch (all signals, ambiguous
-  and skipped included) to `data/mail_state.json` under `seen`, so nothing re-enters on the
-  next sweep or under `--full`. State path injectable for tests.
+- `--apply` records the `message_id` and `thread_id` of every proposal the plan accepted
+  (changes, touches, ambiguous, ignored; never out-of-scope or otherwise skipped ones) in
+  `data/mail_state.json` under `seen`, as `{"signal", "at"}`. State path injectable for
+  tests. Entries older than `--max-days` are pruned at the next sweep.
+- Seen semantics (fixed in PR #10 review): a seen id silences only that message. It
+  silences the rest of its thread only when its signal is terminal (`rejection`).
+  Recruiters reply on the receipt thread constantly, so an ignored receipt must never hide
+  the interview invite that lands on it. The `email_signal` event payload carries the
+  signal for the same reason.
 - Everything else stands: forward-only, no ghosted/withdrawn/offer decisions, backlog holds,
   evidence required for rejected/offer. Tests added to `tests/test_gmail_pull.py`.
 

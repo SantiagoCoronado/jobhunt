@@ -57,6 +57,7 @@ RECEIPT_GRACE_DAYS = 3
 FALLBACK_THREAD_GAP_DAYS = 7
 DEMOTE_DOMAIN_THRESHOLD = 5      # distinct sender domains before a name key is demoted
 ZERO_CANDIDATE_SWEEPS = 3        # sweeps with 0 candidates before the aliases tune line
+THREAD_TERMINAL_SIGNALS = frozenset({"rejection"})   # only these let a seen id silence its whole thread
 SHOW_MAX_IDS = 25
 HEADER_FIELDS = ("FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES "
                  "LIST-UNSUBSCRIBE PRECEDENCE AUTO-SUBMITTED")
@@ -624,7 +625,7 @@ def auto_demote(msgs: list[Message], jobs: list[JobKeys]) -> list[str]:
 
 @dataclass
 class Cuts:
-    seen: set[str]
+    seen: dict[str, str]                  # id -> signal it was classified as
     ignore_senders: set[str]
     own: set[str]
     receipts: list[re.Pattern[str]]
@@ -638,7 +639,12 @@ def _receipt_shaped(subject: str, patterns: list[re.Pattern[str]]) -> bool:
 
 def cut_reason(msg: Message, cuts: Cuts) -> str | None:
     """Return the noise category that removes this message, or None to keep it."""
-    if (msg.message_id and msg.message_id in cuts.seen) or msg.thread_root in cuts.seen:
+    # A seen id silences ITSELF. It silences the rest of its thread only when it was a
+    # terminal signal (a rejection): recruiters reply on the receipt thread all the time,
+    # so an ignored receipt must never hide the interview invite that follows it.
+    if msg.message_id and msg.message_id in cuts.seen:
+        return "seen"
+    if msg.thread_root != msg.message_id and cuts.seen.get(msg.thread_root) in THREAD_TERMINAL_SIGNALS:
         return "seen"
     if not cuts.enabled:
         return None
@@ -666,10 +672,18 @@ def cut_reason(msg: Message, cuts: Cuts) -> str | None:
     return None
 
 
-def load_seen(conn: sqlite3.Connection | None, state: dict, full: bool) -> set[str]:
+def seen_signal(entry: object) -> str:
+    """State `seen` values are {"signal", "at"} (or a bare signal string from older files)."""
+    if isinstance(entry, dict):
+        return str(entry.get("signal") or "ignore")
+    return str(entry or "ignore")
+
+
+def load_seen(conn: sqlite3.Connection | None, state: dict, full: bool) -> dict[str, str]:
+    """id -> signal. Events rows without a signal count as `reply` (message-only suppression)."""
     if full:
-        return set()
-    seen = {str(k) for k in (state.get("seen") or {})}
+        return {}
+    seen = {str(k): seen_signal(v) for k, v in (state.get("seen") or {}).items()}
     if conn is not None:
         for (payload,) in conn.execute("SELECT payload FROM events WHERE kind='email_signal'"):
             try:
@@ -679,8 +693,17 @@ def load_seen(conn: sqlite3.Connection | None, state: dict, full: bool) -> set[s
             for k in ("message_id", "thread_id"):
                 v = _strip_id(ev.get(k))
                 if v:
-                    seen.add(v)
+                    seen.setdefault(v, str(ev.get("signal") or "reply"))
     return seen
+
+
+def prune_seen(state: dict, before: str) -> int:
+    """Drop seen entries recorded before `before` (ISO date). Undated entries stay. Returns count."""
+    seen = state.get("seen") or {}
+    stale = [k for k, v in seen.items() if isinstance(v, dict) and str(v.get("at") or "9999") < before]
+    for k in stale:
+        del seen[k]
+    return len(stale)
 
 
 # ----------------------------------------------------------------------------- threads
@@ -896,6 +919,7 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
         jobs = open_jobs(conn, tuple(statuses), hints)
     jobs_by_id = {j.job_id: j for j in jobs}
     state = load_state(state_path)
+    prune_seen(state, (today - timedelta(days=max_days)).isoformat())
     seen = load_seen(conn, state, full)
     own = {a.user.lower() for a in accounts if a.user} | {al for a in accounts for al in a.aliases}
     cuts = Cuts(seen, hints.ignore_senders, own, hints.receipts, jobs_by_id, enabled=not keep_noise)
@@ -988,10 +1012,9 @@ def sweep(conn: sqlite3.Connection | None, accounts: list[MailAccount], hints: H
     survivors, capped = cap_per_job(survivors, limit_per_job)
 
     # tune 2: a name key whose every thread was already classified as noise
-    seen_signals: dict[str, str] = state.get("seen") or {}
     for job in jobs:
         hits = [m for m in by_mid.values() if job.job_id in m.matches]
-        if len(hits) >= 3 and all(seen_signals.get(m.thread_root, seen_signals.get(m.message_id)) in
+        if len(hits) >= 3 and all(seen.get(m.thread_root, seen.get(m.message_id)) in
                                   ("ignore", "ambiguous", "receipt") for m in hits) and job.domains:
             tune.append(
                 f'tune: "{job.company}" only ever matched mail you never classified as a signal.\n'

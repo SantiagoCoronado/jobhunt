@@ -11,9 +11,9 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
    calls and blows past the default 2-minute Bash timeout. Wait for it to finish, then report
    how many new jobs landed and flag any source marked FAILED.
 
-2. **Triage if the pile is large**: check the unscored pile with
-   `python -m src.query crm` OR directly:
-   `.venv/bin/python -c "from src.db import connect; print(connect().execute(\"SELECT COUNT(DISTINCT canonical_key) FROM jobs WHERE status='discovered' AND match_score IS NULL AND match_verdict IS NULL\").fetchone()[0])"`.
+2. **Triage if the pile is large**: count the unscored pile with
+   `.venv/bin/python -c "from src.db import connect; print(connect().execute(\"SELECT COUNT(DISTINCT canonical_key) FROM jobs WHERE status='discovered' AND match_score IS NULL AND match_verdict IS NULL\").fetchone()[0])"`
+   (never `python -m src.query crm` for this; on a mature DB that is a 90k-token dump).
    If it is over ~200, run the full `/jh-triage` flow first (export chunks, fan Haiku
    sub-agents, ingest). Report kept vs dropped and the bucket split.
 
@@ -30,12 +30,14 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
    Dream-company rows (`dream: true`, from `dream_companies` in profile.yaml) sort first in
    every export and shortlist at `dream_shortlist_threshold`; report them as their own line.
 
-4. **Inbox pull** (the `/jh-gmail-sync` flow): read Gmail for signals on open
-   applications, write `data/gmail_pull.json`, run the dry run, present the batch
-   inline, and apply only after my approval. This runs BEFORE sync + star so the
-   top 5 are picked against email-fresh statuses (a company that rejected or
-   advanced me this week must be reflected first). If the Gmail tools are
-   unavailable, note it and continue; the hunt never blocks on this step.
+4. **Inbox pull** (the `/jh-gmail-sync` flow): run `python -m src.mail_fetch`, classify
+   the printed legend + manifest (use `show <id>` for unsettled lines; never read
+   `data/mail_*`, never `query crm` or `query job` inside this step), write
+   `data/gmail_pull.json`, run the dry run, present the batch inline, and apply only after
+   my approval. This runs BEFORE sync + star so the top 5 are picked against email-fresh
+   statuses (a company that rejected or advanced me this week must be reflected first).
+   If mail_fetch reports no configured accounts and the Gmail tools are unavailable, note
+   it and continue; the hunt never blocks on this step.
 
 5. **Sync + star** (the `/jh-notion-sync` flow, both phases): PULL Notion edits first
    (`python -m src.notion_pull data/notion_pull.json --apply` after exporting the decisive rows),

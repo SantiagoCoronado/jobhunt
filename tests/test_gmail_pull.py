@@ -41,7 +41,7 @@ def test_forward_move_applied_with_note_and_event(conn):
     assert row["last_contact_at"] == "2026-07-20"
     ev = conn.execute("SELECT payload FROM events WHERE job_id=1 AND kind='email_signal'").fetchone()
     payload = json.loads(ev["payload"])
-    assert payload["message_id"] == "<m1@acme>"
+    assert payload["message_id"] == "m1@acme"      # RFC 822 id, brackets stripped
     assert "body" not in payload
 
 
@@ -136,3 +136,59 @@ def test_touch_not_doubled_when_status_change_wins(conn):
     p = plan(conn, [_prop(1, status="screen"),
                     _prop(1, signal="reply", status=None, contact="2026-07-19")])
     assert len(p["changes"]) == 1 and not p["touches"]
+
+
+
+# ----------------------------------------------------------------------------- spec-mail-fetch Phase B
+
+from src.gmail_pull import _headers, _note, record_seen  # noqa: E402
+
+
+def test_headers_carry_account_and_thread_id():
+    ev = {**EV, "thread_id": "<root@acme>", "account": "apps", "snippet": "NEVER"}
+    h = _headers(ev)
+    assert h == {"from": EV["from"], "subject": EV["subject"], "date": EV["date"],
+                 "message_id": "m1@acme", "thread_id": "root@acme", "account": "apps"}
+    assert "[apps]" in _note(ev) and "[" not in _note(EV)
+
+
+def test_ignore_signal_never_touches_the_db(conn):
+    _insert(conn, 1)
+    p = plan(conn, [{"job_id": 1, "signal": "ignore", "proposed_status": None, "contact_date": None,
+                     "evidence": {**EV, "subject": "Thank you for applying"}}])
+    assert p["changes"] == [] and p["touches"] == [] and p["ambiguous"] == [] and len(p["ignored"]) == 1
+    apply_changes(conn, p)
+    assert conn.execute("SELECT last_contact_at FROM jobs WHERE id=1").fetchone()[0] is None
+    assert conn.execute("SELECT COUNT(*) FROM events WHERE kind='email_signal'").fetchone()[0] == 0
+
+
+def test_seen_batch_covers_accepted_proposals_only(conn, tmp_path):
+    """PR #10 review finding 2: out-of-scope and skipped proposals are never recorded."""
+    for jid, status in ((1, "applied"), (2, "applied"), (3, "applied"), (4, "applied"), (5, "backlog")):
+        _insert(conn, jid, status=status)
+    props = [_prop(1, ev={**EV, "thread_id": "<root1>", "account": "apps"}),
+             {"job_id": 2, "signal": "ambiguous", "proposed_status": None, "contact_date": None,
+              "evidence": {"message_id": "amb@x", "thread_id": "ambthread@x"}},
+             {"job_id": 3, "signal": "ignore", "proposed_status": None, "contact_date": None,
+              "evidence": {"thread_id": "root3"}},
+             {"job_id": 4, "signal": "reply", "proposed_status": None, "contact_date": "2026-07-20",
+              "evidence": {"message_id": "touch@x"}},
+             {"job_id": 5, "signal": "rejection", "proposed_status": "rejected", "contact_date": None,
+              "evidence": {**EV, "message_id": "oos@x"}},                       # backlog: out of scope
+             {"job_id": 999, "signal": "reply", "proposed_status": None, "contact_date": "2026-07-20",
+              "evidence": {"message_id": "nosuch@x"}}]
+    p = plan(conn, props)
+    recorded = {(e["evidence"].get("message_id") or e["evidence"].get("thread_id")).strip("<>"): e["signal"]
+                for e in p["seen_batch"]}
+    assert recorded == {"m1@acme": "interview_invite", "amb@x": "ambiguous", "root3": "ignore", "touch@x": "reply"}
+    state = tmp_path / "mail_state.json"
+    assert record_seen(p["seen_batch"], state, today="2026-09-01") == 6
+    seen = json.loads(state.read_text())["seen"]
+    assert seen["root1"] == {"signal": "interview_invite", "at": "2026-09-01"}
+    assert seen["ambthread@x"]["signal"] == "ambiguous" and "oos@x" not in seen and "nosuch@x" not in seen
+    assert record_seen(p["seen_batch"], state) == 0                       # idempotent
+    from src.mail_fetch import load_seen
+    assert load_seen(None, json.loads(state.read_text()), full=False)["amb@x"] == "ambiguous"
+    apply_changes(conn, p)
+    payload = json.loads(conn.execute("SELECT payload FROM events WHERE kind='email_signal' AND job_id=1").fetchone()[0])
+    assert payload["signal"] == "interview_invite" and payload["thread_id"] == "root1"
