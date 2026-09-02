@@ -1,20 +1,26 @@
-"""Apply Gmail-derived status signals to the local DB.
+"""Apply inbox-derived status signals to the local DB.
 
-Phase 2 of docs/spec-email-report-upskill.md. The /jh-gmail-sync skill reads
-the mailbox (read-only) and classifies signals; THIS script is the only thing
-that touches the DB, on notion_pull's contract: dry run by default, per-change
-diff either way, never downgrade, every write through the single write path
-(db.set_status / db.touch_contact).
+Phase 2 of docs/spec-email-report-upskill.md, input side replaced by
+docs/spec-mail-fetch.md (Phase B). The /jh-gmail-sync skill reads the manifest
+printed by `python -m src.mail_fetch` (or the Gmail MCP as a fallback) and
+classifies signals; THIS script is the only thing that touches the DB, on
+notion_pull's contract: dry run by default, per-change diff either way, never
+downgrade, every write through the single write path (db.set_status /
+db.touch_contact).
 
   python -m src.gmail_pull data/gmail_pull.json          # diff only
   python -m src.gmail_pull data/gmail_pull.json --apply  # execute
 
 Input: JSON array, one object per proposal:
   {"job_id": <int>,
-   "signal": "rejection|interview_invite|assessment|offer|reply|ambiguous",
+   "signal": "rejection|interview_invite|assessment|offer|reply|ambiguous|ignore",
    "proposed_status": "screen|interview|offer|rejected" | null,
    "contact_date": "YYYY-MM-DD",
-   "evidence": {"from": ..., "subject": ..., "date": ..., "message_id": ...}}
+   "evidence": {"from": ..., "subject": ..., "date": ..., "message_id": ...,
+                "thread_id": ..., "account": ...}}
+
+`ignore` (receipts, product mail the cuts missed) writes nothing to the DB; it
+exists so --apply can record the thread as seen and it never re-enters a sweep.
 
 Rules (spec 2c/2d):
 - Scope: jobs currently applied/screen/interview/offer. Anything else
@@ -27,7 +33,11 @@ Rules (spec 2c/2d):
   advanced; a rejection conflicting with a forward move goes to the ambiguous
   pile instead (email order is not reliable enough to auto-pick a winner).
 - Every applied change also logs an events row kind='email_signal' whose
-  payload is the evidence HEADERS only. Email bodies never enter the DB.
+  payload is the evidence HEADERS only (from, subject, date, message_id,
+  thread_id, account). Email bodies never enter the DB.
+- --apply also records every message_id / thread_id of the batch (all signals,
+  ambiguous and ignored included) in data/mail_state.json `seen`, so the next
+  `python -m src.mail_fetch` drops them before the model sees them.
 - ghosted / withdrawn / offer decisions are human calls; this tool never
   proposes them and rejects them if handed one.
 """
@@ -39,21 +49,49 @@ import sqlite3
 from pathlib import Path
 
 from .db import connect, log_event, set_status, touch_contact
+from .mail_fetch import STATE_PATH, load_state, save_state
 from .reconcile import sync_folder
 
 STAGE_RANK = {"applied": 0, "screen": 1, "interview": 2, "offer": 3}
 ALLOWED_TARGETS = {"screen", "interview", "offer", "rejected"}
 EVIDENCE_REQUIRED = {"rejected", "offer"}
+IGNORE_SIGNALS = {"ignore", "receipt"}
+HEADER_KEYS = ("from", "subject", "date", "message_id", "thread_id", "account")
 
 
 def _note(evidence: dict) -> str:
+    acct = f" [{evidence['account']}]" if evidence.get("account") else ""
     return (f"email: {evidence.get('subject', '?')} "
-            f"({evidence.get('from', '?')}, {evidence.get('date', '?')})")
+            f"({evidence.get('from', '?')}, {evidence.get('date', '?')}){acct}")
+
+
+def _strip_id(value: object) -> str:
+    return str(value or "").strip().strip("<>").strip()
 
 
 def _headers(evidence: dict) -> dict:
-    return {k: evidence[k] for k in ("from", "subject", "date", "message_id")
-            if evidence.get(k)}
+    out = {k: evidence[k] for k in HEADER_KEYS if evidence.get(k)}
+    for k in ("message_id", "thread_id"):
+        if k in out:
+            out[k] = _strip_id(out[k])
+    return out
+
+
+def record_seen(proposals: list[dict], state_path: Path = STATE_PATH) -> int:
+    """Remember every id in the batch so mail_fetch never re-surfaces it. Returns the count."""
+    state = load_state(state_path)
+    seen: dict[str, str] = state.setdefault("seen", {})
+    n = 0
+    for p in proposals:
+        ev = p.get("evidence") or {}
+        signal = str(p.get("signal") or ("ignore" if not p.get("proposed_status") else "reply"))
+        for key in ("message_id", "thread_id"):
+            v = _strip_id(ev.get(key))
+            if v and v not in seen:
+                seen[v] = signal
+                n += 1
+    save_state(state_path, state)
+    return n
 
 
 def _resolve_conflicts(proposals: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -83,6 +121,7 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
     touches: dict[int, dict] = {}
     ambiguous: list[dict] = []
     skipped: list[str] = []
+    ignored: list[dict] = []
 
     def to_touch(p: dict, job: sqlite3.Row) -> None:
         date = p.get("contact_date") or (p.get("evidence") or {}).get("date")
@@ -107,7 +146,9 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
             skipped.append(f"#{job['id']} {job['company']}: out of scope ({why})")
             continue
         p = {**p, "_job": job}
-        if p.get("signal") == "ambiguous" or (
+        if p.get("signal") in IGNORE_SIGNALS:
+            ignored.append(p)              # recorded as seen on --apply, never touches the DB
+        elif p.get("signal") == "ambiguous" or (
                 not p.get("proposed_status") and not p.get("contact_date")
                 and not (p.get("evidence") or {}).get("date")):
             ambiguous.append(p)
@@ -143,7 +184,7 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
     change_ids = {c["id"] for c in changes}
     return {"changes": changes,
             "touches": [t for t in touches.values() if t["id"] not in change_ids],
-            "ambiguous": ambiguous, "skipped": skipped}
+            "ambiguous": ambiguous, "skipped": skipped, "ignored": ignored}
 
 
 def apply_changes(conn: sqlite3.Connection, p: dict) -> list[str]:
@@ -197,7 +238,9 @@ def main() -> None:
         print(f"Skipped ({len(p['skipped'])}):")
         for s in p["skipped"]:
             print(f"  {s}")
-    if not any(p.values()):
+    if p["ignored"]:
+        print(f"Ignored, recorded as seen on --apply ({len(p['ignored'])}).")
+    if not any(v for k, v in p.items() if k != "ignored"):
         print("Inbox and DB agree.")
 
     if not args.apply:
@@ -206,7 +249,9 @@ def main() -> None:
 
     for line in apply_changes(conn, p):
         print(line)
-    print(f"\nApplied {len(p['changes'])} status changes, {len(p['touches'])} touches.")
+    seen = record_seen(proposals)
+    print(f"\nApplied {len(p['changes'])} status changes, {len(p['touches'])} touches; "
+          f"{seen} ids recorded as seen.")
 
 
 if __name__ == "__main__":

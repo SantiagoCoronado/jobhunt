@@ -5,10 +5,12 @@ allowed-tools: Read, Bash, Write, mcp__claude_ai_Gmail__search_threads, mcp__cla
 
 Help me stay on top of follow-ups.
 
-1. **Pull email reality first**: run the `/jh-gmail-sync` flow (search Gmail for
-   signals on open applications, propose the batch, apply after my approval).
-   That flow owns ALL email classification and status writes; do not re-derive
-   replies ad hoc here. If Gmail is unavailable, continue from DB state.
+1. **Pull email reality first**: run the `/jh-gmail-sync` flow (`python -m src.mail_fetch`
+   over every configured mailbox, classify the printed manifest, propose the batch, apply
+   after my approval). That flow owns ALL email classification and status writes; do not
+   re-derive replies ad hoc here, and obey its token rules (never read `data/mail_*`, never
+   `query crm` inside it). If no mailbox is configured and Gmail is unavailable, continue
+   from DB state.
 
 2. List active applications: run `python -m src.query followups` with Bash.
    After step 1 this reflects the inbox: replies already bumped
@@ -19,9 +21,18 @@ Help me stay on top of follow-ups.
    anything nudged twice already, and anything rejected or ghosted.
 
 4. For the ones worth a nudge, draft a short, warm, specific follow-up email
-   (Gmail draft, do NOT send). Reference the role and one concrete point of
-   interest. Voice rules: `docs/writing-voice.md`. After drafting, run
-   `python -m src.query touch <id> --bump` so the follow-up date pushes out
+   (do NOT send). Reference the role and one concrete point of interest. Voice rules:
+   `docs/writing-voice.md`. **Send from the mailbox that received the thread**: the
+   `account` on the job's latest `email_signal` event (`.venv/bin/python -c "from src.db
+   import connect; import json; print(json.loads(connect().execute(\"SELECT payload FROM
+   events WHERE job_id=? AND kind='email_signal' ORDER BY id DESC LIMIT 1\", (<id>,))
+   .fetchone()[0]).get('account'))"`), or that account's `MAIL_<LABEL>_REPLY_AS` when set.
+   The Gmail MCP draft tool only reaches the connected account, so create a Gmail draft
+   only when that account is the one; otherwise write the draft to
+   `data/followups/<company>-<id>.md` and tell me which mailbox to paste it into. That file
+   is never handed to any send tool. Relay reply addresses (Greenhouse `bf-j-...`, Lever,
+   Ashby) make this mandatory: a reply from the wrong mailbox breaks the thread. After
+   drafting, run `python -m src.query touch <id> --bump` so the follow-up date pushes out
    instead of nagging again tomorrow.
 
 5. Close out dead roles: anything silent past 3 weeks and 2+ nudges gets
