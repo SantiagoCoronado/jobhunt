@@ -59,7 +59,7 @@ stop using this tool.
 | iCloud Mail | two-factor authentication on | appleid.apple.com, Sign-In and Security, App-Specific Passwords | `imap.mail.me.com` |
 | Fastmail | none | Settings, Privacy and Security, Integrations, New app password (choose Mail / IMAP) | `imap.fastmail.com` |
 | Yahoo Mail | none | Account Security, Generate app password | `imap.mail.yahoo.com` |
-| Zoho Mail | two-factor authentication on | My Account, Security, App Passwords | `imap.zoho.com` |
+| Zoho Mail | two-factor authentication on | My Account, Security, App Passwords | `imap.zoho.com` (US data center; EU is `imap.zoho.eu`, and `.in`, `.com.au`, `.jp` exist) |
 
 All of these use port 993 with implicit TLS, which is the default. Google Workspace: an
 admin can disable IMAP or app passwords for the domain; if the page is missing or the
@@ -104,8 +104,8 @@ aliases:
 ```
 
 To see what was cut, run `python -m src.mail_fetch --keep-noise`; the account summary
-also prints counts per noise category (`seen`, `own`, `autoreply`, `alerts`, `echoes`,
-`receipts`, `collapsed`). After three sweeps of every mailbox with no candidate for an open
+also prints counts per noise category (`seen`, `ignored`, `own`, `autoreply`, `alerts`,
+`echoes`, `receipts`, `collapsed`). After three sweeps of every mailbox with no candidate for an open
 job, the run prints a `tune:` line pointing here.
 
 **Mail from a company I am a customer of keeps appearing.** Never match that sender:
@@ -137,7 +137,7 @@ model reads. Full snippets live in `data/mail_snippets.jsonl` and come out only 
 never enter the database, `data/gmail_pull.json`, or any report; the applier stores
 headers plus the classification signal.
 
-Budget, measured on a 91-application pipeline: roughly 250 tokens per surviving email,
+Budget, projected for a 91-application pipeline (the spec derives it; Phase D replaces it with measured numbers): roughly 250 tokens per surviving email,
 6k to 10k per weekly sweep, 25k to 35k for a first run over two months of mail. Every sweep
 prints its own thread counts so you can check it.
 
