@@ -162,19 +162,33 @@ def test_ignore_signal_never_touches_the_db(conn):
     assert conn.execute("SELECT COUNT(*) FROM events WHERE kind='email_signal'").fetchone()[0] == 0
 
 
-def test_record_seen_writes_every_id_with_its_signal(tmp_path):
-    state = tmp_path / "mail_state.json"
+def test_seen_batch_covers_accepted_proposals_only(conn, tmp_path):
+    """PR #10 review finding 2: out-of-scope and skipped proposals are never recorded."""
+    for jid, status in ((1, "applied"), (2, "applied"), (3, "applied"), (4, "applied"), (5, "backlog")):
+        _insert(conn, jid, status=status)
     props = [_prop(1, ev={**EV, "thread_id": "<root1>", "account": "apps"}),
              {"job_id": 2, "signal": "ambiguous", "proposed_status": None, "contact_date": None,
-              "evidence": {"message_id": "m2@x"}},
+              "evidence": {"message_id": "amb@x", "thread_id": "ambthread@x"}},
              {"job_id": 3, "signal": "ignore", "proposed_status": None, "contact_date": None,
               "evidence": {"thread_id": "root3"}},
              {"job_id": 4, "signal": "reply", "proposed_status": None, "contact_date": "2026-07-20",
-              "evidence": {}}]
-    assert record_seen(props, state) == 4
+              "evidence": {"message_id": "touch@x"}},
+             {"job_id": 5, "signal": "rejection", "proposed_status": "rejected", "contact_date": None,
+              "evidence": {**EV, "message_id": "oos@x"}},                       # backlog: out of scope
+             {"job_id": 999, "signal": "reply", "proposed_status": None, "contact_date": "2026-07-20",
+              "evidence": {"message_id": "nosuch@x"}}]
+    p = plan(conn, props)
+    recorded = {(e["evidence"].get("message_id") or e["evidence"].get("thread_id")).strip("<>"): e["signal"]
+                for e in p["seen_batch"]}
+    assert recorded == {"m1@acme": "interview_invite", "amb@x": "ambiguous", "root3": "ignore", "touch@x": "reply"}
+    state = tmp_path / "mail_state.json"
+    assert record_seen(p["seen_batch"], state, today="2026-09-01") == 5
     seen = json.loads(state.read_text())["seen"]
-    assert seen == {"m1@acme": "interview_invite", "root1": "interview_invite",
-                    "m2@x": "ambiguous", "root3": "ignore"}
-    assert record_seen(props, state) == 0                       # idempotent
+    assert seen["root1"] == {"signal": "interview_invite", "at": "2026-09-01"}
+    assert seen["ambthread@x"]["signal"] == "ambiguous" and "oos@x" not in seen and "nosuch@x" not in seen
+    assert record_seen(p["seen_batch"], state) == 0                       # idempotent
     from src.mail_fetch import load_seen
-    assert load_seen(None, json.loads(state.read_text()), full=False) == set(seen)
+    assert load_seen(None, json.loads(state.read_text()), full=False)["amb@x"] == "ambiguous"
+    apply_changes(conn, p)
+    payload = json.loads(conn.execute("SELECT payload FROM events WHERE kind='email_signal' AND job_id=1").fetchone()[0])
+    assert payload["signal"] == "interview_invite" and payload["thread_id"] == "root1"

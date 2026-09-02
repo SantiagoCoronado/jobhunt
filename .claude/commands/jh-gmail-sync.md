@@ -66,8 +66,11 @@ directly; you never read the files behind it.
 
 7. **Only after I approve**: re-run with `--apply`. Report what changed and how many ids
    were recorded as seen. For the ambiguous pile suggest the manual path
-   (`python -m src.query set-status` or `/jh-debrief` if there was an interview). Name the
-   account each signal came from; a reply has to go out from that mailbox.
+   (`python -m src.query set-status` or `/jh-debrief` if there was an interview), and say
+   it plainly: after `--apply` those ambiguous messages will not come back in a future
+   sweep (only that message; later replies on the thread still surface), so they have to
+   be handled now or noted for follow-up. Name the account each signal came from; a reply
+   has to go out from that mailbox.
 
 The applier enforces the guardrails (forward-only moves, evidence requirements, backlog
 holds untouched); your job is honest classification, not persuasion. If in doubt,

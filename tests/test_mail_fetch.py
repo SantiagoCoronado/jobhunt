@@ -305,9 +305,13 @@ def _msg(frm, subject, *, day="2026-09-01", mid="m1", refs=None, reply_to="", he
 
 def test_cut_reasons(hints):
     job = mf.job_keys(row(1, "Acme", "https://acme.com/jobs/1", applied="2026-08-30"), hints)
-    cuts = mf.Cuts({"root9"}, {"kraken.com"}, {ME, "alias@apps.example"}, hints.receipts, {1: job})
+    cuts = mf.Cuts({"root9": "rejection", "rcpt": "ignore", "amb": "ambiguous"},
+                   {"kraken.com"}, {ME, "alias@apps.example"}, hints.receipts, {1: job})
     cr = mf.cut_reason
-    assert cr(_msg("a@acme.com", "x", refs=["root9", "m2"]), cuts) == "seen"
+    assert cr(_msg("a@acme.com", "x", refs=["root9", "m2"]), cuts) == "seen"        # rejection silences the thread
+    assert cr(_msg("a@acme.com", "x", mid="rcpt"), cuts) == "seen"                   # the ignored message itself
+    assert cr(_msg("a@acme.com", "Re: x", refs=["rcpt"], reply_to="rcpt"), cuts) is None   # a reply on it survives
+    assert cr(_msg("a@acme.com", "Re: x", refs=["amb"], reply_to="amb"), cuts) is None     # ambiguous is not terminal
     assert cr(_msg("bot@news.kraken.com", "x"), cuts) == "ignored"
     assert cr(_msg("alias@apps.example", "Re: x"), cuts) == "own"
     assert cr(_msg("hr@acme.com", "x", headers={"Auto-Submitted": "auto-replied"}), cuts) == "autoreply"
@@ -327,15 +331,45 @@ def test_cut_reasons(hints):
     assert cr(_msg("a@acme.com", "x", refs=["root9"]), cuts) == "seen"       # seen survives --keep-noise
 
 
+def test_ignored_receipt_does_not_hide_the_reply_on_its_thread(acct, hints, tmp_path):
+    """PR #10 review finding 1: the regression that motivated per-signal seen semantics."""
+    jobs = [mf.job_keys(row(1, "Acme", "https://acme.com/jobs/1", applied="2026-08-10"), hints)]
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps({"seen": {"orig@acme": {"signal": "ignore", "at": "2026-08-12"}},
+                                 "accounts": {}, "zero_candidates": {}}))
+    fake = FakeImap({"INBOX": [
+        mk(1, "no-reply@acme.com", "We received your application", "Thanks, we got it.", day="11 Aug 2026", mid="orig@acme"),
+        mk(2, "Ana <ana@acme.com>", "Re: We received your application",
+           "Hi Santiago, we would like to schedule an interview next week.", day="25 Aug 2026",
+           refs=["orig@acme"], reply_to="orig@acme"),
+    ]})
+    res = run(acct, fake, jobs, hints, tmp_path)
+    assert [t["message_id"] for t in res.threads] == ["m2@x"] and res.threads[0]["hints"] == ["schedule?"]
+    assert res.accounts[0].noise == {"seen": 1}
+    # a rejection on the root DOES silence the follow-up
+    state.write_text(json.dumps({"seen": {"orig@acme": {"signal": "rejection", "at": "2026-08-12"}},
+                                 "accounts": {}, "zero_candidates": {}}))
+    res = run(acct, FakeImap({"INBOX": fake.folders["INBOX"]}), jobs, hints, tmp_path)
+    assert res.threads == [] and res.accounts[0].noise == {"seen": 2}
+
+
+def test_prune_seen_by_date():
+    state = {"seen": {"old": {"signal": "ignore", "at": "2026-01-01"}, "new": {"signal": "ignore", "at": "2026-08-30"},
+                      "legacy": "ambiguous"}}
+    assert mf.prune_seen(state, "2026-05-05") == 1
+    assert set(state["seen"]) == {"new", "legacy"}
+
+
 def test_seen_from_events_and_state(tmp_path):
     conn = connect(tmp_path / "jobs.db")
     conn.execute("INSERT INTO jobs (id, source, external_id, canonical_key, company, status) VALUES (1,'t','x','k','A','applied')")
-    log_event(conn, 1, "email_signal", {"message_id": "<abc@x>", "thread_id": "root1"})
-    log_event(conn, 1, "email_signal", {"message_id": "19f7ff19e2d8c72f"})     # legacy hex id, harmless
+    log_event(conn, 1, "email_signal", {"message_id": "<abc@x>", "thread_id": "root1", "signal": "rejection"})
+    log_event(conn, 1, "email_signal", {"message_id": "19f7ff19e2d8c72f"})     # legacy hex id, no signal
     conn.commit()
-    seen = mf.load_seen(conn, {"seen": {"m9": "ambiguous"}}, full=False)
-    assert seen == {"abc@x", "root1", "19f7ff19e2d8c72f", "m9"}
-    assert mf.load_seen(conn, {"seen": {"m9": "ambiguous"}}, full=True) == set()
+    seen = mf.load_seen(conn, {"seen": {"m9": "ambiguous", "m10": {"signal": "ignore", "at": "2026-09-01"}}}, full=False)
+    assert seen == {"abc@x": "rejection", "root1": "rejection", "19f7ff19e2d8c72f": "reply",
+                    "m9": "ambiguous", "m10": "ignore"}
+    assert mf.load_seen(conn, {"seen": {"m9": "ambiguous"}}, full=True) == {}
 
 
 # ----------------------------------------------------------------------------- threads, rank, cap
