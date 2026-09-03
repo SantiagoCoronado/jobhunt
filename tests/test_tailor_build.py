@@ -307,6 +307,16 @@ def test_header_tn_item_not_duplicated_with_relocation_header():
     ("London, KY", False), ("London, UK; San Francisco, CA", False), ("Remote (US) or London", False),
     ("Santa Clara, CA", False), ("Mexico City", False), ("Toronto, Canada", False), ("Remote", False), ("", False),
     (None, False), ("US remote", False),
+    # A US option anywhere in a multi-region string keeps the row TN-eligible, including the
+    # spelled-out state names and the bare "US" the marker list used not to recognise.
+    ("Austin, Texas; London, England, United Kingdom; New York, New York", False),
+    ("NY / SF / EMEA", False), ("Remote (US/EU)", False), ("Remote - US or Europe", False),
+    ("Remote, APAC; Remote, EMEA; Remote, US", False), ("US, UK, Singapore, Remote", False),
+    ("Europe + San Francisco", False), ("Hybrid - San Francisco, New York City, London", False),
+    # LATAM includes Mexico, so it is TN territory, not "outside".
+    ("LATAM remote-first", False), ("Remote LATAM", False), ("LATAM (remote)", False),
+    # ... but a foreign-only multi-part string is still outside.
+    ("Berlin; Munich", True), ("London; Dublin; Amsterdam", True),
 ])
 def test_outside_tn_countries_word_boundaries_and_us_override(location, expected):
     assert tb.outside_tn_countries(location) is expected

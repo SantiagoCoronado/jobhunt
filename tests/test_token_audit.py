@@ -49,11 +49,18 @@ def test_messages_without_request_id_are_counted_not_deduped(tmp_path):
 
 
 def test_project_dir_derived_from_repo_path(monkeypatch):
-    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("JOBHUNT_TRANSCRIPTS_DIR", raising=False)
     d = ta.project_dir_for(Path("/Users/x/jobhunt"))
     assert d.name == "-Users-x-jobhunt" and d.parent.name == "projects"
-    monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/tmp/override")
+    monkeypatch.setenv("JOBHUNT_TRANSCRIPTS_DIR", "/tmp/override")
     assert ta.project_dir_for(Path("/Users/x/jobhunt")) == Path("/tmp/override")
+
+
+def test_claude_project_dir_is_not_read(monkeypatch):
+    """Claude Code sets it to the repo root and exports it to hooks; it must not steer the audit."""
+    monkeypatch.delenv("JOBHUNT_TRANSCRIPTS_DIR", raising=False)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/Users/x/jobhunt")
+    assert ta.project_dir_for(Path("/Users/x/jobhunt")).name == "-Users-x-jobhunt"
 
 
 def test_resolve_exits_cleanly_on_empty_project_dir(tmp_path, monkeypatch):

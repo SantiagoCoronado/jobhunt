@@ -153,7 +153,7 @@ OUTSIDE_COUNTRIES = (
     "spain", "portugal", "switzerland", "sweden", "denmark", "norway", "finland", "poland", "austria",
     "belgium", "italy", "czech", "europe", "eu", "emea", "singapore", "japan", "australia", "new zealand",
     "india", "taiwan", "korea", "china", "hong kong", "uae", "israel", "apac", "asia", "brazil", "argentina",
-    "colombia", "chile", "latam",
+    "colombia", "chile",
 )
 OUTSIDE_CITIES = (
     "berlin", "munich", "hamburg", "london", "manchester", "dublin", "paris", "amsterdam", "madrid",
@@ -174,8 +174,25 @@ US_STATES = ("al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "
              "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj", "nm", "ny",
              "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv",
              "wi", "wy", "dc")
-TN_COUNTRY_MARKERS = ("usa", "u.s.", "u.s.a.", "united states", "us remote", "remote us", "us-remote",
-                      "remote (us)", "canada", "mexico", "m\u00e9xico", "cdmx", "mx")
+# State codes that are also ISO country codes: a bare one of these is not a US signal.
+STATE_CODE_IS_ALSO_A_COUNTRY = frozenset({"de", "in", "il", "it", "es", "pt", "at", "be", "pl", "ie", "ne"})
+US_STATE_NAMES = (
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware",
+    "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
+    "louisiana", "maine", "maryland", "massachusetts", "michigan", "minnesota", "mississippi", "missouri",
+    "montana", "nebraska", "nevada", "new hampshire", "new jersey", "new mexico", "new york", "north carolina",
+    "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina",
+    "south dakota", "tennessee", "texas", "utah", "vermont", "virginia", "washington", "west virginia",
+    "wisconsin", "wyoming",
+)
+US_CITIES = ("san francisco", "sf", "nyc", "brooklyn", "palo alto", "mountain view", "san jose", "seattle",
+             "austin", "boston", "chicago", "denver", "los angeles", "san diego", "atlanta", "miami",
+             "dallas", "houston", "phoenix", "portland", "philadelphia", "pittsburgh", "detroit",
+             "minneapolis", "salt lake city", "d.c.", "bay area", "silicon valley", "toronto", "vancouver",
+             "montreal", "guadalajara", "monterrey", "cdmx", "mexico city")
+TN_COUNTRY_MARKERS = ("us", "usa", "u.s.", "u.s.a.", "united states", "us remote", "remote us", "us-remote",
+                      "remote (us)", "canada", "mexico", "m\u00e9xico", "cdmx", "mx", "latam",
+                      *US_STATE_NAMES, *US_CITIES)
 
 
 def _word_re(words) -> re.Pattern[str]:
@@ -193,6 +210,9 @@ def _part_is_outside(part: str) -> bool | None:
     """True outside, False TN territory, None unknown, for one location string."""
     if _TN_RE.search(part):
         return False
+    bare = part.strip(" ()-.,")
+    if bare in US_STATES and bare not in STATE_CODE_IS_ALSO_A_COUNTRY:
+        return False                                 # "NY / SF / EMEA", "Remote - CA"
     country = _COUNTRY_RE.search(part)
     city = _CITY_RE.search(part)
     state = _STATE_RE.search(part)

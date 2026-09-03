@@ -34,7 +34,9 @@ REPO = Path(__file__).resolve().parents[1]
 
 def project_dir_for(repo: Path = REPO) -> Path:
     """Claude Code names the transcript folder after the working directory, '/' -> '-'."""
-    override = os.environ.get("CLAUDE_PROJECT_DIR")
+    # NOT CLAUDE_PROJECT_DIR: Claude Code sets that to the repo root and exports it to hooks,
+    # so reusing the name makes --latest fail from any hook-inherited environment.
+    override = os.environ.get("JOBHUNT_TRANSCRIPTS_DIR")
     if override:
         return Path(override)
     return Path.home() / ".claude" / "projects" / str(repo).replace("/", "-")
