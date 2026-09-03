@@ -46,7 +46,8 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
    one per company, skipping any company that already has an application folder or a
    human-progressed row. It also lists what it skipped and flags aggregator rows (Jobgether,
    HN "Who is Hiring") whose real employer you must confirm before research; drop a flagged
-   row you cannot resolve and take the next pick. These 5 can include shortlisted jobs from
+   row you cannot resolve and take the first spare (it prints two spares after the picks).
+   Rows listed as "not scored yet" are hand-shortlisted and need `/jh-match` before a pick. These 5 can include shortlisted jobs from
    earlier sessions. Never `python -m src.query crm` here (a 90k-token dump on a mature DB).
    Report the 5 picked (company, role, match, dream or not).
 

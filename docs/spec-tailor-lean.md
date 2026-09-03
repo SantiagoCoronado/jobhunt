@@ -267,21 +267,28 @@ Run three real tailors under the new protocol and `python scripts/token_audit.py
 ### B4 result (2026-09-02, three real jobs, measured with `scripts/token_audit.py`)
 
 Measured on the code as merged (fill warning under 95%, geometry budget at fit level 0, the
-fill warning is the agent's one fix round):
+fill warning is the agent's one fix round). The audit excludes the rate-limit placeholder
+lines that an earlier version of the script counted as API calls (`<synthetic>` model, zero
+usage), which is why these figures are lower than the ones first posted on the PR.
 
 | Job | First pass | Fix round | Total | Build |
 |---|---|---|---|---|
-| MongoDB 24703, Solutions Architect, Mexico City | 4 calls, 165k | 5 calls, ~200k | 9 calls, ~365k | fit 0, 99%, 1 page, audit clean, 238-word letter |
-| Riot Games 40698, dream, LA on-site | 3 calls + deterministic build, 47k | 6 calls, ~217k | 9 calls, ~264k | fit 0, 98%, 1 page, relocation line present |
-| CINC Systems 34063, US remote | 3 calls + deterministic build, 45k | 4 calls, ~200k | 7 calls, ~245k | fit 0, 99%, 1 page, 270-word letter |
+| MongoDB 24703, Solutions Architect, Mexico City | 4 calls, 165k | 6 calls, 237k | 10 calls, 402k | fit 0, 99%, 1 page, audit clean, 238-word letter |
+| Riot Games 40698, dream, LA on-site | 2 calls + deterministic build, 47k | 6 calls, 217k | 8 calls, 264k | fit 0, 98%, 1 page, relocation line present |
+| CINC Systems 34063, US remote | 2 calls + deterministic build, 45k | 5 calls, 166k | 7 calls, 211k | fit 0, 99%, 1 page, 270-word letter |
 
-The first passes were made before the fill change and landed at 91 to 92%, which the code as
-merged now flags, so every job took the fix round; the fix-round column is what that round
-costs. Token gate (0.4M per application): passed, 245k to 365k against a 1M to 4.5M
-baseline. Call gate (7 per application): passed only on CINC; MongoDB and Riot took 9.
-Recorded as a deviation: the stated gate assumed the fix round would be rare, and the
-geometry change (budget at level 0, spend all of it) is what should make it rare; the next
-hunt's audit decides whether the gate moves to 10 or the first drafts now land full.
+MongoDB also had one rate-limited attempt that read the bundle and died (1 call, 13k), not
+counted above. The first passes were made before the fill change and landed at 91 to 92%,
+which the code as merged flags, so every job took the fix round; the fix-round column is what
+that round costs.
+
+Gate reading: CINC passes both gates (7 calls, 211k). Riot passes the token gate and takes 8
+calls. MongoDB is over both by a hair (10 calls, 402k against 7 and 0.4M). Recorded as a
+deviation, not rounded away: the stated gate assumed the fix round would be rare, and the
+geometry change (budget at level 0, spend all of it) is what should make it rare. The next
+hunt's audit decides whether the gate moves to 10 calls and 0.45M or first drafts now land
+full and the original numbers hold. Against the 30 to 70 calls and 1M to 4.5M baseline every
+job is 5x to 20x cheaper either way.
 
 Riot and CINC hit the plan rate limit between their Write and their Bash step on the first
 pass, so the orchestrator ran `tailor_build` on their drafts (protocol step 3, zero tokens);

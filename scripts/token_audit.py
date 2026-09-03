@@ -81,6 +81,11 @@ class Phase:
         return {"label": self.label, "tool_bytes": self.tool_bytes, "tool_calls": self.tool_calls, **self.usage.row()}
 
 
+def _usage_total(u: dict) -> int:
+    return sum(int(u.get(k, 0) or 0) for k in
+               ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"))
+
+
 def _content_bytes(content) -> int:
     if content is None:
         return 0
@@ -158,7 +163,10 @@ def scan_file(path: Path) -> dict:
                 msg = d.get("message") or {}
                 u = msg.get("usage")
                 rid = str(d.get("requestId") or msg.get("id") or "")
-                if u and rid not in seen_requests:
+                # Rate-limit / interrupt placeholders carry model "<synthetic>" and zero usage;
+                # they are not API calls and must not inflate the per-agent call count.
+                synthetic = msg.get("model") == "<synthetic>" or not _usage_total(u or {})
+                if u and rid not in seen_requests and not synthetic:
                     seen_requests.add(rid)
                     usage.add(u, msg.get("model"))
                     cur.usage.add(u, msg.get("model"))
@@ -326,6 +334,8 @@ def print_report(rep: dict, top: int) -> None:
 def resolve(arg: str | None, latest: bool) -> Path:
     if latest or not arg:
         files = sorted(PROJECT_DIR.glob("*.jsonl"), key=lambda p: p.stat().st_mtime)
+        if not files:
+            sys.exit(f"no sessions in {PROJECT_DIR} (this script reads Claude Code transcripts of this project)")
         return files[-1]
     p = Path(arg)
     if p.exists():
