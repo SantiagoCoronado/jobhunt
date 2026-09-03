@@ -64,13 +64,14 @@ from datetime import date, datetime
 from pathlib import Path
 
 from .db import connect, log_event, set_status, touch_contact
-from .mail_fetch import INBOX_PATH, STATE_PATH, load_state, save_state
+from .mail_fetch import INBOX_PATH, STATE_PATH, load_result, load_state, save_state
 from .reconcile import sync_folder
 
 STAGE_RANK = {"applied": 0, "screen": 1, "interview": 2, "offer": 3}
 ALLOWED_TARGETS = {"screen", "interview", "offer", "rejected"}
 EVIDENCE_REQUIRED = {"rejected", "offer"}
 IGNORE_SIGNALS = {"ignore", "receipt"}
+KNOWN_SIGNALS = {"rejection", "interview_invite", "assessment", "offer", "reply", "ambiguous"} | IGNORE_SIGNALS
 HEADER_KEYS = ("from", "subject", "date", "message_id", "thread_id", "account")
 
 
@@ -139,12 +140,14 @@ def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> li
     Skipped and the rest of the batch still lands."""
     if not any("manifest_id" in p for p in proposals):
         return proposals
+    # A missing archive is its own error (load_result says so); a corrupt one too. Neither is
+    # a stale stamp, and telling the operator to reclassify would waste the whole pass.
     try:
-        doc = json.loads(Path(inbox_path).read_text())
-        threads = {t["id"]: t for t in doc.get("threads") or []}
-        generated_at = str(doc.get("generated_at") or "")
-    except (OSError, ValueError):
-        threads, generated_at = {}, ""
+        doc = load_result(Path(inbox_path))
+    except ValueError as e:
+        raise SystemExit(f"{inbox_path} is not valid JSON ({e}); re-run python -m src.mail_fetch") from None
+    threads = {t["id"]: t for t in doc.get("threads") or []}
+    generated_at = str(doc.get("generated_at") or "")
     out: list[dict] = []
     for p in proposals:
         mid = p.get("manifest_id")
@@ -169,9 +172,18 @@ def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> li
         if not t:
             out.append({**p, "_skip": f"manifest_id {mid} is not in {inbox_path}, skipped"})
             continue
-        ev = {k: t.get(k) for k in HEADER_KEYS if t.get(k)}
-        ev.update(p.get("evidence") or {})
+        # The archive's headers win: the printed manifest never shows the real sender or any
+        # id, so a header the proposal carries is at best a guess, and a guessed message_id
+        # would be the one recorded as seen. The proposal only fills what the archive lacks.
+        ev = {**(p.get("evidence") or {}), **{k: t.get(k) for k in HEADER_KEYS if t.get(k)}}
         q = {**p, "evidence": ev}
+        if q.get("signal") not in KNOWN_SIGNALS:
+            # No signal means nothing to go on; with the dates filled in below plan() would
+            # route it to a contact touch and record it as seen. Skip it instead: it is
+            # reported, and the thread comes back in the next sweep.
+            out.append({**q, "_skip": f"manifest_id {mid} has no recognized signal "
+                                      f"({q.get('signal')!r}), skipped"})
+            continue
         jobs = t.get("job_ids") or []
         if q.get("job_id") is None:
             if len(jobs) != 1:

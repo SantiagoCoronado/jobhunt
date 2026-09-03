@@ -257,6 +257,31 @@ def test_resolve_manifest_guards_job_id_and_null_contact_date(tmp_path):
     assert set(res[2]["evidence"]) == {"from", "subject", "date", "message_id", "thread_id", "account"}
 
 
+def test_resolve_manifest_archive_headers_win_and_signal_is_required(tmp_path):
+    import json
+
+    from src.gmail_pull import resolve_manifest
+    inbox = tmp_path / "mail_inbox.json"
+    inbox.write_text(json.dumps({"generated_at": "2026-09-02T18:56:47+00:00", "threads": [
+        {"id": 1, "account": "apps", "from": "Bob <bob@acme.com>", "date": "2026-09-02", "subject": "Results",
+         "message_id": "<m1>", "thread_id": "<t1>", "job_ids": [6984]}]}))
+    base = {"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00"}
+    # the model only ever saw a domain and no ids: its evidence cannot override the archive's
+    got = resolve_manifest([{**base, "signal": "rejection", "proposed_status": "rejected",
+                             "evidence": {"from": "acme.com", "message_id": "", "extra": "kept"}}], inbox)[0]
+    assert got["evidence"]["from"] == "Bob <bob@acme.com>" and got["evidence"]["message_id"] == "<m1>"
+    assert got["evidence"]["extra"] == "kept"
+    # no recognized signal: skipped (reported, not seen), never a silent contact touch
+    res = resolve_manifest([{**base, "proposed_status": None}, {**base, "signal": "maybe"}], inbox)
+    assert "no recognized signal" in res[0]["_skip"] and "'maybe'" in res[1]["_skip"]
+    # a missing or corrupt archive is named as such, not reported as a stale stamp
+    with pytest.raises(SystemExit, match="not found"):
+        resolve_manifest([{**base, "signal": "ignore"}], tmp_path / "absent.json")
+    inbox.write_text("{not json")
+    with pytest.raises(SystemExit, match="not valid JSON"):
+        resolve_manifest([{**base, "signal": "ignore"}], inbox)
+
+
 def test_plan_reports_unresolved_manifest_lines_and_keeps_the_rest(conn):
     _insert(conn, 1)
     props = [{"manifest_id": 9, "signal": "ignore", "_skip": "manifest_id 9 is not in inbox, skipped"},
