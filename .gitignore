@@ -18,3 +18,5 @@ config/notify.yaml
 interviews/
 # browser-automation scratch (Claude in Chrome / Playwright MCP)
 .playwright-mcp/
+# one-off sitemap dump (SoftServe source research, 2026-08-11)
+sm.xml

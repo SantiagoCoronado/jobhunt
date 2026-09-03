@@ -11,10 +11,22 @@ db.touch_contact).
   python -m src.gmail_pull data/gmail_pull.json          # diff only
   python -m src.gmail_pull data/gmail_pull.json --apply  # execute
 
-Input: JSON array, one object per proposal:
-  {"job_id": <int>,
+Input: JSON array, one object per proposal, in one of two forms.
+
+Manifest form (the normal path, after `python -m src.mail_fetch`):
+  {"manifest_id": <line id from the printed manifest>,
+   "sweep": "<the `sweep:` stamp the fetcher printed>",
    "signal": "rejection|interview_invite|assessment|offer|reply|ambiguous|ignore",
    "proposed_status": "screen|interview|offer|rejected" | null,
+   "job_id": <int, only when the line lists several jobs>}
+  `resolve_manifest` copies the evidence headers, the job id and the contact date from
+  that line in data/mail_inbox.json. A `sweep` that does not match the manifest on disk
+  stops the run; any other per-line problem skips that proposal and reports it.
+
+Explicit form (the Gmail MCP fallback, or a hand-written proposal):
+  {"job_id": <int>,
+   "signal": ...,
+   "proposed_status": ...,
    "contact_date": "YYYY-MM-DD",
    "evidence": {"from": ..., "subject": ..., "date": ..., "message_id": ...,
                 "thread_id": ..., "account": ...}}
@@ -107,7 +119,12 @@ def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> li
     therefore cite ``"manifest_id": <line id>``; the evidence headers (from, subject,
     date, message_id, thread_id, account), a missing ``job_id`` and a missing
     ``contact_date`` are copied here from ``data/mail_inbox.json``. Headers only;
-    snippets never leave the archive. Explicit fields in the proposal win."""
+    snippets never leave the archive. Explicit fields in the proposal win.
+
+    A stale or missing ``sweep`` stamp stops the run (every id would be off). A per-line
+    problem (unknown id, a multi-job line with no ``job_id``, a ``job_id`` the line never
+    matched) marks that proposal ``_skip`` with the reason; ``plan`` reports it under
+    Skipped and the rest of the batch still lands."""
     if not any("manifest_id" in p for p in proposals):
         return proposals
     try:
@@ -133,22 +150,34 @@ def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> li
         try:
             key = int(str(mid).strip())
         except ValueError:
-            raise SystemExit(f"manifest_id {mid!r} is not a manifest line number") from None
+            out.append({**p, "_skip": f"manifest_id {mid!r} is not a manifest line number, skipped"})
+            continue
         t = threads.get(key)
         if not t:
-            raise SystemExit(f"manifest_id {mid} is not in {inbox_path}; re-run python -m src.mail_fetch")
-        ev = {k: t.get(k) for k in ("from", "subject", "date", "message_id", "thread_id", "account") if t.get(k)}
+            out.append({**p, "_skip": f"manifest_id {mid} is not in {inbox_path}, skipped"})
+            continue
+        ev = {k: t.get(k) for k in HEADER_KEYS if t.get(k)}
         ev.update(p.get("evidence") or {})
         q = {**p, "evidence": ev}
         jobs = t.get("job_ids") or []
         if q.get("job_id") is None:
             if len(jobs) != 1:
-                raise SystemExit(f"manifest_id {mid} maps to {len(jobs)} jobs; set job_id explicitly")
+                out.append({**q, "_skip": f"manifest_id {mid} maps to {len(jobs)} jobs, set job_id explicitly, skipped"})
+                continue
             q["job_id"] = jobs[0]
-        elif jobs and q["job_id"] not in jobs:
-            # An explicit job_id must be one the cited thread actually matched, or the evidence
-            # headers below would be filed against an unrelated job.
-            raise SystemExit(f"job_id {q['job_id']} is not on manifest_id {mid} (matches {jobs})")
+        else:
+            # The manifest stores job ids as ints; a proposal may carry "6984" (the explicit path
+            # gets SQLite's INTEGER affinity for free, this comparison does not).
+            try:
+                q["job_id"] = int(str(q["job_id"]).strip())
+            except ValueError:
+                out.append({**q, "_skip": f"job_id {q['job_id']!r} on manifest_id {mid} is not a job id, skipped"})
+                continue
+            if jobs and q["job_id"] not in jobs:
+                # An explicit job_id must be one the cited thread actually matched, or the evidence
+                # headers above would be filed against an unrelated job.
+                out.append({**q, "_skip": f"job_id {q['job_id']} is not on manifest_id {mid} (matches {jobs}), skipped"})
+                continue
         if q.get("proposed_status") is not None or q.get("signal") not in IGNORE_SIGNALS:
             if q.get("contact_date") is None:      # an explicit null must still take the thread date
                 q["contact_date"] = t.get("date")
@@ -201,6 +230,9 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
 
     status_props: list[dict] = []
     for p in proposals:
+        if p.get("_skip"):                 # resolve_manifest could not fill this line
+            skipped.append(p["_skip"])
+            continue
         job = conn.execute("SELECT id, company, title, status FROM jobs WHERE id=?",
                            (p.get("job_id"),)).fetchone()
         if job is None:

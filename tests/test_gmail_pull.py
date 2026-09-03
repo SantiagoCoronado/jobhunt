@@ -224,8 +224,12 @@ def test_resolve_manifest_requires_matching_sweep_stamp(tmp_path):
         resolve_manifest([{"manifest_id": 1, "sweep": "2026-09-01T00:00:00+00:00", "signal": "ignore"}], inbox)
     with pytest.raises(SystemExit, match="names sweep"):
         resolve_manifest([{"manifest_id": 1, "signal": "ignore"}], inbox)
-    with pytest.raises(SystemExit, match="not a manifest line number"):
-        resolve_manifest([{"manifest_id": "12b", "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"}], inbox)
+    # a bad line id or an unknown one skips THAT proposal; the batch goes on (53 lines, one typo)
+    bad = resolve_manifest([{"manifest_id": "12b", "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"},
+                            {"manifest_id": 9, "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"},
+                            {"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"}], inbox)
+    assert "not a manifest line number" in bad[0]["_skip"] and "is not in" in bad[1]["_skip"]
+    assert "_skip" not in bad[2] and bad[2]["job_id"] == 6984
 
 
 def test_resolve_manifest_guards_job_id_and_null_contact_date(tmp_path):
@@ -242,5 +246,20 @@ def test_resolve_manifest_guards_job_id_and_null_contact_date(tmp_path):
     ok = resolve_manifest([{**base, "job_id": 7000, "contact_date": None}], inbox)
     assert ok[0]["contact_date"] == "2026-09-02"
     # a job_id the cited thread never matched would file this thread's evidence on an unrelated job
-    with pytest.raises(SystemExit, match="is not on manifest_id"):
-        resolve_manifest([{**base, "job_id": 7001}], inbox)
+    res = resolve_manifest([{**base, "job_id": 7001}, {**base}, {**base, "job_id": "7000"}, {**base, "job_id": "x"}], inbox)
+    assert "is not on manifest_id" in res[0]["_skip"]
+    assert "maps to 2 jobs" in res[1]["_skip"]
+    assert "_skip" not in res[2] and res[2]["job_id"] == 7000        # "7000" coerced like manifest_id is
+    assert "is not a job id" in res[3]["_skip"]
+    assert set(res[2]["evidence"]) == {"from", "subject", "date", "message_id", "thread_id", "account"}
+
+
+def test_plan_reports_unresolved_manifest_lines_and_keeps_the_rest(conn):
+    _insert(conn, 1)
+    props = [{"manifest_id": 9, "signal": "ignore", "_skip": "manifest_id 9 is not in inbox, skipped"},
+             {"job_id": 1, "signal": "rejection", "proposed_status": "rejected",
+              "evidence": {"from": "hr@acme.com", "subject": "Results", "date": "2026-07-20", "message_id": "m1"}}]
+    p = plan(conn, props)
+    assert p["skipped"] == ["manifest_id 9 is not in inbox, skipped"]
+    assert [c["to_status"] for c in p["changes"]] == ["rejected"]
+    assert {e["evidence"].get("message_id") for e in p["seen_batch"]} == {"m1"}   # the skipped line is never seen

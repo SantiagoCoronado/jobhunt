@@ -502,8 +502,13 @@ needs it.
    unless the text names the role. Signals unchanged: rejection / invite / assessment /
    offer / human reply / receipt / ambiguous. Never propose ghosted, withdrawn, or an offer
    decision.
-6. Write `data/gmail_pull.json` in the same schema; `evidence` gains `account` and
-   `thread_id`. Evidence stays headers only; snippets are read, never copied.
+6. Write `data/gmail_pull.json`. On this path a proposal is `{manifest_id, sweep, signal,
+   proposed_status}` (plus `job_id` when the line lists several jobs): the applier copies the
+   evidence headers, the job id and the contact date from the manifest line, and refuses the
+   file when `sweep` is not the stamp of the manifest on disk (2026-09-02, ids are numbered
+   per sweep). The explicit `{job_id, signal, proposed_status, contact_date, evidence}` form
+   stays the schema of the Gmail MCP fallback; `evidence` gains `account` and `thread_id`.
+   Evidence stays headers only; snippets are read, never copied.
 7. Dry run, wait for my explicit approval, apply. Unchanged.
 
 ### B2. `src/gmail_pull.py`

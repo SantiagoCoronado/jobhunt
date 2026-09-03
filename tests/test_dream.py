@@ -191,6 +191,22 @@ def test_match_export_flags_and_front_loads_dream_rows(profile, tmp_path, monkey
     assert "dream" not in out[1] and "curated_note" not in out[1]
 
 
+def test_match_export_rescore_keeps_dream_rows_under_the_bucket_gate(profile, tmp_path, monkeypatch):
+    import src.match as match
+    conn = connect(tmp_path / "jobs.db")
+    # shortlisted at the dream threshold (60), which is bucket 0 on the general 85/75/65 ladder
+    _insert(conn, 1, "greenhouse", "k1", "Riot Games", title="Staff Engineer", location="Los Angeles",
+            status="shortlisted", score=62, desc="c++")
+    _insert(conn, 2, "greenhouse", "k2", "Acme", status="shortlisted", score=70, desc="python")
+    _insert(conn, 3, "greenhouse", "k3", "Riot Games", title="Triaged out", location="Los Angeles",
+            desc="c++", verdict=json.dumps({"bucket": 0}))            # triaged bucket 0: gate applies
+    monkeypatch.setattr(match, "connect", lambda: conn)
+    monkeypatch.setattr(match, "PENDING", tmp_path / "pending.json")
+    match.export(limit=0, min_bucket=3, rescore=True)
+    out = json.loads((tmp_path / "pending.json").read_text())
+    assert [o["id"] for o in out] == [1]     # the stale dream row rides along, Acme and the bucket-0 row do not
+
+
 def test_match_ingest_uses_dream_threshold(profile, tmp_path, monkeypatch):
     import src.match as match
     conn = connect(tmp_path / "jobs.db")
