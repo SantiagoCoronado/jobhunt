@@ -157,7 +157,8 @@ RESULT  OK with 1 warning (exit 0)
 Exit codes: 0 green or warnings only, 1 the agent must fix (each FAIL line says what,
 including a resume YAML that does not parse), 2 environment problem (LibreOffice missing).
 The "outside the US" test in step 3 is a keyword heuristic on the job's location string
-(`OUTSIDE_TN_MARKERS` in `tailor_build.py`: EU/UK/APAC cities and countries); a location it
+(`OUTSIDE_COUNTRIES` / `OUTSIDE_CITIES` in `tailor_build.py`, weighed per location part against
+the US/MX/CA markers in `TN_COUNTRY_MARKERS`, which win); a location it
 does not recognise is treated as TN territory, and a missing pypdf downgrades the page count
 to a printed warning rather than a silent pass. `--json` prints the same as
 one object for tests and for `/jh-hunt`'s report.
@@ -242,6 +243,17 @@ which the orchestrator runs once more only if the agent's reply lacks the fill l
 call, spawns the 5 tailors in one message, and includes each verdict's RESUME and LETTER
 lines in the final report.
 
+### B3b. What B actually changed (landed 2026-09-02)
+
+- `resume-tailor.md` gained the `Edit` tool (the fix round edits the split file; no
+  `python3 - <<PYEOF`), the four-call protocol, and the "outside the TN countries" dream case.
+- `/jh-tailor` is three steps: bundle, delegate with a two-line prompt, summarize from the
+  reply (or `tailor_build --json`).
+- `/jh-hunt` step 7 bundles the 5 picks in one Bash call and spawns the 5 tailors in one
+  message; step 8 reports the RESUME and LETTER verdict lines and the token audit totals.
+- `src.pick` skips dream rows located outside the TN countries (Steven.com London style),
+  per Santiago's 2026-09-02 call that the dream waiver is US-on-TN only. Test: `tests/test_pick.py`.
+
 ### B4. Measurement gate (acceptance for merging B)
 
 Run three real tailors under the new protocol and `python scripts/token_audit.py --latest`:
@@ -252,6 +264,39 @@ Run three real tailors under the new protocol and `python scripts/token_audit.py
 | Context tokens per tailor | at most 0.4M |
 | Verdict | all three exit 0, one page verified by PDF |
 | Quality | Santiago reads the three letters and resumes and finds no regression against the Sep 2 drafts |
+
+### B4 result (2026-09-02, three real jobs, measured with `scripts/token_audit.py`)
+
+Measured on the code as merged (fill warning under 95%, geometry budget at fit level 0, the
+fill warning is the agent's one fix round). The audit excludes the rate-limit placeholder
+lines that an earlier version of the script counted as API calls (`<synthetic>` model, zero
+usage), which is why these figures are lower than the ones first posted on the PR.
+
+| Job | First pass | Fix round | Total | Build |
+|---|---|---|---|---|
+| MongoDB 24703, Solutions Architect, Mexico City | 4 calls, 165k | 6 calls, 237k | 10 calls, 402k | fit 0, 99%, 1 page, audit clean, 238-word letter |
+| Riot Games 40698, dream, LA on-site | 2 calls + deterministic build, 47k | 6 calls, 217k | 8 calls, 264k | fit 0, 98%, 1 page, relocation line present |
+| CINC Systems 34063, US remote | 2 calls + deterministic build, 45k | 5 calls, 166k | 7 calls, 211k | fit 0, 99%, 1 page, 270-word letter |
+
+MongoDB also had one rate-limited attempt that read the bundle and died (1 call, 13k), not
+counted above. The first passes were made before the fill change and landed at 91 to 92%,
+which the code as merged flags, so every job took the fix round; the fix-round column is what
+that round costs.
+
+Gate reading: CINC passes both gates (7 calls, 211k). Riot passes the token gate and takes 8
+calls. MongoDB is over both by a hair (10 calls, 402k against 7 and 0.4M). Recorded as a
+deviation, not rounded away: the stated gate assumed the fix round would be rare, and the
+geometry change (budget at level 0, spend all of it) is what should make it rare. The next
+hunt's audit decides whether the gate moves to 10 calls and 0.45M or first drafts now land
+full and the original numbers hold. Against the 30 to 70 calls and 1M to 4.5M baseline every
+job is 5x to 20x cheaper either way.
+
+Riot and CINC hit the plan rate limit between their Write and their Bash step on the first
+pass, so the orchestrator ran `tailor_build` on their drafts (protocol step 3, zero tokens);
+both passed first time, which is the geometry block working. Letters read in the plain voice
+with one dossier hook each and named gaps. The renderer also stopped printing "TN Visa
+Eligible" twice when the relocation header already says "TN eligible". Santiago's read of the
+three drafts: good; the fill change came out of it.
 
 ## Phase C: pre-fitted family variants (after B is measured)
 

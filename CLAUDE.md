@@ -25,7 +25,11 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
-6. **Track** (`src/crm/viewer.py` local UI, or `/jh-notion-sync`), application status + follow-ups.
+6. **Track** (`src/crm/viewer.py` local UI). Notion is OUT of the hunt since 2026-09-02: its
+   one-page-per-MCP-call push cost 25M to 65M context tokens per run, more than every other
+   stage combined (`docs/token-efficiency.md`). `/jh-notion-sync` still exists as a standalone,
+   optional mirror; never call it from `/jh-hunt`. The hunt picks its 5 targets with
+   `python -m src.pick` (star rule, dream slots, skips companies already in play).
    `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
    one-line-per-thread manifest; the model classifies THAT (`show <id>` for unsettled lines,
@@ -47,8 +51,15 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    only ever contain master-resume facts. Every status change / contact / debrief lands in the
    `events` table (written by `db.set_status`/`touch_contact`/`log_event`).
 
-`/jh-hunt` runs the whole loop end to end: discover, match, sync + star the top 5 shortlisted,
-research those 5, then tailor those 5.
+`/jh-hunt` runs the whole loop end to end: discover, triage (Haiku, 100-row chunks), match,
+inbox pull, pick the top 5 shortlisted (`src.pick`), research those 5, then tailor those 5.
+
+**Token discipline** (audit 2026-09-02, `docs/token-efficiency.md`): measure any hunt with
+`python scripts/token_audit.py --latest` (per agent, per tool, per phase; `--all` for one row per
+session). Rules that fell out of it: no Notion in the hunt; subagents reply in one line or under
+120 words; `python -m src.answers_export <id>` replaces reading `resume/answers.yaml`; the tailor
+runs render/audit at most twice; triage chunks are 100 rows (Haiku truncates a 200-row JSON
+write); never `python -m src.query crm` inside an orchestrated step.
 
 **Dream companies** (set 2026-09-01): `dream_companies` + `dream_rule` + `relocation_line` +
 `dream_shortlist_threshold` in `config/profile.yaml` are the single authority; `src/dream.py`
@@ -115,6 +126,12 @@ Helper queries: `python -m src.query {job <id>|crm|followups}`, `python -m src.r
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
 application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.
+Lean tailor (spec `docs/spec-tailor-lean.md`, Phase A landed 2026-09-02): `python -m src.tailor_bundle <id>`
+writes the one input file the tailor reads (`data/tailor/<id>/inputs.md`, voice + profile + master +
+generated page geometry + job + dossier + answers); `python -m src.tailor_build <folder>` splits `draft.md`,
+checks, renders, audits, exports PDFs, verifies the page count and prints a verdict (exit 1 = fix it),
+writing `build.json` + `state.json` in the folder. The resume-tailor agent, `/jh-tailor` and `/jh-hunt`
+step 7 run on them (Phase B, measured at 3 to 4 calls and under 0.2M tokens per application).
 Folder/DB drift check: `python -m src.reconcile [--apply]`. Tests: `.venv/bin/python -m pytest tests/`.
 DB maintenance (auto-runs after discover): `python -m src.maintain [--vacuum]`, expires postings
 that vanished from an actively-checked source, prunes irrelevant/expired descriptions.

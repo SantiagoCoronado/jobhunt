@@ -10,6 +10,10 @@ from src import tailor_build as tb
 from src.config import ROOT
 from src.dream import relocation_line
 
+from src import render_docx as _rd
+
+_real_estimate = _rd.estimate_height_pts
+
 NAME = "Santiago Daniel Coronado Sroka"
 CONTACT = "Mexico City, Mexico | s.coronado.sroka@gmail.com | +52-55-1627-3510"
 
@@ -44,8 +48,12 @@ def small_resume(location: str = "Mexico City, Mexico") -> dict:
 
 @pytest.fixture(autouse=True)
 def clean_audit(monkeypatch):
-    """The fixture resume is cut from the unfitted master; audit behaviour has its own test."""
+    """The fixture resume is cut from the unfitted master and fills ~70% of a page; audit and
+    fill behaviour have their own tests, so the other checks see a clean, full page."""
     monkeypatch.setattr(tb.rd, "audit_line_fill", lambda data, level: [])
+    real_estimate = tb.rd.estimate_height_pts
+    monkeypatch.setattr(tb.rd, "estimate_height_pts",
+                        lambda data, level: max(real_estimate(data, level), tb.rd.PAGE_AVAIL_PTS * 0.97))
 
 
 @pytest.fixture
@@ -163,7 +171,9 @@ def test_non_dream_relocation_line_is_only_a_warning(folder):
     assert v.ok and any("non-dream" in w for w in v.warnings)
 
 
-def test_overflow_at_level_3_fails(folder):
+def test_overflow_at_level_3_fails(folder, monkeypatch):
+    monkeypatch.setattr(tb.rd, "estimate_height_pts", tb.rd.estimate_height_pts.__wrapped__
+                        if hasattr(tb.rd.estimate_height_pts, "__wrapped__") else _real_estimate)
     res = small_resume()
     long_bullet = "Shipped a feature that mattered to customers and measured the outcome honestly across teams. " * 3
     res["cv"]["sections"]["experience"][0]["highlights"] = [long_bullet] * 30
@@ -228,8 +238,15 @@ def test_failures_and_warnings_print_in_verdict_lines(folder):
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
     assert any(ln.startswith("LETTER") and ln.rstrip().endswith("FAIL") for ln in v.lines)
     assert any(ln.startswith("FAIL") and "relocation_line" in ln for ln in v.lines)
-    assert any(ln.startswith("WARN") and "fills only" in ln for ln in v.lines)   # small fixture is under 90%
     assert v.lines[-1].startswith("RESULT") and len(v.lines) <= 12
+
+
+def test_underfill_at_level_0_is_a_failure_with_free_lines(folder, monkeypatch):
+    monkeypatch.setattr(tb.rd, "estimate_height_pts", lambda data, level: tb.rd.PAGE_AVAIL_PTS * 0.91)
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert not v.ok and any("body lines free" in f for f in v.failures)
+    assert v.metrics["free_lines"] > 0
+    assert any(ln.startswith("FAIL") and "body lines free" in ln for ln in v.lines)
 
 
 def test_split_strips_code_fences(folder):
@@ -270,3 +287,44 @@ def test_cap_keeps_fail_and_result_lines():
     out = tb._cap(list(lines), 12)
     assert len(out) <= 12 and "FAIL a" in out and "FAIL b" in out and out[-1] == "RESULT FAIL"
     assert "FILES f" not in out
+
+
+def test_header_tn_item_not_duplicated_with_relocation_header():
+    from src.render_docx import _contact_items
+    cv = {"phone": "+52", "email": "a@b.c", "location": "Mexico City, Mexico (open to US relocation, TN eligible)",
+          "sections": {"additional": [{"label": "Work authorization", "details": "Mexico (citizen) · TN Visa eligible"}]}}
+    texts = [t for t, _ in _contact_items(cv)]
+    assert sum("tn" in t.lower() for t in texts) == 1
+    cv["location"] = "Mexico City, Mexico"
+    texts = [t for t, _ in _contact_items(cv)]
+    assert "TN Visa Eligible" in texts
+
+
+@pytest.mark.parametrize("location,expected", [
+    ("Berlin", True), ("London, GB", True), ("Singapore", True), ("Remote, EU", True), ("Bangalore, India", True),
+    ("Bengaluru, Karnataka, in", True), ("Berlin, DE", True), ("Tel Aviv, IL", True), ("Berlin, Germany", True),
+    ("Indianapolis, IN, USA", False), ("Ukiah, CA", False), ("Paris, TX", False), ("New Madrid, MO", False),
+    ("London, KY", False), ("London, UK; San Francisco, CA", False), ("Remote (US) or London", False),
+    ("Santa Clara, CA", False), ("Mexico City", False), ("Toronto, Canada", False), ("Remote", False), ("", False),
+    (None, False), ("US remote", False),
+    # A US option anywhere in a multi-region string keeps the row TN-eligible, including the
+    # spelled-out state names and the bare "US" the marker list used not to recognise.
+    ("Austin, Texas; London, England, United Kingdom; New York, New York", False),
+    ("NY / SF / EMEA", False), ("Remote (US/EU)", False), ("Remote - US or Europe", False),
+    ("Remote, APAC; Remote, EMEA; Remote, US", False), ("US, UK, Singapore, Remote", False),
+    ("Europe + San Francisco", False), ("Hybrid - San Francisco, New York City, London", False),
+    # LATAM includes Mexico, so it is TN territory, not "outside".
+    ("LATAM remote-first", False), ("Remote LATAM", False), ("LATAM (remote)", False),
+    # ... but a foreign-only multi-part string is still outside.
+    ("Berlin; Munich", True), ("London; Dublin; Amsterdam", True),
+])
+def test_outside_tn_countries_word_boundaries_and_us_override(location, expected):
+    assert tb.outside_tn_countries(location) is expected
+
+
+def test_fill_failure_only_at_fit_level_0(folder, monkeypatch):
+    monkeypatch.setattr(tb.rd, "pick_fit_level", lambda data: 2)
+    monkeypatch.setattr(tb.rd, "estimate_height_pts", lambda data, level: tb.rd.PAGE_AVAIL_PTS * 0.94)
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert v.ok and not any("body lines free" in f for f in v.failures + v.warnings)
+    assert "free_lines" not in v.metrics

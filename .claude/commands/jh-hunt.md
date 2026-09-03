@@ -1,6 +1,6 @@
 ---
-description: Full job-hunt pipeline end to end: discover, match, inbox pull, sync + star top 5 shortlisted, research + tailor those 5, refresh the report. Usage: /jh-hunt
-allowed-tools: Read, Write, Bash, WebSearch, WebFetch, mcp__claude_ai_Notion__notion-search, mcp__claude_ai_Notion__notion-query-data-sources, mcp__claude_ai_Notion__notion-create-database, mcp__claude_ai_Notion__notion-create-pages, mcp__claude_ai_Notion__notion-update-page
+description: Full job-hunt pipeline end to end: discover, triage, match, inbox pull, pick top 5 shortlisted, research + tailor those 5, refresh the report. Usage: /jh-hunt
+allowed-tools: Read, Write, Bash, WebSearch, WebFetch
 ---
 
 Run my whole job hunt end to end. Do the phases in order and give me a short report after each.
@@ -34,48 +34,51 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
    the printed legend + manifest (use `show <id>` for unsettled lines; never read
    `data/mail_*`, never `query crm` or `query job` inside this step), write
    `data/gmail_pull.json`, run the dry run, present the batch inline, and apply only after
-   my approval. This runs BEFORE sync + star so the top 5 are picked against email-fresh
+   my approval. This runs BEFORE the pick so the top 5 are picked against email-fresh
    statuses (a company that rejected or advanced me this week must be reflected first).
    If mail_fetch reports no configured accounts and the Gmail tools are unavailable, note
    it and continue; the hunt never blocks on this step.
 
-5. **Sync + star** (the `/jh-notion-sync` flow, both phases): PULL Notion edits first
-   (`python -m src.notion_pull data/notion_pull.json --apply` after exporting the decisive rows),
-   then push the pipeline back (upsert `python -m src.query crm` rows; statuses map
-   `withdrawn` -> `declined`, `backlog` -> `shortlisted`; the `dream` field goes to the Dream
-   checkbox). Then **star EXACTLY 5 `shortlisted` jobs**: first up to 2 slots go to the
-   highest-Match shortlisted rows with `dream: true` (one per company), then the remaining
-   slots to the highest-Match shortlisted rows overall. Set the ⭐ page icon on those 5, remove
-   it from every other row so exactly those 5 are starred. These 5 can include shortlisted jobs
-   from earlier sessions, not only ones from this discover run. Break ties in favor of the more
-   AI-forward or better-located role. Report the 5 starred (company, role, match, dream or not).
+5. **Pick 5** (no Notion; dropped 2026-09-02, it was the single largest token sink of every
+   hunt): run `python -m src.pick` with Bash. It prints the 5 `shortlisted` targets under the
+   star rule: first up to 2 slots go to the highest-Match shortlisted rows with `dream: true`
+   (one per company), then the remaining slots to the highest-Match shortlisted rows overall,
+   one per company, skipping any company that already has an application folder or a
+   human-progressed row. It also lists what it skipped and flags aggregator rows (Jobgether,
+   HN "Who is Hiring") whose real employer you must confirm before research; drop a flagged
+   row you cannot resolve and take the first spare (it prints two spares after the picks).
+   Rows listed as "not scored yet" are hand-shortlisted and need `/jh-match` before a pick. These 5 can include shortlisted jobs from
+   earlier sessions. Never `python -m src.query crm` here (a 90k-token dump on a mature DB).
+   Report the 5 picked (company, role, match, dream or not).
 
-6. **Research the 5 starred**: for each of the 5, delegate to the **company-researcher** subagent
+6. **Research the 5 picked**: for each of the 5, delegate to the **company-researcher** subagent
    (Sonnet) to write `research/companies/<slug>.md`. Resolve each with
    `python -m src.research get <job_id>`; skip the research when it reports `stale: False`,
    refresh in place when `stale: True`.
 
-7. **Tailor the 5 starred**: for each of the 5 (all `shortlisted`), run the `/jh-tailor` flow: load
-   the job (`python -m src.query job <id>`), pass its company dossier from step 6, and delegate to
-   the **resume-tailor** subagent to write `applications/pending/<company>-<id>/` (tailored resume, cover
-   letter, match report) and render the one-page .docx. If a current application folder already
-   exists for that job, refresh it rather than duplicating.
-   For a dream-company job (`dream: true` in `python -m src.query job <id>`) tell the
-   subagent so, and pass the job's `curated_note` / Curated block if the sheet has one; the
-   agent applies `dream_rule` and `relocation_line` from profile.yaml.
-   The main session (Fable) is the orchestrator; the **resume-tailor** agent is pinned to
-   `model: fable` in its definition so the tailored `SantiagoCoronadoResume.yaml` and cover letter
-   are always written by Fable. When spawning it, also pass `model: "fable"` explicitly so the
-   pin holds even if the agent definition changes.
+7. **Tailor the 5 picked**: run `python -m src.tailor_bundle <id>` for all 5 in ONE Bash call
+   (add `--company` / `--dossier` for aggregator rows); each prints its folder, dream flag and
+   dossier state. Then spawn the 5 **resume-tailor** subagents in ONE message, each with
+   `model: "fable"` and the two-line prompt: `Tailor job <id>. Bundle:
+   data/tailor/<id>/inputs.md. Folder: <folder>. Dream: <yes/no>. Reply in at most 80 words.`
+   Each agent reads its bundle once, writes `<folder>/draft.md` once, runs
+   `python -m src.tailor_build <folder>` (at most one fix round) and replies in 80 words. Do
+   NOT run `src.query job`, `src.research get` or `src.answers_export` here; the bundle did.
+   An existing folder for the job is refreshed in place (the bundle carries the old draft).
+   After the replies, run `python -m src.tailor_build <folder> --json` only for an agent whose
+   reply lacks the fill line. Then `python scripts/token_audit.py --latest` and keep its
+   per-agent lines for the report.
 
 8. **Report**: run `python -m src.report` (regenerates `data/report.html`, free and
-   deterministic; include its path and headline line), then the 5 starred jobs with their
-   dossier paths and tailored application paths, the strongest hook and honest gaps for
-   each, and anything I should confirm before applying. For a dream-company job also state
+   deterministic; include its path and headline line), then the 5 picked jobs with their
+   dossier paths and tailored application paths, each build's RESUME and LETTER verdict lines
+   (from the agent reply or `build.json`), the strongest hook and honest gaps for each, anything
+   I should confirm before applying, and the token audit totals (context tokens and API calls
+   per stage, so drift is visible next time). For a dream-company job also state
    the matcher's `visa_path` and whether the cover letter carries the relocation line.
 
-Guardrails: only star, research, and tailor jobs with `shortlisted` status. Never overwrite
+Guardrails: only pick, research, and tailor jobs with `shortlisted` status. Never overwrite
 human-progressed statuses (`applied`/`screen`/`interview`/`offer`/`rejected`/`ghosted`/`withdrawn`)
 or curated notes; record status changes only via `python -m src.query set-status`. Never fabricate
 resume or company facts. Zero em-dashes anywhere. These outputs are DRAFTS to review; never
-auto-submit, a human clicks submit. SQLite is canonical; Notion is the mirror.
+auto-submit, a human clicks submit. SQLite is canonical.

@@ -42,7 +42,10 @@ SPLIT_RE = re.compile(r"^=== FILE: ([A-Za-z0-9_.-]+) ===\s*$")
 EMDASH = "\u2014"  # the em-dash, written as an escape so this file itself stays free of it
 LETTER_MIN, LETTER_MAX = 220, 280
 AUDIT_FAIL_AT = 4
-FILL_WARN_BELOW = 90
+# Deliberately above the honest target: the estimator runs conservative (Santiago's read of the
+# 2026-09-02 drafts showed visible white space at an estimated 92%), so 95 here prints as a full
+# page. Do not "fix" it back to 90.
+FILL_WARN_BELOW = 95
 RELOC_HEADER = "open to us relocation"
 
 
@@ -139,20 +142,99 @@ def _norm(s: str) -> str:
     return " ".join(s.split()).lower()
 
 
-# Markers of a posting located outside the TN countries (US, Mexico, Canada). A dream row
-# here must NOT carry the TN relocation line; the letter needs a visa note instead.
-OUTSIDE_TN_MARKERS = (
-    "berlin", "germany", "munich", "london", "united kingdom", " uk", "england", "dublin", "ireland",
-    "paris", "france", "amsterdam", "netherlands", "madrid", "barcelona", "spain", "lisbon", "portugal",
-    "zurich", "switzerland", "stockholm", "sweden", "copenhagen", "denmark", "warsaw", "poland",
-    "europe", " eu ", "emea", "singapore", "tokyo", "japan", "sydney", "australia", "india", "bangalore",
-    "bengaluru", "taipei", "taiwan", "seoul", "korea", "dubai", "uae", "tel aviv", "israel", "apac",
+# Where is a posting located, relative to the TN countries (US, Mexico, Canada)? A dream row
+# outside them must NOT carry the TN relocation line; the letter needs a visa note instead.
+# Country and region words win over everything except an explicit TN-country word. City words
+# lose to a US state code ("Paris, TX", "London, KY") unless the pair is a known foreign
+# city + country code that collides with a state ("Berlin, DE", "Bengaluru, Karnataka, in").
+# A multi-location string ("London, UK; San Francisco, CA") is TN territory when any part is.
+OUTSIDE_COUNTRIES = (
+    "germany", "united kingdom", "uk", "gb", "england", "scotland", "ireland", "france", "netherlands",
+    "spain", "portugal", "switzerland", "sweden", "denmark", "norway", "finland", "poland", "austria",
+    "belgium", "italy", "czech", "europe", "eu", "emea", "singapore", "japan", "australia", "new zealand",
+    "india", "taiwan", "korea", "china", "hong kong", "uae", "israel", "apac", "asia", "brazil", "argentina",
+    "colombia", "chile",
 )
+OUTSIDE_CITIES = (
+    "berlin", "munich", "hamburg", "london", "manchester", "dublin", "paris", "amsterdam", "madrid",
+    "barcelona", "lisbon", "zurich", "stockholm", "copenhagen", "oslo", "helsinki", "warsaw", "vienna",
+    "brussels", "milan", "prague", "tokyo", "sydney", "melbourne", "bangalore", "bengaluru", "mumbai",
+    "hyderabad", "pune", "chennai", "delhi", "gurgaon", "noida", "taipei", "seoul", "dubai", "tel aviv",
+    "shanghai", "beijing", "sao paulo", "bogota", "buenos aires", "santiago",
+)
+# (city, two-letter code) pairs where the code is a country code that collides with a US state
+FOREIGN_CITY_CODES = {
+    ("berlin", "de"), ("munich", "de"), ("hamburg", "de"), ("bangalore", "in"), ("bengaluru", "in"),
+    ("mumbai", "in"), ("hyderabad", "in"), ("pune", "in"), ("chennai", "in"), ("delhi", "in"),
+    ("gurgaon", "in"), ("noida", "in"), ("tel aviv", "il"), ("milan", "it"), ("madrid", "es"),
+    ("barcelona", "es"), ("paris", "fr"), ("amsterdam", "nl"), ("lisbon", "pt"), ("vienna", "at"),
+    ("brussels", "be"), ("prague", "cz"), ("warsaw", "pl"), ("dublin", "ie"), ("london", "gb"),
+}
+US_STATES = ("al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in", "ia", "ks",
+             "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj", "nm", "ny",
+             "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv",
+             "wi", "wy", "dc")
+# State codes that are also ISO country codes: a bare one of these is not a US signal.
+STATE_CODE_IS_ALSO_A_COUNTRY = frozenset({"de", "in", "il", "it", "es", "pt", "at", "be", "pl", "ie", "ne"})
+US_STATE_NAMES = (
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware",
+    "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
+    "louisiana", "maine", "maryland", "massachusetts", "michigan", "minnesota", "mississippi", "missouri",
+    "montana", "nebraska", "nevada", "new hampshire", "new jersey", "new mexico", "new york", "north carolina",
+    "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina",
+    "south dakota", "tennessee", "texas", "utah", "vermont", "virginia", "washington", "west virginia",
+    "wisconsin", "wyoming",
+)
+US_CITIES = ("san francisco", "sf", "nyc", "brooklyn", "palo alto", "mountain view", "san jose", "seattle",
+             "austin", "boston", "chicago", "denver", "los angeles", "san diego", "atlanta", "miami",
+             "dallas", "houston", "phoenix", "portland", "philadelphia", "pittsburgh", "detroit",
+             "minneapolis", "salt lake city", "d.c.", "bay area", "silicon valley", "toronto", "vancouver",
+             "montreal", "guadalajara", "monterrey", "cdmx", "mexico city")
+TN_COUNTRY_MARKERS = ("us", "usa", "u.s.", "u.s.a.", "united states", "us remote", "remote us", "us-remote",
+                      "remote (us)", "canada", "mexico", "m\u00e9xico", "cdmx", "mx", "latam",
+                      *US_STATE_NAMES, *US_CITIES)
+
+
+def _word_re(words) -> re.Pattern[str]:
+    return re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(w) for w in words) + r")(?![a-z])")
+
+
+_COUNTRY_RE = _word_re(OUTSIDE_COUNTRIES)
+_CITY_RE = _word_re(OUTSIDE_CITIES)
+_TN_RE = _word_re(TN_COUNTRY_MARKERS)
+_STATE_RE = re.compile(r",\s*(" + "|".join(US_STATES) + r")(?:\s*,|\s*$|\s+\d{5}|\s+usa?\b)")
+_PART_SPLIT = re.compile(r"\s*(?:;|\||/| or )\s*")
+
+
+def _part_is_outside(part: str) -> bool | None:
+    """True outside, False TN territory, None unknown, for one location string."""
+    if _TN_RE.search(part):
+        return False
+    bare = part.strip(" ()-.,")
+    if bare in US_STATES and bare not in STATE_CODE_IS_ALSO_A_COUNTRY:
+        return False                                 # "NY / SF / EMEA", "Remote - CA"
+    country = _COUNTRY_RE.search(part)
+    city = _CITY_RE.search(part)
+    state = _STATE_RE.search(part)
+    if country:
+        return True                                  # "Bangalore, India", "Berlin, Germany", "Remote, EU"
+    if city and state and (city.group(0), state.group(1)) in FOREIGN_CITY_CODES:
+        return True                                  # "Berlin, DE", "Bengaluru, Karnataka, in"
+    if state:
+        return False                                 # "Paris, TX", "London, KY", "Indianapolis, IN"
+    if city:
+        return True                                  # "Berlin", "London", "Singapore"
+    return None
 
 
 def outside_tn_countries(location: str | None) -> bool:
-    loc = f" {(location or '').lower()} "
-    return any(m in loc for m in OUTSIDE_TN_MARKERS)
+    loc = (location or "").lower().strip()
+    if not loc:
+        return False
+    verdicts = [_part_is_outside(part) for part in _PART_SPLIT.split(loc) if part]
+    if any(v is False for v in verdicts):
+        return False                                 # a US / Mexico / Canada option exists
+    return any(v is True for v in verdicts)
 
 
 def resolve_job(folder: Path, job: dict | None) -> dict:
@@ -329,8 +411,15 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
         v.failures.append(f"resume is {pct:.0f}% of the page at fit level 3: cut a bullet (trim real content)")
     elif pct > 100:
         v.warnings.append(f"estimate {pct:.0f}% at level {level}; verify the page count")
-    elif pct < FILL_WARN_BELOW:
-        v.warnings.append(f"resume fills only {pct:.0f}% of the page; extend with real master-resume content")
+    elif pct < FILL_WARN_BELOW and level == 0:
+        # Only at level 0 is "add content" the right instruction: a higher level was picked
+        # because the content already overflowed the looser spacing, so a 94% there is a full page.
+        # A failure, not a warning: exit 1 is what makes the agent's fix round happen.
+        body_line = rd.FS["body"][level] * rd.LINE + rd.SP["body_after"][level]
+        free_lines = int((rd.PAGE_AVAIL_PTS - est) / body_line)
+        v.metrics["free_lines"] = free_lines
+        v.failures.append(f"resume fills only {pct:.0f}% at fit level {level}: about {free_lines} body lines free; "
+                          "add real master-resume content (full-width bullets) until it reads 95-100%")
     findings = rd.audit_line_fill(data, level)
     v.metrics["audit_findings"] = len(findings)
     if len(findings) >= AUDIT_FAIL_AT:

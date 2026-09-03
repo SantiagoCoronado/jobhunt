@@ -6,31 +6,29 @@ allowed-tools: Read, Write, Bash
 
 Tailor my application for job id **$ARGUMENTS**.
 
-1. Load the job: run `python -m src.query job $ARGUMENTS` with Bash.
-2. Check for a company dossier: run `python -m src.research get $ARGUMENTS` with Bash. If it
-   reports `exists: True`, pass that dossier file to the subagent so the cover letter can weave in
-   the most resonant, company-specific hook (if `stale: True`, still use it but avoid citing its
-   time-sensitive facts, e.g. funding news, as current). If it does not exist, proceed without it
-   and suggest running `/jh-research $ARGUMENTS` first for a sharper letter (non-blocking).
-2b. Emit the application answers: read `resume/answers.yaml` and write
-   `applications/pending/<company>-<id>/answers.md` from the entries with `draft: false`,
-   personalizing `{company}` placeholders from the dossier (the why-company TEMPLATE entry
-   becomes a real 3-sentence answer grounded in the dossier). Skip drafts and empty
-   answers; list them at the end under "needs your input" instead.
+1. **Bundle**: run `python -m src.tailor_bundle $ARGUMENTS` with Bash (`.venv/bin/python` if
+   plain `python` is not on PATH). It writes `data/tailor/$ARGUMENTS/inputs.md` with every
+   input the subagent needs (voice rules, profile, master resume, page geometry, the job with
+   its dream flag and curated block, the dossier, the pre-rendered answers) and prints one line
+   with the folder, the dream flag, the dossier name and whether it is stale. That line is all
+   you need; do NOT run `src.query job`, `src.research get` or `src.answers_export` yourself.
+   Aggregator rows (HN "Who is Hiring", Jobgether): add `--company <Employer>` and, when the
+   dossier lives under another slug, `--dossier research/companies/<slug>.md`.
+   If the line says `dossier=none`, suggest `/jh-research $ARGUMENTS` first (non-blocking).
 
-3. Delegate to the **resume-tailor** subagent with that job, `resume/master_resume.yaml`,
-   `config/profile.yaml`, and the company dossier if present. If the job JSON says
-   `"dream": true`, say so explicitly in the delegation (the agent then applies
-   `dream_rule` and `relocation_line` from profile.yaml) and pass along any
-   "Curated (dream sheet)" block from the job description or its sheet twin. The agent is pinned to
-   `model: fable` (Fable writes the resume YAML and cover letter); pass `model: "fable"`
-   explicitly when spawning it too. It writes the tailored resume, cover
-   letter, and match report into `applications/pending/<company>-$ARGUMENTS/`, then renders the one-page
-   .docx (house design) via
-   `python -m src.render_docx applications/pending/<company>-$ARGUMENTS/SantiagoCoronadoResume.yaml --pdf`.
-   Deliverables are always named `SantiagoCoronadoResume.{yaml,docx,pdf}` and `CoverLetter.{md,docx,pdf}`.
-4. Summarize: the fit, the ATS keywords woven in, the company hook used (if a dossier was
-   present), and, honestly, any requirement I'm missing that I should be ready to speak to.
+2. **Delegate** to the **resume-tailor** subagent with `model: "fable"` (it is pinned to Fable
+   in its definition; pass it explicitly too). The prompt is two lines:
+   `Tailor job $ARGUMENTS. Bundle: data/tailor/$ARGUMENTS/inputs.md. Folder: <folder from step 1>.
+   Dream: <yes/no>. Reply in at most 80 words.`
+   The agent reads the bundle once, writes `<folder>/draft.md` once, runs
+   `python -m src.tailor_build <folder>` once (plus at most one fix round), and replies.
+   Deliverables: `SantiagoCoronadoResume.{yaml,docx,pdf}`, `CoverLetter.{md,docx,pdf}`,
+   `match_report.md`, `answers.md`, plus `build.json` and `state.json` for the record.
 
-Never fabricate experience. Only reframe what's actually in my master resume. After it's done, remind
-me this is a DRAFT to review before I submit anything myself.
+3. **Summarize** from the agent's reply. If it lacks the fill line, run
+   `python -m src.tailor_build <folder> --json` once and take `metrics` from it. Report the fit
+   level and fill, the page count, the hook used, the ATS keywords woven in, and, honestly, any
+   requirement I am missing that I should be ready to speak to.
+
+Never fabricate experience. Only reframe what is in my master resume. Remind me this is a DRAFT
+to review before I submit anything myself.
