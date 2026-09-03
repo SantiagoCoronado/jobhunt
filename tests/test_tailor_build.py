@@ -282,3 +282,21 @@ def test_header_tn_item_not_duplicated_with_relocation_header():
     cv["location"] = "Mexico City, Mexico"
     texts = [t for t, _ in _contact_items(cv)]
     assert "TN Visa Eligible" in texts
+
+
+@pytest.mark.parametrize("location,expected", [
+    ("Berlin", True), ("London, GB", True), ("Singapore", True), ("Remote, EU", True), ("Bangalore, India", True),
+    ("Indianapolis, IN, USA", False), ("Ukiah, CA", False), ("Paris, TX", False), ("New Madrid, MO", False),
+    ("Santa Clara, CA", False), ("Mexico City", False), ("Toronto, Canada", False), ("Remote", False), ("", False),
+    (None, False), ("US remote", False),
+])
+def test_outside_tn_countries_word_boundaries_and_us_override(location, expected):
+    assert tb.outside_tn_countries(location) is expected
+
+
+def test_fill_warning_only_at_fit_level_0(folder, monkeypatch):
+    monkeypatch.setattr(tb.rd, "pick_fit_level", lambda data: 2)
+    monkeypatch.setattr(tb.rd, "estimate_height_pts", lambda data, level: tb.rd.PAGE_AVAIL_PTS * 0.94)
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert v.ok and not any("body lines free" in w for w in v.warnings)
+    assert "free_lines" not in v.metrics

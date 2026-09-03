@@ -37,6 +37,25 @@ def test_synthetic_and_duplicate_lines_are_not_calls(tmp_path):
     assert rep["tool_bytes"]["Bash"] == 40 and rep["tool_calls"]["Bash"] == 1
 
 
+def test_messages_without_request_id_are_counted_not_deduped(tmp_path):
+    real = {"input_tokens": 5, "cache_read_input_tokens": 100, "cache_creation_input_tokens": 0, "output_tokens": 20}
+    lines = [
+        {"type": "assistant", "message": {"model": "claude-fable-5-1", "usage": real, "content": [{"type": "text", "text": "a"}]}},
+        {"type": "assistant", "message": {"model": "claude-fable-5-1", "usage": real, "content": [{"type": "text", "text": "b"}]}},
+    ]
+    p = tmp_path / "s.jsonl"
+    p.write_text("\n".join(json.dumps(x) for x in lines))
+    assert ta.scan_file(p)["usage"]["calls"] == 2
+
+
+def test_project_dir_derived_from_repo_path(monkeypatch):
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    d = ta.project_dir_for(Path("/Users/x/jobhunt"))
+    assert d.name == "-Users-x-jobhunt" and d.parent.name == "projects"
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/tmp/override")
+    assert ta.project_dir_for(Path("/Users/x/jobhunt")) == Path("/tmp/override")
+
+
 def test_resolve_exits_cleanly_on_empty_project_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(ta, "PROJECT_DIR", tmp_path)
     with pytest.raises(SystemExit) as e:

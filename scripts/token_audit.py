@@ -22,13 +22,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-PROJECT_DIR = Path.home() / ".claude" / "projects" / "-Users-santiagocoronado-jobhunt"
+REPO = Path(__file__).resolve().parents[1]
+
+
+def project_dir_for(repo: Path = REPO) -> Path:
+    """Claude Code names the transcript folder after the working directory, '/' -> '-'."""
+    override = os.environ.get("CLAUDE_PROJECT_DIR")
+    if override:
+        return Path(override)
+    return Path.home() / ".claude" / "projects" / str(repo).replace("/", "-")
+
+
+PROJECT_DIR = project_dir_for()
 
 
 @dataclass
@@ -166,8 +178,12 @@ def scan_file(path: Path) -> dict:
                 # Rate-limit / interrupt placeholders carry model "<synthetic>" and zero usage;
                 # they are not API calls and must not inflate the per-agent call count.
                 synthetic = msg.get("model") == "<synthetic>" or not _usage_total(u or {})
-                if u and rid not in seen_requests and not synthetic:
-                    seen_requests.add(rid)
+                # A message with no request id at all is counted, never deduped: folding every
+                # id-less entry onto one key would drop real calls and make a hunt look cheaper.
+                duplicate = bool(rid) and rid in seen_requests
+                if u and not duplicate and not synthetic:
+                    if rid:
+                        seen_requests.add(rid)
                     usage.add(u, msg.get("model"))
                     cur.usage.add(u, msg.get("model"))
                 for block in msg.get("content") or []:

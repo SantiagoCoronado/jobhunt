@@ -143,19 +143,34 @@ def _norm(s: str) -> str:
 
 
 # Markers of a posting located outside the TN countries (US, Mexico, Canada). A dream row
-# here must NOT carry the TN relocation line; the letter needs a visa note instead.
+# there must NOT carry the TN relocation line; the letter needs a visa note instead.
+# Matched on word boundaries ("Indianapolis" is not "India", "Ukiah" is not "UK"), and any
+# TN-country signal wins ("Paris, TX" and "New Madrid, MO" are US towns).
 OUTSIDE_TN_MARKERS = (
-    "berlin", "germany", "munich", "london", "united kingdom", " uk", "england", "dublin", "ireland",
+    "berlin", "germany", "munich", "london", "united kingdom", "uk", "england", "dublin", "ireland",
     "paris", "france", "amsterdam", "netherlands", "madrid", "barcelona", "spain", "lisbon", "portugal",
     "zurich", "switzerland", "stockholm", "sweden", "copenhagen", "denmark", "warsaw", "poland",
-    "europe", " eu ", "emea", "singapore", "tokyo", "japan", "sydney", "australia", "india", "bangalore",
+    "europe", "eu", "emea", "singapore", "tokyo", "japan", "sydney", "australia", "india", "bangalore",
     "bengaluru", "taipei", "taiwan", "seoul", "korea", "dubai", "uae", "tel aviv", "israel", "apac",
 )
+US_STATES = ("al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in", "ia", "ks",
+             "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj", "nm", "ny",
+             "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv",
+             "wi", "wy", "dc")
+TN_COUNTRY_MARKERS = ("usa", "u.s.", "u.s.a.", "united states", "us remote", "remote us", "canada", "mexico",
+                      "m\u00e9xico", "cdmx", "mx")
+_OUTSIDE_RE = re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(m) for m in OUTSIDE_TN_MARKERS) + r")(?![a-z])")
+_TN_RE = re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(m) for m in TN_COUNTRY_MARKERS) + r")(?![a-z])")
+_STATE_RE = re.compile(r",\s*(?:" + "|".join(US_STATES) + r")(?:\s*,|\s*$|\s+\d{5}|\s+usa?\b)")
 
 
 def outside_tn_countries(location: str | None) -> bool:
-    loc = f" {(location or '').lower()} "
-    return any(m in loc for m in OUTSIDE_TN_MARKERS)
+    loc = (location or "").lower().strip()
+    if not loc:
+        return False
+    if _TN_RE.search(loc) or _STATE_RE.search(loc):
+        return False
+    return bool(_OUTSIDE_RE.search(loc))
 
 
 def resolve_job(folder: Path, job: dict | None) -> dict:
@@ -332,7 +347,9 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
         v.failures.append(f"resume is {pct:.0f}% of the page at fit level 3: cut a bullet (trim real content)")
     elif pct > 100:
         v.warnings.append(f"estimate {pct:.0f}% at level {level}; verify the page count")
-    elif pct < FILL_WARN_BELOW:
+    elif pct < FILL_WARN_BELOW and level == 0:
+        # Only at level 0 is "add content" the right instruction: a higher level was picked
+        # because the content already overflowed the looser spacing, so a 94% there is a full page.
         body_line = rd.FS["body"][level] * rd.LINE + rd.SP["body_after"][level]
         free_lines = int((rd.PAGE_AVAIL_PTS - est) / body_line)
         v.metrics["free_lines"] = free_lines

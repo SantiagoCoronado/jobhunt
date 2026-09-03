@@ -9,14 +9,15 @@ Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
     applications/applied or applications/pending) or a `backlog` hold is skipped, so the hunt
     never re-tailors a live application or overrides a deliberate hold (Anthropic until Oct 2026);
   * a company with a terminal outcome (rejected/ghosted/withdrawn) is skipped for
-    `--cooldown-days` (default 90) after the application, last contact, last logged event or
-    first sighting (whichever exists first in that order), then released: a company that turned
+    `--cooldown-days` (default 90) after the outcome, dated by the NEWEST of application date,
+    last contact, last logged event and first sighting, then released: a company that turned
     one role down is often the best source of the next one. A row with none of those dates is
     released, not held forever;
   * hand-shortlisted rows with no match score are listed under skipped ("not scored yet"), never
     picked blind and never silently dropped;
   * a dream row located outside the TN countries (Berlin, London, Singapore ...) is listed under
-    skipped: the dream waiver is US-on-TN only (Santiago, 2026-09-02), so it never takes a slot;
+    skipped: the dream waiver is US-on-TN only (Santiago, 2026-09-02), so that ROW never takes a
+    slot; the company's US rows stay eligible;
   * aggregator rows (Jobgether, HN "Who is Hiring") are listed but flagged, since the real
     employer needs a look before research.
 Ties keep the newer posting. Two spares follow the picks so a flagged aggregator row can be
@@ -56,10 +57,13 @@ def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None 
     for r in conn.execute(f"SELECT company FROM jobs WHERE status IN ({','.join('?' * len(HOLD))})", HOLD):
         busy.setdefault(_norm(r["company"]), "company is on a backlog hold")
     cutoff = ((today or date.today()) - timedelta(days=cooldown_days)).isoformat()
+    # The outcome date is the NEWEST of the dates a row carries: applied_at is stamped once on
+    # the first flip to applied and never moves, so preferring it would date a September
+    # rejection to a January application and release the company the next day.
     for r in conn.execute(
-        "SELECT company, status, COALESCE(applied_at, last_contact_at, "
-        "(SELECT max(ts) FROM events e WHERE e.job_id = jobs.id), first_seen) AS at FROM jobs "
-        f"WHERE status IN ({','.join('?' * len(TERMINAL))})", TERMINAL):
+        "SELECT company, status, NULLIF(MAX(COALESCE(applied_at, ''), COALESCE(last_contact_at, ''), "
+        "COALESCE((SELECT max(ts) FROM events e WHERE e.job_id = jobs.id), ''), COALESCE(first_seen, '')), '') AS at "
+        f"FROM jobs WHERE status IN ({','.join('?' * len(TERMINAL))})", TERMINAL):
         when = (r["at"] or "")[:10]
         if when and when >= cutoff:   # no date at all: released, never held forever
             busy.setdefault(_norm(r["company"]), f"{r['status']} on {when}, within the {cooldown_days}-day cooldown")
@@ -90,14 +94,16 @@ def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
     picks: list[dict] = []
     skipped: list[dict] = []
     taken: set[str] = set()
+    evaluated: set[int] = set()   # a row is judged once, whichever loop reaches it first
     for r in conn.execute("SELECT id, company, title, location FROM jobs WHERE status='shortlisted' AND match_score IS NULL"):
         skipped.append({"id": r["id"], "company": r["company"], "title": r["title"], "location": r["location"],
                         "match": None, "dream": is_dream(r["company"]), "why": "not scored yet, run the matcher"})
 
     def consider(r, dream: bool) -> bool:
         key = _norm(r["company"])
-        if key in taken:
+        if key in taken or r["id"] in evaluated:
             return False
+        evaluated.add(r["id"])
         try:
             v = json.loads(r["match_verdict"] or "{}")
         except (ValueError, TypeError):
@@ -115,9 +121,9 @@ def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
             taken.add(key)
             return False
         if dream and outside_tn_countries(r["location"]):
+            # Row-level skip: the London req loses the slot, the company's US reqs stay eligible.
             rec["why"] = "dream row outside the TN countries (no EU/UK/APAC relocation)"
             skipped.append(rec)
-            taken.add(key)
             return False
         if any(a in key for a in AGGREGATORS):
             rec["flag"] = "aggregator row: confirm the real employer before research"
@@ -166,11 +172,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"spares ({len(spares)}), use in order if a pick is dropped:")
         for p in spares:
             print(line(p))
-    if skipped:
-        held = sum(1 for s in skipped if "cooldown" in s["why"])
+    held = sum(1 for why in busy_companies(connect(), a.cooldown_days).values() if "cooldown" in why)
+    if skipped or held:
         print(f"skipped ({len(skipped)}"
-              + (f", {held} held by the {a.cooldown_days}-day cooldown" if held else "") + "): "
-              + ", ".join(f"{s['company']} #{s['id']} ({s['match']}, {s['why'].split(' (')[0]})" for s in skipped[:12]))
+              + (f", {held} compan{'y' if held == 1 else 'ies'} held by the {a.cooldown_days}-day cooldown" if held else "")
+              + "): " + ", ".join(f"{s['company']} #{s['id']} ({s['match']}, {s['why'].split(' (')[0]})" for s in skipped[:12]))
     return 0
 
 
