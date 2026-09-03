@@ -207,3 +207,40 @@ def test_folded_and_superseded_touches_are_still_recorded(conn):
     p = plan(conn, props)
     assert p["touches"] == []
     assert {e["evidence"]["message_id"] for e in p["seen_batch"]} == {"invite@x", "cal@x", "older@x"}
+
+
+def test_resolve_manifest_requires_matching_sweep_stamp(tmp_path):
+    import json
+
+    from src.gmail_pull import resolve_manifest
+    inbox = tmp_path / "mail_inbox.json"
+    inbox.write_text(json.dumps({"generated_at": "2026-09-02T18:56:47+00:00", "threads": [
+        {"id": 1, "account": "apps", "from": "a@b.c", "date": "2026-09-02", "subject": "Results",
+         "message_id": "<m1>", "thread_id": "<t1>", "job_ids": [6984]}]}))
+    ok = resolve_manifest([{"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00", "signal": "rejection",
+                            "proposed_status": "rejected"}], inbox)
+    assert ok[0]["job_id"] == 6984 and ok[0]["evidence"]["message_id"] == "<m1>" and ok[0]["contact_date"] == "2026-09-02"
+    with pytest.raises(SystemExit, match="names sweep"):
+        resolve_manifest([{"manifest_id": 1, "sweep": "2026-09-01T00:00:00+00:00", "signal": "ignore"}], inbox)
+    with pytest.raises(SystemExit, match="names sweep"):
+        resolve_manifest([{"manifest_id": 1, "signal": "ignore"}], inbox)
+    with pytest.raises(SystemExit, match="not a manifest line number"):
+        resolve_manifest([{"manifest_id": "12b", "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"}], inbox)
+
+
+def test_resolve_manifest_guards_job_id_and_null_contact_date(tmp_path):
+    import json
+
+    from src.gmail_pull import resolve_manifest
+    inbox = tmp_path / "mail_inbox.json"
+    inbox.write_text(json.dumps({"generated_at": "2026-09-02T18:56:47+00:00", "threads": [
+        {"id": 1, "account": "apps", "from": "a@b.c", "date": "2026-09-02", "subject": "Results",
+         "message_id": "<m1>", "thread_id": "<t1>", "job_ids": [6984, 7000]}]}))
+    base = {"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00", "signal": "rejection",
+            "proposed_status": "rejected"}
+    # an explicit null contact_date still takes the thread date (setdefault would have left it None)
+    ok = resolve_manifest([{**base, "job_id": 7000, "contact_date": None}], inbox)
+    assert ok[0]["contact_date"] == "2026-09-02"
+    # a job_id the cited thread never matched would file this thread's evidence on an unrelated job
+    with pytest.raises(SystemExit, match="is not on manifest_id"):
+        resolve_manifest([{**base, "job_id": 7001}], inbox)

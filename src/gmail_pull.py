@@ -52,7 +52,7 @@ from datetime import date
 from pathlib import Path
 
 from .db import connect, log_event, set_status, touch_contact
-from .mail_fetch import STATE_PATH, load_state, save_state
+from .mail_fetch import INBOX_PATH, STATE_PATH, load_state, save_state
 from .reconcile import sync_folder
 
 STAGE_RANK = {"applied": 0, "screen": 1, "interview": 2, "offer": 3}
@@ -97,6 +97,63 @@ def record_seen(batch: list[dict], state_path: Path = STATE_PATH, today: str | N
                 n += 1
     save_state(state_path, state)
     return n
+
+
+def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> list[dict]:
+    """Fill a proposal from its manifest line.
+
+    The /jh-gmail-sync skill classifies the printed manifest, which carries no message
+    or thread ids (and must not be read from disk by the model). A proposal may
+    therefore cite ``"manifest_id": <line id>``; the evidence headers (from, subject,
+    date, message_id, thread_id, account), a missing ``job_id`` and a missing
+    ``contact_date`` are copied here from ``data/mail_inbox.json``. Headers only;
+    snippets never leave the archive. Explicit fields in the proposal win."""
+    if not any("manifest_id" in p for p in proposals):
+        return proposals
+    try:
+        doc = json.loads(Path(inbox_path).read_text())
+        threads = {t["id"]: t for t in doc.get("threads") or []}
+        generated_at = str(doc.get("generated_at") or "")
+    except (OSError, ValueError):
+        threads, generated_at = {}, ""
+    out: list[dict] = []
+    for p in proposals:
+        mid = p.get("manifest_id")
+        if mid is None:
+            out.append(p)
+            continue
+        # Manifest ids are numbered per sweep and shift between sweeps, so a proposal must name
+        # the sweep it classified; a stale or missing stamp refuses rather than hitting another
+        # thread's job with another thread's evidence.
+        sweep = str(p.get("sweep") or "")
+        if not sweep or sweep != generated_at:
+            raise SystemExit(f"proposal for manifest_id {mid} names sweep {sweep or '(none)'} but the manifest "
+                             f"on disk is {generated_at or '(none)'}; re-run python -m src.mail_fetch and classify "
+                             "that manifest (copy its `sweep:` stamp into every proposal)")
+        try:
+            key = int(str(mid).strip())
+        except ValueError:
+            raise SystemExit(f"manifest_id {mid!r} is not a manifest line number") from None
+        t = threads.get(key)
+        if not t:
+            raise SystemExit(f"manifest_id {mid} is not in {inbox_path}; re-run python -m src.mail_fetch")
+        ev = {k: t.get(k) for k in ("from", "subject", "date", "message_id", "thread_id", "account") if t.get(k)}
+        ev.update(p.get("evidence") or {})
+        q = {**p, "evidence": ev}
+        jobs = t.get("job_ids") or []
+        if q.get("job_id") is None:
+            if len(jobs) != 1:
+                raise SystemExit(f"manifest_id {mid} maps to {len(jobs)} jobs; set job_id explicitly")
+            q["job_id"] = jobs[0]
+        elif jobs and q["job_id"] not in jobs:
+            # An explicit job_id must be one the cited thread actually matched, or the evidence
+            # headers below would be filed against an unrelated job.
+            raise SystemExit(f"job_id {q['job_id']} is not on manifest_id {mid} (matches {jobs})")
+        if q.get("proposed_status") is not None or q.get("signal") not in IGNORE_SIGNALS:
+            if q.get("contact_date") is None:      # an explicit null must still take the thread date
+                q["contact_date"] = t.get("date")
+        out.append(q)
+    return out
 
 
 def _resolve_conflicts(proposals: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -227,7 +284,7 @@ def main() -> None:
     ap.add_argument("--apply", action="store_true", help="execute the proposed changes")
     args = ap.parse_args()
 
-    proposals = json.loads(Path(args.proposals_json).read_text())
+    proposals = resolve_manifest(json.loads(Path(args.proposals_json).read_text()))
     conn = connect()
     p = plan(conn, proposals)
 

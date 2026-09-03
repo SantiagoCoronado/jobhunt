@@ -14,7 +14,7 @@ Junk cut only. A Haiku sub-agent judges each job **keep/drop** against the profi
 biased hard toward keep (keep-on-doubt). Drops go to `status='irrelevant'` and leave every future
 stage. Keepers get a **0-3 fit bucket** stored in `match_verdict` (0 weak … 3 strong).
 
-- `python -m src.triage export --chunk 200` → `data/triage/chunk_NNN.json` (untriaged `discovered`
+- `python -m src.triage export --chunk 100` → `data/triage/chunk_NNN.json` (untriaged `discovered`
   jobs, deduped by `canonical_key`).
 - Fan one Haiku sub-agent per chunk (a Workflow for a full sweep; ~40 agents under a concurrency
   cap, resumable). Each writes `data/triage/out_NNN.json` = `[{id, keep, reason, bucket}]`.

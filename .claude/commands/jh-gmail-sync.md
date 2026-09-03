@@ -55,10 +55,13 @@ directly; you never read the files behind it.
    NEVER propose ghosted, withdrawn, or accepting/declining an offer; those are my calls.
 
 5. **Write `data/gmail_pull.json`**: a JSON array of
-   `{"job_id", "signal", "proposed_status" (null for touches/ignore), "contact_date",
-   "evidence": {"from", "subject", "date", "message_id", "thread_id", "account"}}`,
-   copying `message_id`, `thread_id`, and `account` from the manifest line. Evidence is
-   HEADERS ONLY; never copy snippet text into the file, the DB, or your report.
+   `{"manifest_id": <the line id>, "sweep": "<the sweep: stamp the fetcher printed>", "signal",
+   "proposed_status" (null for touches/ignore)}`. The stamp ties the ids to the manifest they
+   came from; the applier refuses a proposal whose stamp does not match the manifest on disk.
+   The applier copies the evidence headers (from, subject, date, message_id, thread_id,
+   account), the job id and the contact date from that manifest line itself, so you never
+   need the ids. Add `"job_id"` only when the line lists several jobs. Evidence is HEADERS
+   ONLY; never copy snippet text into the file, the DB, or your report.
 
 6. **Dry run**: `python -m src.gmail_pull data/gmail_pull.json` with Bash. Show me the
    proposed batch exactly as printed (status changes, touches, ambiguous pile, skipped,

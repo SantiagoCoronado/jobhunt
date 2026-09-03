@@ -37,7 +37,7 @@ cv:
         location: Mexico City, MX
         highlights:
           - "Took a building-management SaaS from concept to acquisition in 18 months, deploying to 20+ buildings (B2B clients) and 10,000+ users, with onboarded buildings reaching 75% resident adoption within 90 days."
-          - "Co-built the full-stack platform (React front-end, Node.js back-end on AWS) with QR-based access control, real-time communication, and fee and parcel management, reducing manager workload by 40%."
+          - "Co-built the full-stack platform (React front-end, Ruby back-end on AWS) with QR-based access control, real-time communication, and fee and parcel management, reducing manager workload by 40%."
           - "Owned the full product lifecycle and led on-site client deployments: onboarding HOAs and property administrators, gathering requirements, and translating complex, conflicting needs into intuitive mobile and web apps."
           - "Bootstrapped to profitability within 12 months without raising external capital."
 
@@ -93,7 +93,7 @@ cv:
       - label: "Frontend"
         details: "React 18/19, TypeScript, Vite, Tailwind CSS, Zustand, React Router, Radix UI, Design Systems & Design Tokens (CVA), Recharts, lightweight-charts, ECharts, React Flow (node-graph UIs), Framer Motion, WebSockets & SSE, Electron, Responsive Design, Figma; Testing: Playwright (E2E), Vitest, Manual QA"
       - label: "Software & Cloud"
-        details: "Python, FastAPI, JavaScript, TypeScript, Node.js, Swift, Java, SQL, NoSQL, PostgreSQL, TimescaleDB, Redis, SQLAlchemy, Celery, REST APIs, AWS (EC2, RDS), Firebase, Heroku, Vercel, Supabase, Turso, Docker, Git"
+        details: "Python, FastAPI, JavaScript, TypeScript, Node.js, Ruby, Swift, Java, SQL, NoSQL, PostgreSQL, TimescaleDB, Redis, SQLAlchemy, Celery, REST APIs, AWS (EC2, RDS), Firebase, Heroku, Vercel, Supabase, Turso, Docker, Git"
       - label: "Data & Tooling"
         details: "Real-time ETL, Multi-platform API Integration, Time-series Data, Workflow Automation, Internal Dashboards & Admin Tooling, System Monitoring, Google Apps Script; Claude Code, Cursor, Windsurf, VS Code"
       - label: "Product & Leadership"

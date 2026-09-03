@@ -131,9 +131,11 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
                   else _triage_bucket(r["match_verdict"]))
         items.append((r, _keyword_score(blob, skills), bucket, is_dream(r["company"])))
     if min_bucket is not None:
-        # A dream row with no triage bucket yet still rides along: it never waits behind
-        # a bucket gate it may not have been through.
-        items = [it for it in items if it[2] >= min_bucket or it[3]]
+        # A dream row with NO triage bucket yet (-1) still rides along: it never waits
+        # behind a bucket gate it has not been through. A dream row that triage DID bucket
+        # obeys the gate like everyone else (2026-09-02: the old unconditional pass let 665
+        # dream rows, 533 of them bucket 0-2, into a bucket-3 export).
+        items = [it for it in items if it[2] >= min_bucket or (it[3] and it[2] < 0)]
     items.sort(key=lambda x: (x[3], x[2], x[1]), reverse=True)  # dream, bucket, prescore
 
     cap = limit if (limit and limit > 0) else None

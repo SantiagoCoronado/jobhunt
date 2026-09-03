@@ -9,7 +9,7 @@ land at `status='irrelevant'` (gone from every future stage) and keepers carry a
 that later orders scoring. Run this after `/jh-discover` when the discovered pile is large.
 
 1. Export the queue into chunks:
-   `python -m src.triage export --chunk 200`
+   `python -m src.triage export --chunk 100`
    (untriaged `discovered` jobs, deduped by `canonical_key`, into `data/triage/chunk_NNN.json`).
    Note the chunk count.
 
