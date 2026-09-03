@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -68,6 +69,18 @@ class Usage:
         }
 
 
+@dataclass
+class Phase:
+    """One slice of the main session, cut at each skill load / user prompt."""
+    label: str
+    usage: Usage = field(default_factory=Usage)
+    tool_bytes: int = 0
+    tool_calls: int = 0
+
+    def row(self) -> dict:
+        return {"label": self.label, "tool_bytes": self.tool_bytes, "tool_calls": self.tool_calls, **self.usage.row()}
+
+
 def _content_bytes(content) -> int:
     if content is None:
         return 0
@@ -111,21 +124,20 @@ def scan_file(path: Path) -> dict:
     tool_bytes: Counter = Counter()
     tool_calls: Counter = Counter()
     biggest: list[tuple[int, str]] = []
-    phases: list[dict] = []
-    cur = {"label": "(start)", "usage": Usage(), "tool_bytes": 0, "tool_calls": 0}
+    phases: list[Phase] = []
+    cur = Phase("(start)")
     user_prompt_bytes = 0
     assistant_text_bytes = 0
     agent_name = None
-    agent_type = None
     cost_state = None
     first_ts = last_ts = None
     seen_requests: set[str] = set()  # one assistant message spans several JSONL lines, same usage
 
     def cut(label: str) -> None:
         nonlocal cur
-        if cur["usage"].calls or cur["tool_calls"]:
+        if cur.usage.calls or cur.tool_calls:
             phases.append(cur)
-        cur = {"label": label[:90], "usage": Usage(), "tool_bytes": 0, "tool_calls": 0}
+        cur = Phase(label[:90])
 
     with path.open() as fh:
         for line in fh:
@@ -145,24 +157,22 @@ def scan_file(path: Path) -> dict:
             elif t == "assistant":
                 msg = d.get("message") or {}
                 u = msg.get("usage")
-                rid = d.get("requestId") or msg.get("id")
+                rid = str(d.get("requestId") or msg.get("id") or "")
                 if u and rid not in seen_requests:
                     seen_requests.add(rid)
                     usage.add(u, msg.get("model"))
-                    cur["usage"].add(u, msg.get("model"))
+                    cur.usage.add(u, msg.get("model"))
                 for block in msg.get("content") or []:
                     if not isinstance(block, dict):
                         continue
                     if block.get("type") == "tool_use":
                         name = block.get("name", "?")
                         inp = block.get("input") or {}
-                        tool_uses[block.get("id")] = (name, _tool_label(name, inp))
+                        tool_uses[str(block.get("id") or "")] = (name, _tool_label(name, inp))
                         tool_calls[name] += 1
-                        cur["tool_calls"] += 1
+                        cur.tool_calls += 1
                         if name == "Skill":
                             cut(f"Skill:{inp.get('skill')}")
-                        if name == "Agent" and inp.get("subagent_type"):
-                            agent_type = agent_type  # main session; subagent types tallied via tool_calls
                     elif block.get("type") == "text":
                         assistant_text_bytes += len((block.get("text") or "").encode())
             elif t == "user":
@@ -171,14 +181,14 @@ def scan_file(path: Path) -> dict:
                 is_tool_result = isinstance(content, list) and any(
                     isinstance(b, dict) and b.get("type") == "tool_result" for b in content
                 )
-                if is_tool_result:
+                if is_tool_result and isinstance(content, list):
                     for b in content:
                         if not (isinstance(b, dict) and b.get("type") == "tool_result"):
                             continue
                         n = _content_bytes(b.get("content"))
-                        name, label = tool_uses.get(b.get("tool_use_id"), ("?", "?"))
+                        name, label = tool_uses.get(str(b.get("tool_use_id") or ""), ("?", "?"))
                         tool_bytes[name] += n
-                        cur["tool_bytes"] += n
+                        cur.tool_bytes += n
                         biggest.append((n, label))
                 elif not d.get("isMeta"):
                     n = _content_bytes(content)
@@ -186,8 +196,6 @@ def scan_file(path: Path) -> dict:
                     text = content if isinstance(content, str) else json.dumps(content)
                     if "<command-name>" in text:
                         # skill / slash command expansion
-                        import re
-
                         m = re.search(r"<command-name>([^<]+)</command-name>", text)
                         cut(f"cmd:{m.group(1) if m else '?'}")
                     elif n > 0 and not text.startswith("<local-command"):
@@ -213,10 +221,7 @@ def scan_file(path: Path) -> dict:
         "biggest_tool_results": biggest[:40],
         "user_prompt_bytes": user_prompt_bytes,
         "assistant_text_bytes": assistant_text_bytes,
-        "phases": [
-            {"label": p["label"], "tool_bytes": p["tool_bytes"], "tool_calls": p["tool_calls"], **p["usage"].row()}
-            for p in phases
-        ],
+        "phases": [p.row() for p in phases],
         "cost_state": cost_state,
         "first_ts": first_ts,
         "last_ts": last_ts,

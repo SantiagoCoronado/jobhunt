@@ -266,22 +266,29 @@ Run three real tailors under the new protocol and `python scripts/token_audit.py
 
 ### B4 result (2026-09-02, three real jobs, measured with `scripts/token_audit.py`)
 
-| Job | Agent API calls | Context tokens | Fix rounds | Build |
-|---|---|---|---|---|
-| MongoDB 24703, Solutions Architect, Mexico City | 4 (Read, Write, Bash, reply) | 165k | 0 | fit 0, 91%, 1 page, 238-word letter |
-| Riot Games 40698, dream, LA on-site | 3 + one deterministic build | 47k | 0 | fit 0, 92%, 1 page, relocation line present |
-| CINC Systems 34063, US remote | 3 + one deterministic build | 45k | 0 | fit 0, 91%, 1 page, 270-word letter |
+Measured on the code as merged (fill warning under 95%, geometry budget at fit level 0, the
+fill warning is the agent's one fix round):
 
-Gate: at most 7 calls and 0.4M each. Passed with room: 10x to 25x under the 1M to 4.5M
-baseline. Santiago's read found the first drafts a little short (91 to 92% estimated, more
-visible white space on the printed page because the estimator is conservative), so the build
-now warns under 95% with the number of free body lines, the geometry block budgets at fit
-level 0 and says to spend all of it, and the agent treats that warning as its one fix round
-(two more calls, still under the gate). The renderer also stopped printing "TN Visa Eligible"
-twice when the relocation header already says "TN eligible". Riot and CINC hit the plan rate limit between their Write and their Bash step, so
-the orchestrator ran `tailor_build` on their drafts (the protocol's step 3, zero tokens); both
-passed first time, which is the geometry block working. Letters read in the plain voice with
-one dossier hook each and named gaps. Santiago's read of the three drafts is the last gate.
+| Job | First pass | Fix round | Total | Build |
+|---|---|---|---|---|
+| MongoDB 24703, Solutions Architect, Mexico City | 4 calls, 165k | 5 calls, ~200k | 9 calls, ~365k | fit 0, 99%, 1 page, audit clean, 238-word letter |
+| Riot Games 40698, dream, LA on-site | 3 calls + deterministic build, 47k | 6 calls, ~217k | 9 calls, ~264k | fit 0, 98%, 1 page, relocation line present |
+| CINC Systems 34063, US remote | 3 calls + deterministic build, 45k | 4 calls, ~200k | 7 calls, ~245k | fit 0, 99%, 1 page, 270-word letter |
+
+The first passes were made before the fill change and landed at 91 to 92%, which the code as
+merged now flags, so every job took the fix round; the fix-round column is what that round
+costs. Token gate (0.4M per application): passed, 245k to 365k against a 1M to 4.5M
+baseline. Call gate (7 per application): passed only on CINC; MongoDB and Riot took 9.
+Recorded as a deviation: the stated gate assumed the fix round would be rare, and the
+geometry change (budget at level 0, spend all of it) is what should make it rare; the next
+hunt's audit decides whether the gate moves to 10 or the first drafts now land full.
+
+Riot and CINC hit the plan rate limit between their Write and their Bash step on the first
+pass, so the orchestrator ran `tailor_build` on their drafts (protocol step 3, zero tokens);
+both passed first time, which is the geometry block working. Letters read in the plain voice
+with one dossier hook each and named gaps. The renderer also stopped printing "TN Visa
+Eligible" twice when the relocation header already says "TN eligible". Santiago's read of the
+three drafts: good; the fill change came out of it.
 
 ## Phase C: pre-fitted family variants (after B is measured)
 

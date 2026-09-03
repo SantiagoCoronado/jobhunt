@@ -5,8 +5,11 @@ Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
   * first up to `--dream-slots` (default 2) go to the highest-match rows at a dream company
     (profile.yaml `dream_companies`), one per company;
   * the remaining slots go to the highest-match rows overall, one per company;
-  * a company that already has an application folder (applications/{applied,pending,other})
-    or a human-progressed row is skipped, so the hunt never re-tailors a live application;
+  * a company with a live application (applied/screen/interview/offer, or a folder under
+    applications/applied or applications/pending) is skipped, so the hunt never re-tailors one;
+  * a company with a terminal outcome (rejected/ghosted/withdrawn) is skipped for
+    `--cooldown-days` (default 90) after the application or last contact, then released: a
+    company that turned one role down is often the best source of the next one;
   * a dream row located outside the TN countries (Berlin, London, Singapore ...) is listed under
     skipped: the dream waiver is US-on-TN only (Santiago, 2026-09-02), so it never takes a slot;
   * aggregator rows (Jobgether, HN "Who is Hiring") are listed but flagged, since the real
@@ -14,19 +17,22 @@ Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
 Ties keep the newer posting. Nothing is written; the picks are printed one per line so the
 orchestrator reads ~10 lines instead of the whole shortlist.
 
-Usage:  python -m src.pick [--n 5] [--dream-slots 2] [--show 20]
+Usage:  python -m src.pick [--n 5] [--dream-slots 2] [--cooldown-days 90] [--json]
 """
 from __future__ import annotations
 
 import argparse
 import json
+from datetime import date, timedelta
 
 from .config import ROOT
 from .db import connect
 from .dream import is_dream
 from .tailor_build import outside_tn_countries
 
-PROGRESSED = ("applied", "screen", "interview", "offer", "rejected", "ghosted", "withdrawn")
+LIVE = ("applied", "screen", "interview", "offer")
+TERMINAL = ("rejected", "ghosted", "withdrawn")
+COOLDOWN_DAYS = 90
 AGGREGATORS = ("jobgether", "hn: who is hiring", "who is hiring")
 
 
@@ -34,19 +40,35 @@ def _norm(company: str) -> str:
     return " ".join((company or "").lower().replace(",", " ").replace(".", " ").split())
 
 
-def pick(n: int = 5, dream_slots: int = 2) -> tuple[list[dict], list[dict]]:
-    conn = connect()
-    busy: set[str] = set()
-    for r in conn.execute(f"SELECT company FROM jobs WHERE status IN ({','.join('?' * len(PROGRESSED))})", PROGRESSED):
-        busy.add(_norm(r["company"]))
+def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None = None) -> dict[str, str]:
+    """{normalised company: reason} for every company the hunt must not pick right now."""
+    busy: dict[str, str] = {}
+    for r in conn.execute(f"SELECT company FROM jobs WHERE status IN ({','.join('?' * len(LIVE))})", LIVE):
+        busy.setdefault(_norm(r["company"]), "company already has a live application")
+    cutoff = ((today or date.today()) - timedelta(days=cooldown_days)).isoformat()
+    for r in conn.execute(
+        f"SELECT company, status, COALESCE(applied_at, last_contact_at) AS at FROM jobs "
+        f"WHERE status IN ({','.join('?' * len(TERMINAL))})", TERMINAL):
+        when = (r["at"] or "")[:10]
+        if not when or when >= cutoff:   # undated terminal rows stay blocked, the conservative default
+            busy.setdefault(_norm(r["company"]), f"{r['status']} within the last {cooldown_days} days")
     busy_ids: set[int] = set()
-    for p in (ROOT / "applications").glob("*/*-*"):
-        tail = p.name.rsplit("-", 1)[-1]
-        if tail.isdigit():
-            busy_ids.add(int(tail))
-    for r in conn.execute("SELECT id, company FROM jobs"):
-        if r["id"] in busy_ids:
-            busy.add(_norm(r["company"]))
+    for bucket in ("applied", "pending"):
+        for p in (ROOT / "applications" / bucket).glob("*-*"):
+            tail = p.name.rsplit("-", 1)[-1]
+            if tail.isdigit():
+                busy_ids.add(int(tail))
+    if busy_ids:
+        for r in conn.execute("SELECT id, company FROM jobs"):
+            if r["id"] in busy_ids:
+                busy.setdefault(_norm(r["company"]), "company has an application folder in applied/ or pending/")
+    return busy
+
+
+def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
+         today: date | None = None) -> tuple[list[dict], list[dict]]:
+    conn = connect()
+    busy = busy_companies(conn, cooldown_days, today)
 
     rows = conn.execute(
         "SELECT id, company, title, location, match_score, match_verdict, first_seen "
@@ -71,7 +93,7 @@ def pick(n: int = 5, dream_slots: int = 2) -> tuple[list[dict], list[dict]]:
             "location_ok": v.get("location_ok"), "visa_path": v.get("visa_path"),
         }
         if key in busy:
-            rec["why"] = "company already has an application"
+            rec["why"] = busy[key]
             skipped.append(rec)
             taken.add(key)
             return False
@@ -96,8 +118,6 @@ def pick(n: int = 5, dream_slots: int = 2) -> tuple[list[dict], list[dict]]:
     for r in rows:
         if len(picks) >= n:
             break
-        if is_dream(r["company"]) and _norm(r["company"]) in taken:
-            continue
         consider(r, is_dream(r["company"]))
     return picks[:n], skipped
 
@@ -106,9 +126,11 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=5)
     ap.add_argument("--dream-slots", type=int, default=2)
+    ap.add_argument("--cooldown-days", type=int, default=COOLDOWN_DAYS,
+                    help="days a rejected/ghosted/withdrawn outcome keeps its company out of the picks")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
-    picks, skipped = pick(a.n, a.dream_slots)
+    picks, skipped = pick(a.n, a.dream_slots, a.cooldown_days)
     if a.json:
         print(json.dumps({"picks": picks, "skipped": skipped}, indent=1))
         return 0

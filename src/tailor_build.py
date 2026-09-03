@@ -42,6 +42,9 @@ SPLIT_RE = re.compile(r"^=== FILE: ([A-Za-z0-9_.-]+) ===\s*$")
 EMDASH = "\u2014"  # the em-dash, written as an escape so this file itself stays free of it
 LETTER_MIN, LETTER_MAX = 220, 280
 AUDIT_FAIL_AT = 4
+# Deliberately above the honest target: the estimator runs conservative (Santiago's read of the
+# 2026-09-02 drafts showed visible white space at an estimated 92%), so 95 here prints as a full
+# page. Do not "fix" it back to 90.
 FILL_WARN_BELOW = 95
 RELOC_HEADER = "open to us relocation"
 
