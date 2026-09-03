@@ -114,6 +114,18 @@ def split_draft(folder: Path, keep: bool = False) -> list[str]:
     return list(parts)
 
 
+def _tailor_blocks_left(text: str) -> list[str]:
+    """The `## ...` heading above every `<!-- TAILOR` marker still in answers.md (answers_export
+    can emit one per template id, so the failure names each block, not "the" block)."""
+    heading, out = "(no heading)", []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            heading = line[3:].strip()
+        elif "<!-- TAILOR" in line:
+            out.append(heading)
+    return out
+
+
 def letter_stats(text: str) -> dict:
     """Shape of CoverLetter.md: name line, contact line, Re: line, body words, markdown."""
     lines = [ln.rstrip() for ln in text.splitlines()]
@@ -357,9 +369,11 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     answers_ok = None
     if answers.exists():
         atext = answers.read_text(encoding="utf-8")
-        answers_ok = "<!-- TAILOR" not in atext
+        left = _tailor_blocks_left(atext)
+        answers_ok = not left
         if not answers_ok:
-            v.failures.append("answers.md still carries the TAILOR marker: replace the why-company block")
+            v.failures.append(f"answers.md still carries {len(left)} TAILOR block(s) under: "
+                              + "; ".join(left) + ". Replace each with a real answer written to the hint in its marker")
     letter = letter_stats((folder / "CoverLetter.md").read_text(encoding="utf-8"))
     v.metrics["letter_words"] = letter["body_words"]
     if not letter["has_re"]:

@@ -118,9 +118,10 @@ def test_emdash_anywhere_fails_with_location(folder):
 
 
 def test_tailor_marker_left_fails(folder):
-    (folder / "answers.md").write_text("## Why Acme?\n<!-- TAILOR: replace -->\nTEMPLATE\n")
+    (folder / "answers.md").write_text("## Why Acme?\n<!-- TAILOR: replace -->\nTEMPLATE\n"
+                                        "## What do you know about Acme?\n<!-- TAILOR: three facts -->\nTEMPLATE\n")
     v = tb.build(folder, job=JOB, no_pdf=True)
-    assert not v.ok and any("TAILOR" in f for f in v.failures)
+    assert not v.ok and any("2 TAILOR block(s) under: Why Acme?; What do you know about Acme?" in f for f in v.failures)
 
 
 def test_markdown_in_letter_fails(folder):

@@ -61,7 +61,7 @@ cv:
       - name: "Kairos (Open-Source Personal Command Center)"
         date: "2026"
         highlights:
-          - "Built and open-sourced Kairos, a local-first macOS command center (CRM, tasks, quarterly OKRs) in Electron + TypeScript on SQLite, with a keyboard-driven command palette, natural-language quick capture, and one-way Markdown export."
+          - "Built and open-sourced Kairos, a local-first macOS command center (CRM, tasks, quarterly OKRs) in Electron + TypeScript (React renderer, Node.js main process on SQLite), with a keyboard-driven command palette, natural-language quick capture, and one-way Markdown export."
           - "Integrated Claude on two surfaces from one codebase: an in-app agent (Claude Agent SDK) and a standalone MCP (Model Context Protocol) server expose the same 45 tools via a single typed tool-definition layer (Zod schemas), letting both the app and Claude Code operate on live user data."
           - "Engineered the desktop platform end to end: a React 19 + Tailwind UI with a cmdk command palette (global shortcut, inline create actions) and a custom drag-and-drop week/month calendar, a typed 158-channel IPC contract between Electron main and renderer, versioned SQLite migrations across 24 tables, and 494 Vitest tests over the core logic."
           - "Built a voice layer on the ElevenLabs API: low-latency text-to-speech (Flash v2.5) daily briefings and hands-free Scribe speech-to-text capture, where one model call routes each spoken memo into the right task, note, event, or interaction."

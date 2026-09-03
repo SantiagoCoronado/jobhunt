@@ -37,7 +37,7 @@ open review comments. You never need another file.
    === FILE: match_report.md ===
    (gap report)
    === FILE: answers.md ===
-   (section 7 of the bundle, unchanged except the TAILOR block, which you replace)
+   (section 7 of the bundle, unchanged except the TAILOR blocks, each of which you replace)
    ```
 
    Write to the grid in bundle section 4 on this first draft: every bullet is one full line or
@@ -69,9 +69,13 @@ open review comments. You never need another file.
   strongly / weakly / Not covered and the resume evidence; the ATS keywords woven in; the
   company hook used and its dossier section; honest gaps to be ready for; for a dream row the
   `visa_path` and the curated priority quoted from the bundle, never recomputed.
-- **answers.md**: section 7 verbatim, with the TAILOR block replaced by a real 3-sentence
-  why-company answer (one concrete company fact, one line tying it to the founder /
-  AI-deployment background, one line on what to ship first).
+- **answers.md**: section 7 verbatim, with EVERY `<!-- TAILOR: ... -->` block replaced by a
+  real answer written to the hint inside that marker (the why-company block: 3 sentences, one
+  concrete company fact, one line tying it to the founder / AI-deployment background, one line
+  on what to ship first; a what-do-you-know-about-us block: three dossier facts said flat, at
+  least one not on the homepage, one line on what maps to the master-resume work). Company
+  facts come from section 6 only; no dossier, say so in one plain sentence instead. The build
+  fails while any marker remains.
 
 ## DREAM-COMPANY ROLES (bundle section 5 says `dream: true`)
 Apply `dream_rule` and `relocation_line` from section 2 as written. If the posting requires US

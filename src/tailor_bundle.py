@@ -48,7 +48,7 @@ SECTION_PURPOSE = {
     4: "Page geometry. Write to this grid on the FIRST draft so the build passes without a fit loop.",
     5: "The job.",
     6: "Company dossier. Use one or two of its facts for the letter hook; never invent a company fact.",
-    7: "answers.md, pre-rendered. Copy it into draft.md unchanged except the TAILOR block, which you replace.",
+    7: "answers.md, pre-rendered. Copy it into draft.md unchanged except the TAILOR blocks (one per template question): replace each with a real answer written to the hint inside its marker.",
     8: "Existing tailored resume for this job. Edit it instead of starting over.",
     9: "Open review comments. Address each by number; list what you changed in review_response.md.",
 }
