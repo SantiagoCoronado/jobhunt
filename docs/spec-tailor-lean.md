@@ -273,7 +273,12 @@ Run three real tailors under the new protocol and `python scripts/token_audit.py
 | CINC Systems 34063, US remote | 3 + one deterministic build | 45k | 0 | fit 0, 91%, 1 page, 270-word letter |
 
 Gate: at most 7 calls and 0.4M each. Passed with room: 10x to 25x under the 1M to 4.5M
-baseline. Riot and CINC hit the plan rate limit between their Write and their Bash step, so
+baseline. Santiago's read found the first drafts a little short (91 to 92% estimated, more
+visible white space on the printed page because the estimator is conservative), so the build
+now warns under 95% with the number of free body lines, the geometry block budgets at fit
+level 0 and says to spend all of it, and the agent treats that warning as its one fix round
+(two more calls, still under the gate). The renderer also stopped printing "TN Visa Eligible"
+twice when the relocation header already says "TN eligible". Riot and CINC hit the plan rate limit between their Write and their Bash step, so
 the orchestrator ran `tailor_build` on their drafts (the protocol's step 3, zero tokens); both
 passed first time, which is the geometry block working. Letters read in the plain voice with
 one dossier hook each and named gaps. Santiago's read of the three drafts is the last gate.

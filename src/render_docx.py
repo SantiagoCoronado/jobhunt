@@ -290,7 +290,7 @@ def _contact_items(cv):
     # surface TN Visa eligibility in the header if declared in additional
     for a in (cv.get("sections", {}).get("additional") or []):
         if "work" in a.get("label", "").lower() and "tn visa" in a.get("details", "").lower():
-            if not any("TN Visa" in t for t, _ in items):
+            if not any("tn " in t.lower() or "tn-" in t.lower() for t, _ in items):   # header may already say "TN eligible"
                 items.append(("TN Visa Eligible", "text"))
     return items
 

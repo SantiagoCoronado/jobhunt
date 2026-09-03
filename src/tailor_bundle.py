@@ -94,8 +94,8 @@ def geometry_block(master: dict) -> str:
     s_norm = chars_per_line(summ[1], avail, samples)
     s_tight = chars_per_line(summ[3], avail, samples)
     fixed = {k: v for k, v in secs.items() if k in ("summary", "skills", "education", "additional")}
-    fixed_pts = rd.estimate_height_pts({"cv": {**cv, "sections": fixed}}, 1)
-    body_line = body[1] * rd.LINE + rd.SP["body_after"][1]
+    fixed_pts = rd.estimate_height_pts({"cv": {**cv, "sections": fixed}}, 0)
+    body_line = body[0] * rd.LINE + rd.SP["body_after"][0]
     budget = int((rd.PAGE_AVAIL_PTS - fixed_pts) / body_line)
     n_exp = len(secs.get("experience") or [])
     n_proj = len(secs.get("projects") or [])
@@ -110,10 +110,12 @@ def geometry_block(master: dict) -> str:
         f"({2 * s_norm - 12} to {2 * s_norm} chars). Skills: each label line {s_norm - 10} to {s_norm} chars. "
         "Merge a short bullet into a sibling rather than leave it dangling.",
         f"Budget: with this master resume's header, summary, skills, education and additional lines, about "
-        f"{budget} body lines remain at fit level 1 for experience + projects, and each entry costs 2 lines of "
-        f"company/title overhead before its bullets. The master has {n_exp} experience and {n_proj} project "
-        "entries; keep every entry, spend the budget on full-width bullets, and cut a bullet rather than "
-        "fall to level 3. Target 95-100% of the page.",
+        f"{budget} body lines remain at fit level 0 (the loosest spacing) for experience + projects, and each "
+        f"entry costs 2 lines of company/title overhead before its bullets. The master has {n_exp} experience "
+        f"and {n_proj} project entries; keep every entry and spend the WHOLE budget on full-width bullets. "
+        "Overshooting by one or two lines is fine: the renderer tightens spacing on its own (levels 1 to 3). "
+        "Undershooting leaves white space at the bottom of the page and the build flags anything under 95%. "
+        "The estimator runs a little conservative, so a draft that estimates 97-100% prints with a small margin.",
     ])
 
 

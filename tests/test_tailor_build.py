@@ -228,7 +228,8 @@ def test_failures_and_warnings_print_in_verdict_lines(folder):
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
     assert any(ln.startswith("LETTER") and ln.rstrip().endswith("FAIL") for ln in v.lines)
     assert any(ln.startswith("FAIL") and "relocation_line" in ln for ln in v.lines)
-    assert any(ln.startswith("WARN") and "fills only" in ln for ln in v.lines)   # small fixture is under 90%
+    assert any(ln.startswith("WARN") and "body lines free" in ln for ln in v.lines)   # small fixture is under 95%
+    assert v.metrics["free_lines"] > 0
     assert v.lines[-1].startswith("RESULT") and len(v.lines) <= 12
 
 
@@ -270,3 +271,14 @@ def test_cap_keeps_fail_and_result_lines():
     out = tb._cap(list(lines), 12)
     assert len(out) <= 12 and "FAIL a" in out and "FAIL b" in out and out[-1] == "RESULT FAIL"
     assert "FILES f" not in out
+
+
+def test_header_tn_item_not_duplicated_with_relocation_header():
+    from src.render_docx import _contact_items
+    cv = {"phone": "+52", "email": "a@b.c", "location": "Mexico City, Mexico (open to US relocation, TN eligible)",
+          "sections": {"additional": [{"label": "Work authorization", "details": "Mexico (citizen) · TN Visa eligible"}]}}
+    texts = [t for t, _ in _contact_items(cv)]
+    assert sum("tn" in t.lower() for t in texts) == 1
+    cv["location"] = "Mexico City, Mexico"
+    texts = [t for t, _ in _contact_items(cv)]
+    assert "TN Visa Eligible" in texts

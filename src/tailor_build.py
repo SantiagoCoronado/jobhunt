@@ -42,7 +42,7 @@ SPLIT_RE = re.compile(r"^=== FILE: ([A-Za-z0-9_.-]+) ===\s*$")
 EMDASH = "\u2014"  # the em-dash, written as an escape so this file itself stays free of it
 LETTER_MIN, LETTER_MAX = 220, 280
 AUDIT_FAIL_AT = 4
-FILL_WARN_BELOW = 90
+FILL_WARN_BELOW = 95
 RELOC_HEADER = "open to us relocation"
 
 
@@ -330,7 +330,11 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     elif pct > 100:
         v.warnings.append(f"estimate {pct:.0f}% at level {level}; verify the page count")
     elif pct < FILL_WARN_BELOW:
-        v.warnings.append(f"resume fills only {pct:.0f}% of the page; extend with real master-resume content")
+        body_line = rd.FS["body"][level] * rd.LINE + rd.SP["body_after"][level]
+        free_lines = int((rd.PAGE_AVAIL_PTS - est) / body_line)
+        v.metrics["free_lines"] = free_lines
+        v.warnings.append(f"resume fills only {pct:.0f}% at fit level {level}: about {free_lines} body lines free; "
+                          "add real master-resume content (full-width bullets) until it reads 95-100%")
     findings = rd.audit_line_fill(data, level)
     v.metrics["audit_findings"] = len(findings)
     if len(findings) >= AUDIT_FAIL_AT:
