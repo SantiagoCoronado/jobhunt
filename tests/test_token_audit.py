@@ -61,3 +61,18 @@ def test_resolve_exits_cleanly_on_empty_project_dir(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as e:
         ta.resolve(None, latest=True)
     assert "no sessions" in str(e.value)
+
+
+def test_prefix_lookup_prefers_the_newest_match(tmp_path, monkeypatch, capsys):
+    import os
+    import time
+    monkeypatch.setattr(ta, "PROJECT_DIR", tmp_path)
+    old = tmp_path / "abc-old.jsonl"
+    new = tmp_path / "abc-new.jsonl"
+    old.write_text("")
+    new.write_text("")
+    now = time.time()
+    os.utime(old, (now - 100, now - 100))
+    os.utime(new, (now, now))
+    assert ta.resolve("abc", latest=False) == new
+    assert "2 sessions match" in capsys.readouterr().err

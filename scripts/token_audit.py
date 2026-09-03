@@ -356,10 +356,13 @@ def resolve(arg: str | None, latest: bool) -> Path:
     p = Path(arg)
     if p.exists():
         return p
-    cands = list(PROJECT_DIR.glob(f"{arg}*.jsonl"))
+    cands = sorted(PROJECT_DIR.glob(f"{arg}*.jsonl"), key=lambda p: p.stat().st_mtime)
     if not cands:
         sys.exit(f"no session matching {arg!r} in {PROJECT_DIR}")
-    return cands[0]
+    if len(cands) > 1:
+        print(f"note: {len(cands)} sessions match {arg!r}, using the newest ({cands[-1].name}); "
+              "give more of the id to pick another", file=sys.stderr)
+    return cands[-1]
 
 
 def main() -> None:

@@ -161,8 +161,8 @@ def main(argv: list[str] | None = None) -> int:
 
     def line(p: dict) -> str:
         flag = f"  [{p['flag']}]" if p.get("flag") else ""
-        return (f"  {'D' if p['dream'] else ' '} {p['id']:>6} {p['match']:>3} {p['company'][:24]:<24} "
-                f"{p['title'][:52]:<52} {(p['location'] or '')[:22]:<22} {p.get('recommendation') or '':<10} "
+        return (f"  {'D' if p['dream'] else ' '} {p['id']:>6} {p['match'] or 0:>3} {(p['company'] or '')[:24]:<24} "
+                f"{(p['title'] or '')[:52]:<52} {(p['location'] or '')[:22]:<22} {p.get('recommendation') or '':<10} "
                 f"loc_ok={p.get('location_ok')!s:<5} {(p.get('visa_path') or '')[:50]}{flag}")
 
     print(f"picks ({len(picks)}):")
@@ -176,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     if skipped or held:
         print(f"skipped ({len(skipped)}"
               + (f", {held} compan{'y' if held == 1 else 'ies'} held by the {a.cooldown_days}-day cooldown" if held else "")
-              + "): " + ", ".join(f"{s['company']} #{s['id']} ({s['match']}, {s['why'].split(' (')[0]})" for s in skipped[:12]))
+              + "): " + ", ".join(f"{s['company'] or '?'} #{s['id']} ({s['match']}, {s['why'].split(' (')[0]})" for s in skipped[:12]))
     return 0
 
 

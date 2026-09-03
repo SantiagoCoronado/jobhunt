@@ -41,6 +41,7 @@ def env(tmp_path, monkeypatch):
         (23, "lever", "x23", "k23", "Late Reject", "Past role", "Remote", "rejected", 70, "{}", "2026-01-10"),
         (24, "ashby", "x24", "k24", "Nvidia", "Solutions Architect, London", "London, UK", "shortlisted", 91, "{}", "2026-09-01"),
         (25, "workday", "x25", "k25", "Nvidia", "Solutions Architect, Indy", "Indianapolis, IN, USA", "shortlisted", 89, "{}", "2026-09-01"),
+        (26, "lever", "x26", "k26", "No Title Co", None, "Remote", "shortlisted", 83, "{}", "2026-09-01"),
     ]
     dated = {11: "2026-02-01", 13: "2026-08-25", 7: "2026-08-01", 23: "2026-01-15"}
     for r in rows:
@@ -59,7 +60,7 @@ TODAY = date(2026, 9, 2)
 
 
 def test_star_rule(env):
-    picks, skipped, spares = pk.pick(8, 2, today=TODAY)
+    picks, skipped, spares = pk.pick(12, 2, today=TODAY)
     ids = [p["id"] for p in picks]
     # two dream slots: NVIDIA Santa Clara (90, after its London row 24 is skipped row-level) and Cursor (86);
     # Steven.com (86, London) and NVIDIA London (91) are skipped without consuming the company
@@ -97,6 +98,8 @@ def test_cli_prints_picks_and_skips(env, capsys):
     assert "picks (3)" in out and "spares (2)" in out and "skipped" in out and "outside the TN countries" in out
     assert "held by the 90-day cooldown" in out          # counted over every held company, not only rows reached
     assert out.count("Steven.com #1") == 1               # a row is evaluated once, whichever loop reaches it first
+    assert pk.main(["--n", "12"]) == 0               # includes the NULL-title row without a traceback
+    assert "No Title Co" in capsys.readouterr().out
 
 
 def test_cooldown_window_is_configurable(env):
@@ -110,7 +113,7 @@ def test_cooldown_window_is_configurable(env):
 
 def test_folder_in_pending_blocks_company(env, tmp_path):
     (tmp_path / "applications" / "pending" / "nvidia-9").mkdir(parents=True)
-    picks, skipped, spares = pk.pick(8, 2, today=TODAY)
+    picks, skipped, spares = pk.pick(12, 2, today=TODAY)
     why = {s["id"]: s["why"] for s in skipped}
     assert all(p["company"] != "Nvidia" for p in picks + spares)
     assert any("application folder" in w for w in why.values())

@@ -47,10 +47,10 @@ open review comments. You never need another file.
    renders, audits, exports the PDFs, verifies the page count and prints a verdict. Exit 0 is
    done. Exit 1 lists `FAIL` lines: fix exactly those with **Edit** on the split file it names
    (never `python3 - <<PYEOF`, never `render_docx` directly), then run `tailor_build` ONCE more
-   and stop regardless of the outcome. A `RESUME` fill warning ("about N body lines free") IS
-   a fix round: add N full-width lines of real master-resume content (a bullet the master has
-   and the draft dropped, or a real detail that extends a one-line bullet to two), then rebuild
-   once. Other `WARN` lines are worth an Edit only inside that same round.
+   and stop regardless of the outcome. An under-filled page at fit level 0 is one of those
+   failures ("about N body lines free"): add N full-width lines of real master-resume content
+   (a bullet the master has and the draft dropped, or a real detail that extends a one-line
+   bullet to two). `WARN` lines are worth an Edit only inside that same round.
 4. **Reply** in at most 80 words: fit level and fill %, page count, letter body words, the hook
    used and its dossier section, 2 to 3 honest gaps, the relocation decision for a dream row,
    and anything Santiago must confirm before applying. Nothing else; state lives in the files.
