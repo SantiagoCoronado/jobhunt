@@ -242,6 +242,17 @@ which the orchestrator runs once more only if the agent's reply lacks the fill l
 call, spawns the 5 tailors in one message, and includes each verdict's RESUME and LETTER
 lines in the final report.
 
+### B3b. What B actually changed (landed 2026-09-02)
+
+- `resume-tailor.md` gained the `Edit` tool (the fix round edits the split file; no
+  `python3 - <<PYEOF`), the four-call protocol, and the "outside the TN countries" dream case.
+- `/jh-tailor` is three steps: bundle, delegate with a two-line prompt, summarize from the
+  reply (or `tailor_build --json`).
+- `/jh-hunt` step 7 bundles the 5 picks in one Bash call and spawns the 5 tailors in one
+  message; step 8 reports the RESUME and LETTER verdict lines and the token audit totals.
+- `src.pick` skips dream rows located outside the TN countries (Steven.com London style),
+  per Santiago's 2026-09-02 call that the dream waiver is US-on-TN only. Test: `tests/test_pick.py`.
+
 ### B4. Measurement gate (acceptance for merging B)
 
 Run three real tailors under the new protocol and `python scripts/token_audit.py --latest`:
@@ -252,6 +263,20 @@ Run three real tailors under the new protocol and `python scripts/token_audit.py
 | Context tokens per tailor | at most 0.4M |
 | Verdict | all three exit 0, one page verified by PDF |
 | Quality | Santiago reads the three letters and resumes and finds no regression against the Sep 2 drafts |
+
+### B4 result (2026-09-02, three real jobs, measured with `scripts/token_audit.py`)
+
+| Job | Agent API calls | Context tokens | Fix rounds | Build |
+|---|---|---|---|---|
+| MongoDB 24703, Solutions Architect, Mexico City | 4 (Read, Write, Bash, reply) | 165k | 0 | fit 0, 91%, 1 page, 238-word letter |
+| Riot Games 40698, dream, LA on-site | 3 + one deterministic build | 47k | 0 | fit 0, 92%, 1 page, relocation line present |
+| CINC Systems 34063, US remote | 3 + one deterministic build | 45k | 0 | fit 0, 91%, 1 page, 270-word letter |
+
+Gate: at most 7 calls and 0.4M each. Passed with room: 10x to 25x under the 1M to 4.5M
+baseline. Riot and CINC hit the plan rate limit between their Write and their Bash step, so
+the orchestrator ran `tailor_build` on their drafts (the protocol's step 3, zero tokens); both
+passed first time, which is the geometry block working. Letters read in the plain voice with
+one dossier hook each and named gaps. Santiago's read of the three drafts is the last gate.
 
 ## Phase C: pre-fitted family variants (after B is measured)
 
