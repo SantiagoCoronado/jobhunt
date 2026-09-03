@@ -16,8 +16,8 @@ stage. Keepers get a **0-3 fit bucket** stored in `match_verdict` (0 weak … 3 
 
 - `python -m src.triage export --chunk 100` → `data/triage/chunk_NNN.json` (untriaged `discovered`
   jobs, deduped by `canonical_key`).
-- Fan one Haiku sub-agent per chunk (a Workflow for a full sweep; ~40 agents under a concurrency
-  cap, resumable). Each writes `data/triage/out_NNN.json` = `[{id, keep, reason, bucket}]`.
+- Fan one Haiku sub-agent per chunk (a Workflow for a full sweep; ~80 agents at 100 rows for an
+  8k-row pile, under a concurrency cap, resumable). Each writes `data/triage/out_NNN.json` = `[{id, keep, reason, bucket}]`.
 - `python -m src.triage ingest` → drops become `irrelevant`; keepers marked, still flow to match.
 
 **Rubric = 3 hard drops only:** off-field role; clearance/US-citizens-only; salary listed and below

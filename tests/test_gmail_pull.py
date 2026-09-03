@@ -222,6 +222,9 @@ def test_resolve_manifest_requires_matching_sweep_stamp(tmp_path):
     assert ok[0]["job_id"] == 6984 and ok[0]["evidence"]["message_id"] == "<m1>" and ok[0]["contact_date"] == "2026-09-02"
     with pytest.raises(SystemExit, match="names sweep"):
         resolve_manifest([{"manifest_id": 1, "sweep": "2026-09-01T00:00:00+00:00", "signal": "ignore"}], inbox)
+    # the same instant written as Z, or with copy-paste whitespace, is the same sweep
+    for stamp in ("2026-09-02T18:56:47Z", " 2026-09-02T18:56:47+00:00 "):
+        assert resolve_manifest([{"manifest_id": 1, "sweep": stamp, "signal": "ignore"}], inbox)[0]["job_id"] == 6984
     with pytest.raises(SystemExit, match="names sweep"):
         resolve_manifest([{"manifest_id": 1, "signal": "ignore"}], inbox)
     # a bad line id or an unknown one skips THAT proposal; the batch goes on (53 lines, one typo)

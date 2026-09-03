@@ -60,7 +60,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from .db import connect, log_event, set_status, touch_contact
@@ -111,6 +111,18 @@ def record_seen(batch: list[dict], state_path: Path = STATE_PATH, today: str | N
     return n
 
 
+def _same_sweep(a: str, b: str) -> bool:
+    """Same instant, not the same string: a copied stamp may say Z for +00:00 or carry spaces."""
+    a, b = a.strip(), b.strip()
+    if a == b:
+        return True
+    try:
+        return (datetime.fromisoformat(a.replace("Z", "+00:00"))
+                == datetime.fromisoformat(b.replace("Z", "+00:00")))
+    except ValueError:
+        return False
+
+
 def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> list[dict]:
     """Fill a proposal from its manifest line.
 
@@ -142,11 +154,12 @@ def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> li
         # Manifest ids are numbered per sweep and shift between sweeps, so a proposal must name
         # the sweep it classified; a stale or missing stamp refuses rather than hitting another
         # thread's job with another thread's evidence.
-        sweep = str(p.get("sweep") or "")
-        if not sweep or sweep != generated_at:
+        sweep = str(p.get("sweep") or "").strip()
+        if not sweep or not _same_sweep(sweep, generated_at):
             raise SystemExit(f"proposal for manifest_id {mid} names sweep {sweep or '(none)'} but the manifest "
-                             f"on disk is {generated_at or '(none)'}; re-run python -m src.mail_fetch and classify "
-                             "that manifest (copy its `sweep:` stamp into every proposal)")
+                             f"on disk is {generated_at or '(none)'}; fix the stamp in the proposals file if the "
+                             "ids came from this manifest, otherwise re-run python -m src.mail_fetch and "
+                             "reclassify (ids are renumbered per sweep)")
         try:
             key = int(str(mid).strip())
         except ValueError:
