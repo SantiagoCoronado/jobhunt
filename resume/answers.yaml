@@ -665,6 +665,12 @@ answers:
                   # and cover letter (co-founded consultancy, productized flagship, internal platform)
                   # and left the recruiter with no answer on what happens if he joins. Everything
                   # above except the bracketed sentence is in master_resume.yaml.
+                  # 2026-09-03 ACTO screen: SECOND consecutive failure on this question, and this
+                  # draft went unused. Asked "is Pragma the consulting company you work through
+                  # now," he answered how much spare time it leaves him: projects last a week,
+                  # sometimes ten hours of work, "I got a lot of time in my hands." That reframes
+                  # the consultancy as low-volume freelancing and makes the reason for applying
+                  # sound like filling time. Never answer this question with availability.
 
   - id: what-seat-when-no-lead-roles
     question: "You come from CEO / founder roles and we have no leadership roles open. What would you be looking for here?"
@@ -701,3 +707,120 @@ answers:
                   # and never drew the Online Basics parallel. Company facts from
                   # research/companies/primero.md (public press); platform facts from the master.
 
+
+  - id: consulting-alongside-fulltime
+    question: "This is a full-time role. How does that work with your existing consulting work?"
+    answer: >
+      It winds down. Pragma is how I have been working since I exited Online Basics, and the
+      open engagements are short, so I finish what is committed and stop taking new work. A
+      full-time role is the thing I am looking for, not something I am fitting around
+      consulting. [SANTIAGO DECIDES AND FILLS IN: whether a co-founder carries Pragma on, or
+      it goes passive. Say one version and keep it consistent with pragma-current-status.]
+    draft: true   # 2026-09-03 ACTO people-and-culture screen: the live answer was "I can do my
+                  # consulting on weekends and after the work," then wandered through "I could
+                  # look for more," "I can just stop," and "if the work is getting over my head."
+                  # To an HR screener that reads as intending to hold a second job. This question
+                  # is a standard full-time-commitment filter and needs one short answer, not a
+                  # menu of options. Pair with pragma-current-status; they get asked together.
+
+  - id: what-do-you-know-about-us
+    question: "What do you know about us? / What do you know about {company}?"
+    answer: >
+      TEMPLATE: three specific facts from research/companies/<slug>.md, said flat, then one
+      line on what about it maps to my own work. Hard rules learned the hard way: never open
+      with how much or how little preparation was done ("they just sent me the website," "I
+      skimmed it quickly"), never lead with a paraphrase of their marketing, and name at least
+      one thing that is not on the homepage (a funding round, a partnership, a launch date, a
+      named customer). If the dossier has a compliance, governance or audit angle, that is
+      usually the one that connects to the RAG work.
+    draft: true   # 2026-09-03 ACTO screen: the content of the live answer was correct (life
+                  # sciences, agents, an accurate description of role-based agents) but he opened
+                  # by volunteering that he had skimmed the website minutes before, which cancelled
+                  # it, and used none of the prepared facts. Third consecutive screen (Tailor,
+                  # Primero, ACTO) where the company-specific answer carried nothing specific.
+                  # Distinct from why-company: this one tests preparation, not motivation.
+
+  - id: team-qualities-i-bring
+    question: "When you join a new team, what qualities do you bring?"
+    answer: >
+      I am technical enough to follow most of what gets thrown at me, and I can turn it into
+      plain language for people who are not technical. That is most of what I did at Eugenia,
+      where I ran the on-site deployments with property administrators, and it is what a client
+      diagnostic is at Pragma: sit with people who know their operation and not the software,
+      and come back with something they can approve. Past that I say what I am working on and
+      ask for help early rather than late.
+    draft: true   # 2026-09-03 ACTO screen: the live answer opened with "I am very communicative,"
+                  # detoured into not liking to watch YouTube and getting uneasy when not working,
+                  # and only reached the translation point at the end. The translation point is the
+                  # whole answer, and it is the exact skill an implementation or AX role screens
+                  # for. Facts from master_resume.yaml (Eugenia on-site deployments, Pragma
+                  # client diagnostics).
+
+  - id: agent-design-process
+    # Process question. For the "which project did you ship" version use
+    # agent-project-built-deployed instead; this one answers "how do you approach it."
+    question: "How do you build an agent? What does that process look like for you?"
+    answer: >
+      Requirements first, until I understand what the work actually is. Then I split the
+      workflow into the parts that need a model and the parts that are deterministic, because
+      most of it is deterministic and cheaper and more reliable that way. I build a harness
+      around the model calls, and where different steps need different capability I route them
+      to the right model rather than sending everything to the biggest one. Then the parts that
+      keep it honest: typed tools so the agent can only reach what that role is allowed to
+      reach, a retrieval cutoff where it says it does not know instead of guessing, citations
+      on anything it asserts, and a golden set of cases that runs on every prompt or model
+      change. That is the shape of the company brain I built at Pragma.
+    draft: true   # 2026-09-03 ACTO screen: the live answer was the strongest of the call and this
+                  # is it written down, with two fixes. He called the model router "a type of a
+                  # load balancer," which is a loose analogy; and he named the company brain without
+                  # saying what it does. Gating, citation and eval facts are already in
+                  # master_resume.yaml and pragma-brain-stack.
+
+  - id: client-discovery-process
+    question: "How do you run a discovery session with a client?"
+    answer: >
+      I ask for whatever they already have that describes how the work flows. If there are no
+      process docs, I start from the org chart and work out how information moves between
+      roles. From there I dig into specific tasks until I can draw the thing: where it starts,
+      where it ends, and every step in between. I write that back for the client abstracted to
+      what each step does rather than how it is done, because the person approving it usually
+      is not technical. Once they agree the map is right, I build it, stress test it against
+      mock data I put together, and then we test it together before it goes near anyone real.
+      I have run this on site at Eugenia with property administrators, on my own operation at
+      Online Basics, and now on every Pragma engagement.
+    draft: true   # 2026-09-03 ACTO screen: strong live answer and a near-exact match for the AX
+                  # Engineer responsibility ("structured discovery sessions, translated into
+                  # technical specifications"). Only fix applied: he grounded it in one client, so
+                  # it sounded like one instance; the three instances are all in master_resume.yaml.
+                  # Related to workflow-mapping-process, which covers mapping his own operation.
+
+  - id: healthcare-domain-gap
+    question: "Do you have any experience with healthcare or life sciences clients?"
+    answer: >
+      No. Nothing I have shipped has touched regulated content, medical review, or anything a
+      rep says to a physician, so the compliance rules I would be learning from your team.
+      What I have done repeatedly is start in a business I did not know: I ran deployments on
+      site at Eugenia with property administrators, rebuilt an operation I was inside at Online
+      Basics, and every Pragma engagement starts with a diagnostic in someone else's domain.
+      The method is the same whatever the industry, which is to work out which steps carry
+      judgement and which are mechanical before building anything.
+    draft: true   # 2026-09-03 ACTO screen: the live answer was "Not really," full stop. Honest and
+                  # not damaging, but the gap on its own is half an answer and the bridge was free.
+                  # Reusable for any regulated or unfamiliar vertical (fintech, legal, insurance);
+                  # swap the domain noun. Facts from master_resume.yaml.
+
+  - id: medium-term-career-goals
+    question: "Where do you want to be in two to five years? Are you staying an employee or going back to consulting?"
+    answer: >
+      Inside a company, on the engineering side. I have run my own things for most of my
+      career, which means I have never had the part where you own a product long enough to see
+      the second and third version of it under real users, and never had anyone senior to
+      learn the craft from. That is what I am after. Consulting gave me range and it does not
+      give me either of those.
+    draft: true   # 2026-09-03 ACTO screen: the live answer said "develop myself in a big company"
+                  # and "professional development I have never had," which answers the flight-risk
+                  # question honestly but is entirely about him and never mentions the work or the
+                  # product. He also said "big company" three times to a 120-person company. This
+                  # version keeps the honest part and adds what he wants to build. Overlaps
+                  # why-large-company (why a corporation at all) and founder-to-ic (can you stop
+                  # driving); this one answers the retention question.

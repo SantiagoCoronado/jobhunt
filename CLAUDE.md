@@ -34,8 +34,9 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
    one-line-per-thread manifest; the model classifies THAT (`show <id>` for unsettled lines,
    never reads `data/mail_*`, never `query crm`/`query job` in that step), writes
-   `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies after human
-   approval (forward-only moves, never ghosted/withdrawn/offer decisions, evidence headers +
+   `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
+   2026-09-04 the dry run is followed by `--apply` without a chat approval, the applier's
+   guardrails are the gate (forward-only moves, never ghosted/withdrawn/offer decisions, evidence headers +
    signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
    fallback only when no account is configured. Setup + tuning: `docs/mail-setup.md`.
    `/jh-report` (`python -m src.report`) renders `data/report.html`, the offline dashboard.

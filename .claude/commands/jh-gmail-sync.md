@@ -1,5 +1,5 @@
 ---
-description: Read every configured mailbox for status signals on open applications; propose changes, apply only after approval
+description: Read every configured mailbox for status signals on open applications; classify, dry-run, apply (auto-apply since 2026-09-04)
 allowed-tools: Bash, Write, mcp__claude_ai_Gmail__search_threads, mcp__claude_ai_Gmail__get_thread, mcp__claude_ai_Gmail__get_message
 ---
 
@@ -71,12 +71,18 @@ directly; you never read the files behind it.
    Evidence is HEADERS ONLY on both paths; never copy snippet text into the file, the DB,
    or your report.
 
-6. **Dry run**: `python -m src.gmail_pull data/gmail_pull.json` with Bash. Show me the
-   proposed batch exactly as printed (status changes, touches, ambiguous pile, skipped,
-   ignored count) and WAIT for my explicit approval. Do not proceed without it.
+6. **Dry run, then apply** (auto-apply, Santiago's standing decision of 2026-09-04: the
+   applier's guardrails are the gate, not a chat approval). Run
+   `python -m src.gmail_pull data/gmail_pull.json` with Bash and read its output; if it
+   printed nothing surprising (no `Skipped` line you cannot explain, no stamp error),
+   re-run at once with `--apply`. Stop and ask ONLY when a proposal names a different role
+   or company than the DB row (a rejection for "GTM AI Engineer" against an SDK Engineer
+   row), when a mailbox reported `error`, or when the dry run itself refused the file.
 
-7. **Only after I approve**: re-run with `--apply`. Report what changed and how many ids
-   were recorded as seen. For the ambiguous pile suggest the manual path
+7. **Report** the applied batch exactly as printed (status changes, touches, ambiguous
+   pile, skipped, ignored count), what changed and how many ids were recorded as seen,
+   in plain words: which company moved where and why, one line each, the good news first.
+   For the ambiguous pile suggest the manual path
    (`python -m src.query set-status` or `/jh-debrief` if there was an interview), and say
    it plainly: after `--apply` those ambiguous messages will not come back in a future
    sweep (only that message; later replies on the thread still surface), so they have to
