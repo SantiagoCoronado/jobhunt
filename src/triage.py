@@ -6,7 +6,7 @@ is a cheap junk cut: a Haiku sub-agent judges each job keep/drop against the pro
 dealbreakers, so the real matcher can then run over ALL survivors instead of a top-N.
 
 Mirrors src/match.py's export -> agent -> ingest handoff:
-  1. `python -m src.triage export [--chunk 200] [--limit N]` -> data/triage/chunk_*.json
+  1. `python -m src.triage export [--chunk 100] [--limit N]` -> data/triage/chunk_*.json
      (untriaged 'discovered' jobs, deduped by canonical_key, minimal fields only).
   2. Haiku sub-agents read each chunk_NNN.json and write out_NNN.json =
      [{id, keep, reason, bucket}] (see the triage prompt / rubric).
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("export")
-    e.add_argument("--chunk", type=int, default=200)
+    e.add_argument("--chunk", type=int, default=100)
     e.add_argument("--limit", type=int, default=None)
     sub.add_parser("ingest")
     args = ap.parse_args()

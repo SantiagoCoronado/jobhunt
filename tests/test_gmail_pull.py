@@ -207,3 +207,87 @@ def test_folded_and_superseded_touches_are_still_recorded(conn):
     p = plan(conn, props)
     assert p["touches"] == []
     assert {e["evidence"]["message_id"] for e in p["seen_batch"]} == {"invite@x", "cal@x", "older@x"}
+
+
+def test_resolve_manifest_requires_matching_sweep_stamp(tmp_path):
+    import json
+
+    from src.gmail_pull import resolve_manifest
+    inbox = tmp_path / "mail_inbox.json"
+    inbox.write_text(json.dumps({"generated_at": "2026-09-02T18:56:47+00:00", "threads": [
+        {"id": 1, "account": "apps", "from": "a@b.c", "date": "2026-09-02", "subject": "Results",
+         "message_id": "<m1>", "thread_id": "<t1>", "job_ids": [6984]}]}))
+    ok = resolve_manifest([{"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00", "signal": "rejection",
+                            "proposed_status": "rejected"}], inbox)
+    assert ok[0]["job_id"] == 6984 and ok[0]["evidence"]["message_id"] == "<m1>" and ok[0]["contact_date"] == "2026-09-02"
+    with pytest.raises(SystemExit, match="names sweep"):
+        resolve_manifest([{"manifest_id": 1, "sweep": "2026-09-01T00:00:00+00:00", "signal": "ignore"}], inbox)
+    # the same instant written as Z, or with copy-paste whitespace, is the same sweep
+    for stamp in ("2026-09-02T18:56:47Z", " 2026-09-02T18:56:47+00:00 "):
+        assert resolve_manifest([{"manifest_id": 1, "sweep": stamp, "signal": "ignore"}], inbox)[0]["job_id"] == 6984
+    with pytest.raises(SystemExit, match="names sweep"):
+        resolve_manifest([{"manifest_id": 1, "signal": "ignore"}], inbox)
+    # a bad line id or an unknown one skips THAT proposal; the batch goes on (53 lines, one typo)
+    bad = resolve_manifest([{"manifest_id": "12b", "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"},
+                            {"manifest_id": 9, "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"},
+                            {"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00", "signal": "ignore"}], inbox)
+    assert "not a manifest line number" in bad[0]["_skip"] and "is not in" in bad[1]["_skip"]
+    assert "_skip" not in bad[2] and bad[2]["job_id"] == 6984
+
+
+def test_resolve_manifest_guards_job_id_and_null_contact_date(tmp_path):
+    import json
+
+    from src.gmail_pull import resolve_manifest
+    inbox = tmp_path / "mail_inbox.json"
+    inbox.write_text(json.dumps({"generated_at": "2026-09-02T18:56:47+00:00", "threads": [
+        {"id": 1, "account": "apps", "from": "a@b.c", "date": "2026-09-02", "subject": "Results",
+         "message_id": "<m1>", "thread_id": "<t1>", "job_ids": [6984, 7000]}]}))
+    base = {"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00", "signal": "rejection",
+            "proposed_status": "rejected"}
+    # an explicit null contact_date still takes the thread date (setdefault would have left it None)
+    ok = resolve_manifest([{**base, "job_id": 7000, "contact_date": None}], inbox)
+    assert ok[0]["contact_date"] == "2026-09-02"
+    # a job_id the cited thread never matched would file this thread's evidence on an unrelated job
+    res = resolve_manifest([{**base, "job_id": 7001}, {**base}, {**base, "job_id": "7000"}, {**base, "job_id": "x"}], inbox)
+    assert "is not on manifest_id" in res[0]["_skip"]
+    assert "maps to 2 jobs" in res[1]["_skip"]
+    assert "_skip" not in res[2] and res[2]["job_id"] == 7000        # "7000" coerced like manifest_id is
+    assert "is not a job id" in res[3]["_skip"]
+    assert set(res[2]["evidence"]) == {"from", "subject", "date", "message_id", "thread_id", "account"}
+
+
+def test_resolve_manifest_archive_headers_win_and_signal_is_required(tmp_path):
+    import json
+
+    from src.gmail_pull import resolve_manifest
+    inbox = tmp_path / "mail_inbox.json"
+    inbox.write_text(json.dumps({"generated_at": "2026-09-02T18:56:47+00:00", "threads": [
+        {"id": 1, "account": "apps", "from": "Bob <bob@acme.com>", "date": "2026-09-02", "subject": "Results",
+         "message_id": "<m1>", "thread_id": "<t1>", "job_ids": [6984]}]}))
+    base = {"manifest_id": 1, "sweep": "2026-09-02T18:56:47+00:00"}
+    # the model only ever saw a domain and no ids: its evidence cannot override the archive's
+    got = resolve_manifest([{**base, "signal": "rejection", "proposed_status": "rejected",
+                             "evidence": {"from": "acme.com", "message_id": "", "extra": "kept"}}], inbox)[0]
+    assert got["evidence"]["from"] == "Bob <bob@acme.com>" and got["evidence"]["message_id"] == "<m1>"
+    assert got["evidence"]["extra"] == "kept"
+    # no recognized signal: skipped (reported, not seen), never a silent contact touch
+    res = resolve_manifest([{**base, "proposed_status": None}, {**base, "signal": "maybe"}], inbox)
+    assert "no recognized signal" in res[0]["_skip"] and "'maybe'" in res[1]["_skip"]
+    # a missing or corrupt archive is named as such, not reported as a stale stamp
+    with pytest.raises(SystemExit, match="not found"):
+        resolve_manifest([{**base, "signal": "ignore"}], tmp_path / "absent.json")
+    inbox.write_text("{not json")
+    with pytest.raises(SystemExit, match="not valid JSON"):
+        resolve_manifest([{**base, "signal": "ignore"}], inbox)
+
+
+def test_plan_reports_unresolved_manifest_lines_and_keeps_the_rest(conn):
+    _insert(conn, 1)
+    props = [{"manifest_id": 9, "signal": "ignore", "_skip": "manifest_id 9 is not in inbox, skipped"},
+             {"job_id": 1, "signal": "rejection", "proposed_status": "rejected",
+              "evidence": {"from": "hr@acme.com", "subject": "Results", "date": "2026-07-20", "message_id": "m1"}}]
+    p = plan(conn, props)
+    assert p["skipped"] == ["manifest_id 9 is not in inbox, skipped"]
+    assert [c["to_status"] for c in p["changes"]] == ["rejected"]
+    assert {e["evidence"].get("message_id") for e in p["seen_batch"]} == {"m1"}   # the skipped line is never seen

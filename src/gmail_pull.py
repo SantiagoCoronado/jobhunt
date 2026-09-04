@@ -11,10 +11,22 @@ db.touch_contact).
   python -m src.gmail_pull data/gmail_pull.json          # diff only
   python -m src.gmail_pull data/gmail_pull.json --apply  # execute
 
-Input: JSON array, one object per proposal:
-  {"job_id": <int>,
+Input: JSON array, one object per proposal, in one of two forms.
+
+Manifest form (the normal path, after `python -m src.mail_fetch`):
+  {"manifest_id": <line id from the printed manifest>,
+   "sweep": "<the `sweep:` stamp the fetcher printed>",
    "signal": "rejection|interview_invite|assessment|offer|reply|ambiguous|ignore",
    "proposed_status": "screen|interview|offer|rejected" | null,
+   "job_id": <int, only when the line lists several jobs>}
+  `resolve_manifest` copies the evidence headers, the job id and the contact date from
+  that line in data/mail_inbox.json. A `sweep` that does not match the manifest on disk
+  stops the run; any other per-line problem skips that proposal and reports it.
+
+Explicit form (the Gmail MCP fallback, or a hand-written proposal):
+  {"job_id": <int>,
+   "signal": ...,
+   "proposed_status": ...,
    "contact_date": "YYYY-MM-DD",
    "evidence": {"from": ..., "subject": ..., "date": ..., "message_id": ...,
                 "thread_id": ..., "account": ...}}
@@ -48,17 +60,18 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from .db import connect, log_event, set_status, touch_contact
-from .mail_fetch import STATE_PATH, load_state, save_state
+from .mail_fetch import INBOX_PATH, STATE_PATH, load_result, load_state, save_state
 from .reconcile import sync_folder
 
 STAGE_RANK = {"applied": 0, "screen": 1, "interview": 2, "offer": 3}
 ALLOWED_TARGETS = {"screen", "interview", "offer", "rejected"}
 EVIDENCE_REQUIRED = {"rejected", "offer"}
 IGNORE_SIGNALS = {"ignore", "receipt"}
+KNOWN_SIGNALS = {"rejection", "interview_invite", "assessment", "offer", "reply", "ambiguous"} | IGNORE_SIGNALS
 HEADER_KEYS = ("from", "subject", "date", "message_id", "thread_id", "account")
 
 
@@ -97,6 +110,104 @@ def record_seen(batch: list[dict], state_path: Path = STATE_PATH, today: str | N
                 n += 1
     save_state(state_path, state)
     return n
+
+
+def _same_sweep(a: str, b: str) -> bool:
+    """Same instant, not the same string: a copied stamp may say Z for +00:00 or carry spaces."""
+    a, b = a.strip(), b.strip()
+    if a == b:
+        return True
+    try:
+        return (datetime.fromisoformat(a.replace("Z", "+00:00"))
+                == datetime.fromisoformat(b.replace("Z", "+00:00")))
+    except ValueError:
+        return False
+
+
+def resolve_manifest(proposals: list[dict], inbox_path: Path = INBOX_PATH) -> list[dict]:
+    """Fill a proposal from its manifest line.
+
+    The /jh-gmail-sync skill classifies the printed manifest, which carries no message
+    or thread ids (and must not be read from disk by the model). A proposal may
+    therefore cite ``"manifest_id": <line id>``; the evidence headers (from, subject,
+    date, message_id, thread_id, account), a missing ``job_id`` and a missing
+    ``contact_date`` are copied here from ``data/mail_inbox.json``. Headers only;
+    snippets never leave the archive. Explicit fields in the proposal win.
+
+    A stale or missing ``sweep`` stamp stops the run (every id would be off). A per-line
+    problem (unknown id, a multi-job line with no ``job_id``, a ``job_id`` the line never
+    matched) marks that proposal ``_skip`` with the reason; ``plan`` reports it under
+    Skipped and the rest of the batch still lands."""
+    if not any("manifest_id" in p for p in proposals):
+        return proposals
+    # A missing archive is its own error (load_result says so); a corrupt one too. Neither is
+    # a stale stamp, and telling the operator to reclassify would waste the whole pass.
+    try:
+        doc = load_result(Path(inbox_path))
+    except ValueError as e:
+        raise SystemExit(f"{inbox_path} is not valid JSON ({e}); re-run python -m src.mail_fetch") from None
+    threads = {t["id"]: t for t in doc.get("threads") or []}
+    generated_at = str(doc.get("generated_at") or "")
+    out: list[dict] = []
+    for p in proposals:
+        mid = p.get("manifest_id")
+        if mid is None:
+            out.append(p)
+            continue
+        # Manifest ids are numbered per sweep and shift between sweeps, so a proposal must name
+        # the sweep it classified; a stale or missing stamp refuses rather than hitting another
+        # thread's job with another thread's evidence.
+        sweep = str(p.get("sweep") or "").strip()
+        if not sweep or not _same_sweep(sweep, generated_at):
+            raise SystemExit(f"proposal for manifest_id {mid} names sweep {sweep or '(none)'} but the manifest "
+                             f"on disk is {generated_at or '(none)'}; fix the stamp in the proposals file if the "
+                             "ids came from this manifest, otherwise re-run python -m src.mail_fetch and "
+                             "reclassify (ids are renumbered per sweep)")
+        try:
+            key = int(str(mid).strip())
+        except ValueError:
+            out.append({**p, "_skip": f"manifest_id {mid!r} is not a manifest line number, skipped"})
+            continue
+        t = threads.get(key)
+        if not t:
+            out.append({**p, "_skip": f"manifest_id {mid} is not in {inbox_path}, skipped"})
+            continue
+        # The archive's headers win: the printed manifest never shows the real sender or any
+        # id, so a header the proposal carries is at best a guess, and a guessed message_id
+        # would be the one recorded as seen. The proposal only fills what the archive lacks.
+        ev = {**(p.get("evidence") or {}), **{k: t.get(k) for k in HEADER_KEYS if t.get(k)}}
+        q = {**p, "evidence": ev}
+        if q.get("signal") not in KNOWN_SIGNALS:
+            # No signal means nothing to go on; with the dates filled in below plan() would
+            # route it to a contact touch and record it as seen. Skip it instead: it is
+            # reported, and the thread comes back in the next sweep.
+            out.append({**q, "_skip": f"manifest_id {mid} has no recognized signal "
+                                      f"({q.get('signal')!r}), skipped"})
+            continue
+        jobs = t.get("job_ids") or []
+        if q.get("job_id") is None:
+            if len(jobs) != 1:
+                out.append({**q, "_skip": f"manifest_id {mid} maps to {len(jobs)} jobs, set job_id explicitly, skipped"})
+                continue
+            q["job_id"] = jobs[0]
+        else:
+            # The manifest stores job ids as ints; a proposal may carry "6984" (the explicit path
+            # gets SQLite's INTEGER affinity for free, this comparison does not).
+            try:
+                q["job_id"] = int(str(q["job_id"]).strip())
+            except ValueError:
+                out.append({**q, "_skip": f"job_id {q['job_id']!r} on manifest_id {mid} is not a job id, skipped"})
+                continue
+            if jobs and q["job_id"] not in jobs:
+                # An explicit job_id must be one the cited thread actually matched, or the evidence
+                # headers above would be filed against an unrelated job.
+                out.append({**q, "_skip": f"job_id {q['job_id']} is not on manifest_id {mid} (matches {jobs}), skipped"})
+                continue
+        if q.get("proposed_status") is not None or q.get("signal") not in IGNORE_SIGNALS:
+            if q.get("contact_date") is None:      # an explicit null must still take the thread date
+                q["contact_date"] = t.get("date")
+        out.append(q)
+    return out
 
 
 def _resolve_conflicts(proposals: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -144,6 +255,9 @@ def plan(conn: sqlite3.Connection, proposals: list[dict]) -> dict:
 
     status_props: list[dict] = []
     for p in proposals:
+        if p.get("_skip"):                 # resolve_manifest could not fill this line
+            skipped.append(p["_skip"])
+            continue
         job = conn.execute("SELECT id, company, title, status FROM jobs WHERE id=?",
                            (p.get("job_id"),)).fetchone()
         if job is None:
@@ -227,7 +341,7 @@ def main() -> None:
     ap.add_argument("--apply", action="store_true", help="execute the proposed changes")
     args = ap.parse_args()
 
-    proposals = json.loads(Path(args.proposals_json).read_text())
+    proposals = resolve_manifest(json.loads(Path(args.proposals_json).read_text()))
     conn = connect()
     p = plan(conn, proposals)
 

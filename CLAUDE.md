@@ -17,7 +17,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
    sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become
    `status='irrelevant'` (out of every future stage); keepers get a 0-3 fit bucket in `match_verdict`.
-   Drives ~40 agents via a Workflow for a full sweep. See `docs/scaling-scoring.md`.
+   Drives ~80 agents (100-row chunks, 8k-row pile) via a Workflow for a full sweep. See `docs/scaling-scoring.md`.
 3. **Match** (`/jh-match` → `job-matcher` agent), score jobs vs `config/profile.yaml`. Default
    `export --limit N` scores the top N by fit bucket then keyword prescore. To score at scale,
    `export --min-bucket 3 --chunk 60 --limit 0` → fan `job-matcher` over `data/match/chunk_*.json`

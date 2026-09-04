@@ -26,7 +26,17 @@ from .config import ROOT
 from .db import connect
 
 ANSWERS = ROOT / "resume" / "answers.yaml"
-TEMPLATE_IDS = {"why-company"}
+# Entries whose stored body is an instruction to the tailor, not an answer: rendered under a
+# TAILOR marker so the build's marker check refuses a folder that still carries it verbatim.
+TEMPLATE_IDS = {
+    "why-company": ("replace this block with a 3-sentence answer grounded in the company "
+                    "dossier (one concrete company fact, one line tying it to the founder / "
+                    "AI-deployment background, one line on what to ship first)."),
+    "what-do-you-know-about-us": ("replace this block with three specific dossier facts said "
+                                  "flat (at least one not on the homepage) and one line on what "
+                                  "maps to Santiago's own work; never mention how much was "
+                                  "prepared."),
+}
 
 
 def _slug(s: str) -> str:
@@ -52,9 +62,7 @@ def render(job: dict, entries: list[dict]) -> tuple[str, list[str]]:
             continue
         lines.append(f"## {e['question'].replace('{company}', company)}")
         if e["id"] in TEMPLATE_IDS:
-            lines.append("<!-- TAILOR: replace this block with a 3-sentence answer grounded in the "
-                         "company dossier (one concrete company fact, one line tying it to the "
-                         "founder / AI-deployment background, one line on what to ship first). -->")
+            lines.append(f"<!-- TAILOR: {TEMPLATE_IDS[e['id']]} -->")
             lines.append(answer.replace("{company}", company))
         else:
             lines.append(answer.replace("{company}", company))

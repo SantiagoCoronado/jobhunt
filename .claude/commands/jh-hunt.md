@@ -33,8 +33,10 @@ Use `.venv/bin/python` if plain `python` is not on PATH.
 4. **Inbox pull** (the `/jh-gmail-sync` flow): run `python -m src.mail_fetch`, classify
    the printed legend + manifest (use `show <id>` for unsettled lines; never read
    `data/mail_*`, never `query crm` or `query job` inside this step), write
-   `data/gmail_pull.json`, run the dry run, present the batch inline, and apply only after
-   my approval. This runs BEFORE the pick so the top 5 are picked against email-fresh
+   `data/gmail_pull.json` as `/jh-gmail-sync` step 5 says (one `{manifest_id, sweep, signal,
+   proposed_status}` object per line, the `sweep` stamp copied from the fetcher's output; the
+   applier fills the headers and ids from the manifest, so never write `evidence` yourself on
+   this path), run the dry run, present the batch inline, and apply only after my approval. This runs BEFORE the pick so the top 5 are picked against email-fresh
    statuses (a company that rejected or advanced me this week must be reflected first).
    If mail_fetch reports no configured accounts and the Gmail tools are unavailable, note
    it and continue; the hunt never blocks on this step.

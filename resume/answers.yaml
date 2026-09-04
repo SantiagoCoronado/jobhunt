@@ -51,6 +51,10 @@ answers:
     draft: false   # provided by Santiago 2026-07-27; supersedes the 2026-07-16 MXN/net figure.
                    # If the posted band is known, quote per comp.band_rule in profile.yaml
                    # (anchor at or above midpoint), NOT this default.
+                   # 2026-09-02 Primero recruiter screen: quoted "about 100 thousand monthly net,
+                   # pesos or dollars" and volunteered a lower salary for more equity before any
+                   # number existed. Violates comp.quote_period (annual, gross, USD). Santiago
+                   # restates it as annual gross next time; the figure stays his, nothing generated.
 
   - id: notice-period
     question: "When can you start? / What is your notice period?"
@@ -238,6 +242,10 @@ answers:
                   # chronologically from the 2017 boutique job, and Eugenia was understated at
                   # "more than 10 complexes" when the resume says 20+ buildings. Lead with Online
                   # Basics for any commerce or ERP company; use the resume numbers.
+                  # 2026-09-02 Primero recruiter screen (Spanish): chronological AGAIN, ended on Nextia
+                  # 2017, zero numbers ($8M, 7 people, 10+ APIs, 10,000+ users all unsaid), and Eugenia's
+                  # backend is Ruby (master fixed 2026-09-02; it said Node.js until then). Also
+                  # said Shopify again. Verify both facts in the master before the next telling.
 
   - id: money-vs-purpose
     question: "Are you money driven or purpose driven? / At some point it stopped being about the money?"
@@ -449,6 +457,10 @@ answers:
       strong there, which is useful because I can build and defend an API from the
       side that has to consume it.
     draft: true   # the 2026-08-03 Backblaze technical round exposed this: I said my strength was "front end and user experience" in a BACKEND req, and the interviewer repeated it back as a category. Never do that again. Every fact here is already in master_resume.yaml.
+                  # 2026-09-02 Primero recruiter screen: happened again in Spanish. Closed the
+                  # current-work answer with "they hired me for the frontend" (Hydrel) and the
+                  # recruiter had to ask whether he has done backend at all. Recovery worked but
+                  # had no stack nouns. Lead with this entry; mention Hydrel as co-built, last.
 
   - id: high-traffic-endpoint
     question: "How would you design an API endpoint that takes massive traffic without overloading the server?"
@@ -636,3 +648,56 @@ answers:
                   # NOT claim a business analyst title or formal BRD practice; evidence is Eugenia
                   # requirements work, Pragma diagnostics, spec-first epics/stories (see
                   # ai-workflow), and the 28 Pragma Brain ADRs.
+
+  - id: pragma-current-status
+    question: "Is Pragma AI active? Are you still there? What happens to it if you join us?"
+    answer: >
+      Yes. Pragma AI is the B2B AI consultancy I co-founded after exiting Online Basics
+      in late 2025. I deliver client projects through it: the RAG company brain we
+      productized as the flagship offering (scoped retrieval, citation gating, an eval
+      harness), conversational agents and internal automations for quoting, onboarding,
+      and collections, and the Hydrel energy portal I co-built. [SANTIAGO DECIDES AND
+      FILLS IN: what happens to Pragma if he joins, e.g. it goes passive / a co-founder
+      carries it / open engagements wrap up first. Say one version and keep it.]
+    draft: true   # 2026-09-02 Primero recruiter screen: the live answer was "a consultancy with
+                  # friends, each bills their own projects, a shared page for client confidence,
+                  # something we do in our free time alongside our jobs." That contradicts the resume
+                  # and cover letter (co-founded consultancy, productized flagship, internal platform)
+                  # and left the recruiter with no answer on what happens if he joins. Everything
+                  # above except the bracketed sentence is in master_resume.yaml.
+
+  - id: what-seat-when-no-lead-roles
+    question: "You come from CEO / founder roles and we have no leadership roles open. What would you be looking for here?"
+    answer: >
+      An engineering seat. I want to be the engineer shipping the product or the client
+      workflows, not the person deciding where the company goes. At Online Basics my
+      role drifted from building the platform to white-label sourcing, importing, hiring,
+      and operations, and that is the part I sold my stake to get away from. The work I
+      want is the work on my resume: agent and RAG systems on company data, internal
+      platforms and integrations across many source systems, embedded client
+      deployments, and full-stack product. Whichever of those is your bottleneck is the
+      seat I would take first.
+    draft: true   # 2026-09-02 Primero recruiter screen: the live answer explained the exit well
+                  # (white label, China, hiring, ops) but said he likes "growing a company" and
+                  # "strategy for doing things faster," which reads as an ops/strategy seat, and never
+                  # said "engineer" plainly; the recruiter later had to ask whether he does backend.
+                  # This version states the IC ask first. Facts: master resume + the exit story
+                  # already in why-i-exited-my-company and founder-to-ic.
+
+  - id: why-primero-stage
+    # COMPANY-SPECIFIC hook (Primero); the shape reuses for any post-seed LATAM company.
+    question: "What caught your attention about Primero? Why did you write to us?"
+    answer: >
+      Two things. The stage: you launched on August 25 with a $12M seed and customers
+      like Kimberly-Clark de Mexico and SEDECO already live, with your own engineers
+      embedded at those customers. That is small enough that one engineer changes what
+      gets built, and the thesis is already paid for. And the thesis itself: I ran a
+      company on fragmented systems and tribal knowledge, and I built the internal
+      platform that unified Amazon, Mercado Libre, and our inventory system into one
+      operational picture the team ran on. That is the problem Primia solves for
+      enterprises, at the scale I lived it.
+    draft: true   # 2026-09-02 Primero recruiter screen: the live answer had the stage argument
+                  # (small enough to grow with, already has customers) but nothing Primero-specific
+                  # and never drew the Online Basics parallel. Company facts from
+                  # research/companies/primero.md (public press); platform facts from the master.
+

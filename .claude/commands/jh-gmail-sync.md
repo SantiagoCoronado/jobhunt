@@ -54,11 +54,22 @@ directly; you never read the files behind it.
    `weak` propose only touches, `ignore`, or `ambiguous` unless the text names the role.
    NEVER propose ghosted, withdrawn, or accepting/declining an offer; those are my calls.
 
-5. **Write `data/gmail_pull.json`**: a JSON array of
-   `{"job_id", "signal", "proposed_status" (null for touches/ignore), "contact_date",
-   "evidence": {"from", "subject", "date", "message_id", "thread_id", "account"}}`,
-   copying `message_id`, `thread_id`, and `account` from the manifest line. Evidence is
-   HEADERS ONLY; never copy snippet text into the file, the DB, or your report.
+5. **Write `data/gmail_pull.json`**: a JSON array, one object per proposal.
+   - Manifest path (step 1 ran): `{"manifest_id": <the line id>, "sweep": "<the sweep: stamp
+     the fetcher printed>", "signal", "proposed_status" (null for touches/ignore)}`. The stamp
+     ties the ids to the manifest they came from; the applier refuses the whole file when the
+     stamp does not match the manifest on disk, and skips (and reports) a single line it
+     cannot resolve. The applier copies the evidence headers (from, subject, date,
+     message_id, thread_id, account), the job id and the contact date from that manifest
+     line itself, so you never need the ids. Add `"job_id"` only when the line lists several
+     jobs.
+   - Fallback path (step 3, no manifest, so no `manifest_id` and no `sweep`): write every
+     field yourself: `{"job_id": <int>, "signal", "proposed_status" (null for
+     touches/ignore), "contact_date": "YYYY-MM-DD" (omit for ignore), "evidence": {"from",
+     "subject", "date", "message_id", "thread_id", "account"}}`. Rejections and offers
+     without both `subject` and `from` are skipped, and a touch without a date is skipped.
+   Evidence is HEADERS ONLY on both paths; never copy snippet text into the file, the DB,
+   or your report.
 
 6. **Dry run**: `python -m src.gmail_pull data/gmail_pull.json` with Bash. Show me the
    proposed batch exactly as printed (status changes, touches, ambiguous pile, skipped,

@@ -48,7 +48,9 @@ Findings, in order of size:
    chunk is now 100 rows; verify coverage and gap-fill before ingest.
 6. **Dream rows flooded the match export.** `match export --min-bucket 3` let every dream row
    through regardless of bucket (665 rows, 533 of them bucket 0 to 2, mostly off-family NVIDIA
-   and Binance titles). Fixed in `src/match.py`: only an untriaged dream row bypasses the gate.
+   and Binance titles). Fixed in `src/match.py`: a dream row bypasses the gate only while untriaged, or under
+   `--rescore` (its bucket then comes from the old score on the general ladder, below the
+   dream shortlist threshold); a dream row triage bucketed obeys the gate.
    Export went from 743 rows (13 matcher agents) to 218 (4 agents).
 7. **Matchers and researchers are fine**: 0.1M to 0.8M per agent. Keep Opus for the matcher
    (calibration continuity) and Sonnet for research.

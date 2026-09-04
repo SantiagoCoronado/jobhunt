@@ -1262,6 +1262,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "manifest":
         doc = load_result(INBOX_PATH)
+        print(f"sweep: {doc.get('generated_at', '?')}")
         print("\n".join(format_legend(doc)))
         print("\n".join(format_manifest(doc, args.page, args.page_size)))
         return 0
@@ -1288,6 +1289,7 @@ def main(argv: list[str] | None = None) -> int:
                 all_labels=[a.label for a in configured if a.password])
     write_result(res, INBOX_PATH, SNIPPETS_PATH)
     doc = load_result(INBOX_PATH)
+    print(f"sweep: {doc.get('generated_at', '?')}  (copy this stamp into every proposal as \"sweep\")")
     print("\n".join(format_summary(doc)))
     if doc["legend"]:
         print()
