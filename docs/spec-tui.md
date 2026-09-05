@@ -92,7 +92,7 @@ Jobs table (sections 1 to 3): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` d
 (narrow) or focus detail (wide), `space` select, `v` select all visible, `s` status picker,
 `b` backlog, `n` notes, `f` follow-up date, `t` touch, `T` touch and bump, `o` open posting,
 `O` open folder (or dossier when no folder), `c` copy `/jh-tailor <id>` (selection when any),
-`C` copy every starred role, `/` search, `tab` cycle status list / table / detail.
+`C` copy every starred role, `/` search, `a` add a board-less role by hand, `tab` cycle status list / table / detail.
 
 Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile.
 
@@ -135,6 +135,7 @@ config/tui.toml
 - `detail(id) -> JobDetail` (row + parsed verdict + events + dossier path via `research.path` + folder via `reconcile`)
 - `stars() -> set[int]` (delegates to `pick`)
 - `set_status(id, status, note, followup)`, `set_notes`, `set_followup`, `touch(id, bump)`: thin wrappers over `db` + `reconcile.sync_folder`
+- `add_job(company, title, url, status, note) -> int`: wraps `query.cmd_add` (source `manual`, idempotent on company+title)
 - `apps() -> list[AppRow]`, `db_mtime() -> float`
 
 Every write goes through `db.set_status` / `touch_contact` / `log_event`, so the events table
@@ -210,6 +211,7 @@ any text the TUI renders or writes.
 3. **Copy commands**: `commands.py` with the slash-command builder and clipboard (`pbcopy`, fallback to Textual's clipboard); `c` current or selection, `C` all starred, one per line; toast confirms what was copied.
 4. **Apps data**: `data.apps()` scans the three buckets, joins by the `-<id>` suffix, reads `build.json` when present, flags drift the way `reconcile` does; tests on a temp tree.
 5. **Apps screen**: table pending-first, `o` posting + Finder, `p` PDF, `s` picker, `R` reconcile with its output in a toast.
+6. **Add job**: `a` opens a modal (company, title, url, status, note) over `data.add_job`; the new row lands selected in the table. Replaces the manual entry path `notion_pull --create-missing` had (PR #18 review); the CLI form is `python -m src.query add`.
 
 ### PR 5: `feat/tui-run-settings`
 
