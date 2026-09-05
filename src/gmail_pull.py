@@ -4,7 +4,7 @@ Phase 2 of docs/spec-email-report-upskill.md, input side replaced by
 docs/spec-mail-fetch.md (Phase B). The /jh-gmail-sync skill reads the manifest
 printed by `python -m src.mail_fetch` (or the Gmail MCP as a fallback) and
 classifies signals; THIS script is the only thing that touches the DB, on
-notion_pull's contract: dry run by default, per-change diff either way, never
+a fixed contract: dry run by default, per-change diff either way, never
 downgrade, every write through the single write path (db.set_status /
 db.touch_contact).
 
