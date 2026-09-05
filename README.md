@@ -18,7 +18,7 @@ tracking**, and deliberately keeps a **human on the submit button**.
 | ④ Research | Cited company dossier, reused across applications | `/jh-research <company\|id>` → `company-researcher` agent |
 | ⑤ Tailor | Per-job resume + cover letter (truthful, ATS-clean) | `/jh-tailor <id>` → `resume-tailor` agent |
 | ⑥ Apply | You review the draft and submit | manual, always |
-| ⑦ Track | Local kanban CRM, follow-up nudges, two-way Notion sync | `python -m src.crm.viewer` · `/jh-followups` · `/jh-notion-sync` |
+| ⑦ Track | Local CRM, follow-up nudges, inbox sync | `python -m src.crm.viewer` · `/jh-followups` · `/jh-gmail-sync` |
 
 `/jh-hunt` runs the whole loop end to end and tailors the top 5 shortlisted.
 
@@ -53,7 +53,6 @@ Then, in Claude Code from this folder:
 /jh-match                # score newly discovered jobs
 /jh-research 42          # cited company dossier (reused by tailor)
 /jh-tailor 42            # tailor resume + cover letter for job id 42 (review before sending!)
-/jh-notion-sync          # two-way sync with a Notion board (phone-friendly)
 /jh-followups            # draft nudges for applications due a follow-up
 /jh-hunt                 # or run the whole loop end to end
 ```
@@ -61,7 +60,7 @@ Record a submission (moves the folder AND schedules the follow-up):
 ```bash
 python -m src.query set-status 42 applied
 ```
-Local CRM instead of Notion:
+Local CRM (a Textual TUI replaces it, see `docs/spec-tui.md`):
 ```bash
 python -m src.crm.viewer      # http://localhost:5000
 ```
@@ -69,8 +68,8 @@ python -m src.crm.viewer      # http://localhost:5000
 ## Run it on a second machine (macOS / Linux)
 
 The repo is portable and the `.claude/` skills travel with it. Local state (`data/`,
-`applications/`, `config/notify.yaml`) is git-ignored and stays per-machine, so **Notion is
-the shared CRM**.
+`applications/`, `config/notify.yaml`) is git-ignored and stays per-machine; SQLite on the
+machine that runs the hunt is the CRM.
 
 ```bash
 git clone https://github.com/SantiagoCoronado/jobhunt.git
@@ -80,8 +79,7 @@ cd jobhunt
 ./run.sh --force                 # first discovery run on this machine
 ```
 Recommended split: keep the **scheduled** daily run on one always-on machine; use the other
-as an **interactive** client (`/jh-match`, `/jh-tailor`, `/jh-notion-sync` by hand) to avoid
-double emails and double Notion syncs. Sync code changes with plain `git pull` / `git push`.
+as an **interactive** client (`/jh-match`, `/jh-tailor` by hand) to avoid double emails. Sync code changes with plain `git pull` / `git push`.
 
 ## Schedule it
 
@@ -118,7 +116,7 @@ The two variants are mutually exclusive; installing one removes the other.
 ```
 config/        profile.yaml (incl. location_rule + shortlist_threshold) · sources.yaml · notify.yaml
 resume/        master_resume.yaml   (single source of truth)
-src/           discover · triage · match · notify · query · research · reconcile · notion_pull
+src/           discover · triage · match · notify · query · research · reconcile · pick
                · maintain · render_docx · db · models · adapters/ · crm/
 .claude/       agents/ (job-matcher, resume-tailor, company-researcher)
                commands/ (/jh-hunt /jh-discover /jh-triage /jh-match /jh-research /jh-tailor …)
