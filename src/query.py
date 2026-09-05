@@ -1,7 +1,7 @@
 """DB queries + status transitions used by the Claude Code commands.
 
   python -m src.query job <id>          # one job as JSON (for /jh-tailor)
-  python -m src.query crm               # all trackable jobs as JSON (for /jh-notion-sync)
+  python -m src.query crm               # all trackable jobs as JSON (gmail-sync MCP fallback)
   python -m src.query followups         # jobs due for follow-up (for /jh-followups)
   python -m src.query set-status <id> <status> [--note "..."] [--followup YYYY-MM-DD]
                                         # record a transition; flipping to applied stamps
