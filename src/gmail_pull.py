@@ -52,8 +52,9 @@ Rules (spec 2c/2d):
   skipped ones) in data/mail_state.json `seen`, with the signal and the date.
   mail_fetch then drops that message; only a `rejection` silences its whole
   thread, so an ignored receipt never hides the reply that lands on it.
-- ghosted / withdrawn / offer decisions are human calls; this tool never
-  proposes them and rejects them if handed one.
+- ghosted and withdrawn are human calls; this tool never proposes them and
+  rejects them if handed one. An offer LANDING may move a row to `offer` (with
+  full evidence, see above); accepting or declining it is never proposed.
 """
 from __future__ import annotations
 
