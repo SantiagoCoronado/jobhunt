@@ -10,10 +10,13 @@
   python -m src.query touch <id> [--date YYYY-MM-DD] [--bump]
                                         # record contact (reply seen / nudge sent);
                                         # --bump pushes next_followup_at out again
-  python -m src.query add --company C --title T [--url U] [--status shortlisted] [--note ...]
+  python -m src.query add --company C --title T [--url U] [--status S] [--note ...]
+                          [--applied-at YYYY-MM-DD] [--description ...]
                                         # hand-enter a role no board carries (outreach,
-                                        # referral); source='manual', idempotent on
-                                        # company+title, the only non-discovery insert path
+                                        # referral): reuses the row with the same
+                                        # company+title if one exists (manual or board),
+                                        # else inserts source='manual' as discovered;
+                                        # status/note/applied-at apply on every call
 """
 from __future__ import annotations
 
@@ -92,25 +95,61 @@ def cmd_event(job_id: str, kind: str, note: str | None) -> None:
     print(json.dumps({"id": job_id, "event": kind, "note": note}))
 
 
-def cmd_add(company: str, title: str, url: str | None, status: str, note: str | None) -> None:
-    """Insert one hand-entered role (source='manual') and set its status.
+def cmd_add(company: str, title: str, url: str | None = None, status: str | None = None,
+            note: str | None = None, applied_at: str | None = None,
+            description: str | None = None) -> None:
+    """Hand-enter a role no board carries, or update the one already on file.
 
-    Same external_id scheme the Notion pull used, so re-adding the same company+title
-    is a no-op ('seen') instead of a duplicate. Status goes through set_status so the
-    events row, applied_at and the folder bucket behave like any other row.
+    Resolution order: an existing row with the same canonical_key (company+title),
+    manual row first, then any board row, so a role discovery later finds on a
+    board is not duplicated and an outreach role re-added twice stays one row.
+    Otherwise inserts source='manual' (`discovered` by default so the matcher
+    scores it). A given --status / --note / --applied-at is applied on EVERY
+    call through set_status, then the application folder follows the status;
+    the printed `status` is the row's real current status.
     """
+    from .reconcile import sync_folder  # local import: keeps read-only paths light
+
     conn = connect()
     job = Job(source="manual",
               external_id=normalize_text(f"{company} {title}").replace(" ", "-"),
-              url=url or "", company=company, title=title)
-    outcome = upsert_job(conn, job.to_row(), now_iso())
-    job_id = conn.execute("SELECT id FROM jobs WHERE source='manual' AND external_id=?",
-                          (job.external_id,)).fetchone()["id"]
-    if outcome == "new":
-        _set_status(conn, job_id, status, note=note, followup_days=followup_days())
+              url=url or "", company=company, title=title, description=description or "")
+    row = job.to_row()
+    existing = conn.execute(
+        "SELECT id, source, url, description FROM jobs WHERE canonical_key=? "
+        "ORDER BY CASE WHEN source='manual' THEN 0 ELSE 1 END, id",
+        (row["canonical_key"],)).fetchone()
+    if existing:
+        job_id, source = existing["id"], existing["source"]
+        outcome = "seen" if source == "manual" else "matched"
+        if source == "manual":   # never overwrite a board's own URL or description
+            if url and url != existing["url"]:
+                conn.execute("UPDATE jobs SET url=? WHERE id=?", (url, job_id))
+            if description and not existing["description"]:
+                conn.execute("UPDATE jobs SET description=? WHERE id=?", (description, job_id))
+    else:
+        upsert_job(conn, row, now_iso())
+        job_id = conn.execute("SELECT id FROM jobs WHERE source='manual' AND external_id=?",
+                              (job.external_id,)).fetchone()["id"]
+        source, outcome = "manual", "new"
+        status = status or "discovered"
+
+    current = conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()["status"]
+    if status or note:
+        target = status or current
+        try:
+            _set_status(conn, job_id, target, note=note, applied_at=applied_at,
+                        followup_days=followup_days())
+        except ValueError as e:
+            sys.exit(str(e))
+        current = target
     conn.commit()
-    print(json.dumps({"id": job_id, "outcome": outcome, "company": company, "title": title,
-                      "status": status if outcome == "new" else "unchanged"}, indent=2))
+    moved = sync_folder(int(job_id), current)
+    out = {"id": job_id, "outcome": outcome, "source": source, "company": company,
+           "title": title, "status": current}
+    if moved:
+        out["folder"] = moved
+    print(json.dumps(out, indent=2))
 
 
 def cmd_touch(job_id: str, date: str | None, bump: bool) -> None:
@@ -149,8 +188,11 @@ if __name__ == "__main__":
     ad.add_argument("--company", required=True)
     ad.add_argument("--title", required=True)
     ad.add_argument("--url", help="posting or company page, if any")
-    ad.add_argument("--status", default="shortlisted", choices=STATUSES)
+    ad.add_argument("--status", choices=STATUSES,
+                    help="apply this status (new rows default to discovered)")
     ad.add_argument("--note", help="appended to the job's notes")
+    ad.add_argument("--applied-at", help="real application date YYYY-MM-DD (first flip to applied)")
+    ad.add_argument("--description", help="role text for the matcher, since no board provides one")
     a = ap.parse_args()
     if a.cmd == "job":
         job(a.id)
@@ -163,6 +205,6 @@ if __name__ == "__main__":
     elif a.cmd == "event":
         cmd_event(a.id, a.kind, a.note)
     elif a.cmd == "add":
-        cmd_add(a.company, a.title, a.url, a.status, a.note)
+        cmd_add(a.company, a.title, a.url, a.status, a.note, a.applied_at, a.description)
     else:
         cmd_touch(a.id, a.date, a.bump)

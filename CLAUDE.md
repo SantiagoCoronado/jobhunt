@@ -35,8 +35,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    never reads `data/mail_*`, never `query crm`/`query job` in that step), writes
    `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
    2026-09-04 the dry run is followed by `--apply` without a chat approval, the applier's
-   guardrails are the gate (forward-only moves, never ghosted/withdrawn/offer decisions, evidence headers +
-   signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
+   guardrails are the gate (forward-only moves, never ghosted/withdrawn, `offer` only with full evidence and never
+   accept/decline, evidence headers + signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
    fallback only when no account is configured. Setup + tuning: `docs/mail-setup.md`.
    `/jh-report` (`python -m src.report`) renders `data/report.html`, the offline dashboard.
 7. **Learn** (the intelligence layer). `/jh-upskill [id]`: gap analysis via `python -m src.gaps`
@@ -121,7 +121,7 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
 `/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups`
 `/jh-gmail-sync` `/jh-report`, see `.claude/commands/`.
-Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T [--url U] [--status S]` (source `manual`, the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
+Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T [--url U] [--status S] [--applied-at D]` (reuses a same company+title row when one exists, else inserts source `manual` as `discovered`; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
 application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.
