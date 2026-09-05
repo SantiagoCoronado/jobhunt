@@ -34,9 +34,8 @@ Next (in Claude Code, from this folder):
   /jh-triage             # Haiku junk-cut when the discovered pile is large
   /jh-match              # score the freshly queued jobs
   /jh-tailor <job_id>    # tailor resume + cover letter for a shortlisted job
-  /jh-notion-sync        # two-way sync with the Notion phone CRM
   /jh-followups          # draft follow-ups for due applications
 
 Fully scheduled alternative (scores BEFORE the digest): ./scripts/ai_pass.sh
-Or open the local CRM:  python -m src.crm.viewer  ->  http://localhost:5000
+Or open the local CRM:  python -m src.crm.viewer  (python -m src.tui once the TUI lands, docs/spec-tui.md)
 EOF

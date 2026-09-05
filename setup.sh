@@ -26,6 +26,6 @@ echo
 echo "Setup complete. Next:"
 echo "  source .venv/bin/activate"
 echo "  ./run.sh --force        # first discovery run"
-echo "  # then, in Claude Code from this folder:  /match  ->  /tailor <id>  ->  /notion-sync"
+echo "  # then, in Claude Code from this folder:  /jh-match  ->  /jh-tailor <id>  ->  /jh-followups"
 echo
 echo "To schedule the daily run on macOS:  ./mac/install-schedule.sh"
