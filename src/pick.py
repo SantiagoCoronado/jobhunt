@@ -1,4 +1,4 @@
-"""Pick the N shortlisted jobs to research and tailor next (the old Notion "star" step).
+"""Pick the N shortlisted jobs to research and tailor next (the "star" step).
 
 Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
   * `shortlisted` rows only;

@@ -27,7 +27,8 @@ Findings, in order of size:
    later call re-read a 300k to 390k context. Two hunts did it inside the main session, which
    is worse: the main context stayed bloated for every later phase too.
    Decision (Santiago, 2026-09-02): Notion is out of the hunt. `python -m src.pick` replaces the
-   star step from SQLite. `/jh-notion-sync` remains an optional standalone.
+   star step from SQLite. `/jh-notion-sync` stayed as an optional standalone until 2026-09-04,
+   when it and `src/notion_pull.py` were deleted (PR #18).
 2. **Main-session bloat.** Average context per main-session call ran 140k to 280k. Sources:
    MCP results left in context (Notion queries, Chrome `computer` screenshots at 60 to 110 kB
    each), `query crm` dumps, reading whole files (`answers.yaml` 51 kB, `sources.yaml`), and

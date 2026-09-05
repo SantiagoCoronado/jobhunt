@@ -4,7 +4,7 @@ Phase 2 of docs/spec-email-report-upskill.md, input side replaced by
 docs/spec-mail-fetch.md (Phase B). The /jh-gmail-sync skill reads the manifest
 printed by `python -m src.mail_fetch` (or the Gmail MCP as a fallback) and
 classifies signals; THIS script is the only thing that touches the DB, on
-notion_pull's contract: dry run by default, per-change diff either way, never
+a fixed contract: dry run by default, per-change diff either way, never
 downgrade, every write through the single write path (db.set_status /
 db.touch_contact).
 
@@ -52,8 +52,9 @@ Rules (spec 2c/2d):
   skipped ones) in data/mail_state.json `seen`, with the signal and the date.
   mail_fetch then drops that message; only a `rejection` silences its whole
   thread, so an ignored receipt never hides the reply that lands on it.
-- ghosted / withdrawn / offer decisions are human calls; this tool never
-  proposes them and rejects them if handed one.
+- ghosted and withdrawn are human calls; this tool never proposes them and
+  rejects them if handed one. An offer LANDING may move a row to `offer` (with
+  full evidence, see above); accepting or declining it is never proposed.
 """
 from __future__ import annotations
 

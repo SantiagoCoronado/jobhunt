@@ -25,10 +25,9 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
-6. **Track** (`src/crm/viewer.py` local UI). Notion is OUT of the hunt since 2026-09-02: its
-   one-page-per-MCP-call push cost 25M to 65M context tokens per run, more than every other
-   stage combined (`docs/token-efficiency.md`). `/jh-notion-sync` still exists as a standalone,
-   optional mirror; never call it from `/jh-hunt`. The hunt picks its 5 targets with
+6. **Track** (`src/crm/viewer.py` local UI, being replaced by a Textual TUI: `docs/spec-tui.md`).
+   Notion is gone since 2026-09-04 (pull script and command deleted; its MCP push had cost
+   25M to 65M context tokens per hunt, `docs/token-efficiency.md`). The hunt picks its 5 targets with
    `python -m src.pick` (star rule, dream slots, skips companies already in play).
    `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
@@ -36,8 +35,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    never reads `data/mail_*`, never `query crm`/`query job` in that step), writes
    `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
    2026-09-04 the dry run is followed by `--apply` without a chat approval, the applier's
-   guardrails are the gate (forward-only moves, never ghosted/withdrawn/offer decisions, evidence headers +
-   signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
+   guardrails are the gate (forward-only moves, never ghosted/withdrawn, `offer` only with full evidence and never
+   accept/decline, evidence headers + signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
    fallback only when no account is configured. Setup + tuning: `docs/mail-setup.md`.
    `/jh-report` (`python -m src.report`) renders `data/report.html`, the offline dashboard.
 7. **Learn** (the intelligence layer). `/jh-upskill [id]`: gap analysis via `python -m src.gaps`
@@ -84,11 +83,10 @@ rejected/ghosted/withdrawn. `scripts/export_pdf.sh` searches these nested folder
 Everything lives in one SQLite table `jobs` (see `src/db.py`). `status` column IS the CRM
 pipeline: discovered → shortlisted → applied → screen → interview → offer, with terminal
 outcomes rejected/ghosted/withdrawn and a deliberate `backlog` hold. `db.STATUSES` is the single
-authority on this vocabulary; `declined` is NOT a status (it is Notion's phone-side label for
-`withdrawn`, mapped on sync).
+authority on this vocabulary; `declined` is NOT a status (use `withdrawn`).
 `irrelevant` is a terminal triage-drop (off-field / dealbreaker), excluded from match/export/triage.
 Triage keepers store their fit bucket in `match_verdict` until real scoring overwrites it.
-SQLite is canonical; Notion is a convenience mirror.
+SQLite is canonical.
 
 ## Hard rules (enforce these in every AI step)
 - **Never fabricate** resume content. Only reframe what's in `resume/master_resume.yaml`.
@@ -121,9 +119,9 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 
 ## Commands
 All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
-`/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups` `/jh-notion-sync`
+`/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups`
 `/jh-gmail-sync` `/jh-report`, see `.claude/commands/`.
-Helper queries: `python -m src.query {job <id>|crm|followups}`, `python -m src.research {path "<company>"|get <id>}`.
+Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T [--url U] [--status S] [--applied-at D]` (reuses a same company+title row when one exists, else inserts source `manual` as `discovered`; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
 application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.
@@ -138,8 +136,5 @@ DB maintenance (auto-runs after discover): `python -m src.maintain [--vacuum]`, 
 that vanished from an actively-checked source, prunes irrelevant/expired descriptions.
 Cross-source dedup: query the `canonical_jobs` view (one deterministic row per role, ATS source
 preferred), never bare `GROUP BY canonical_key`.
-Notion pull (reverse sync, used by `/jh-notion-sync` phase 1): export Notion rows to
-`data/notion_pull.json`, then `python -m src.notion_pull data/notion_pull.json [--apply] [--create-missing]`
-(maps Notion `declined`/`Not Found` -> `withdrawn`, never downgrades, keeps `backlog` holds).
 Company dossiers (`research/companies/<slug>.md`) are committed, reusable, cited; obey the
 never-fabricate and zero-em-dash rules like any generated text.
