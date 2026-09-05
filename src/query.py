@@ -14,8 +14,9 @@
                           [--applied-at YYYY-MM-DD] [--description ...]
                                         # hand-enter a role no board carries (outreach,
                                         # referral): reuses the row with the same
-                                        # company+title if one exists (manual or board),
-                                        # else inserts source='manual' as discovered;
+                                        # company+title if one exists (manual, then live
+                                        # ATS, then aggregator; junk rows revive), else
+                                        # inserts source='manual' as discovered;
                                         # status/note/applied-at apply on every call
 """
 from __future__ import annotations
@@ -25,9 +26,9 @@ import json
 import sys
 
 from .config import followup_days
-from .db import STATUSES, connect, set_status as _set_status, touch_contact, upsert_job
+from .db import ATS_SOURCES, STATUSES, _valid_date, connect, set_status as _set_status, touch_contact, upsert_job
 from .dream import is_dream
-from .models import Job, normalize_text, now_iso
+from .models import Job, now_iso
 
 
 def _with_dream(r) -> dict:
@@ -95,54 +96,75 @@ def cmd_event(job_id: str, kind: str, note: str | None) -> None:
     print(json.dumps({"id": job_id, "event": kind, "note": note}))
 
 
+JUNK = ("irrelevant", "expired")   # terminal triage/feed drops; a hand-added role revives them
+
+
 def cmd_add(company: str, title: str, url: str | None = None, status: str | None = None,
             note: str | None = None, applied_at: str | None = None,
             description: str | None = None) -> None:
     """Hand-enter a role no board carries, or update the one already on file.
 
-    Resolution order: an existing row with the same canonical_key (company+title),
-    manual row first, then any board row, so a role discovery later finds on a
-    board is not duplicated and an outreach role re-added twice stays one row.
-    Otherwise inserts source='manual' (`discovered` by default so the matcher
-    scores it). A given --status / --note / --applied-at is applied on EVERY
-    call through set_status, then the application folder follows the status;
-    the printed `status` is the row's real current status.
+    Resolution: an existing row with the same canonical_key (company+title), in
+    the order manual row, then live rows before irrelevant/expired ones, then
+    ATS sources before aggregators (the canonical_jobs precedence), then lowest
+    id. Otherwise inserts source='manual' as `discovered` so the matcher scores
+    it. A matched irrelevant/expired row with no --status is revived to
+    `discovered`. --status and --note apply on every call through set_status;
+    --applied-at is stamped on the first flip to applied and, on a row that
+    already carries a date, corrects it (the human-entered date wins). The
+    application folder follows the status; the printed `status` is the row's
+    real current status. On a manual row --url and --description overwrite;
+    a board row's own url and description are never touched.
     """
     from .reconcile import sync_folder  # local import: keeps read-only paths light
 
     conn = connect()
-    job = Job(source="manual",
-              external_id=normalize_text(f"{company} {title}").replace(" ", "-"),
-              url=url or "", company=company, title=title, description=description or "")
+    job = Job(source="manual", external_id="", url=url or "", company=company, title=title,
+              description=description or "")
     row = job.to_row()
+    # external_id = the canonical key itself: unique per role, so two company/title
+    # splits that slug alike ("Arga Labs"/"Engineer" vs "Arga"/"Labs Engineer") can't collide.
+    row["external_id"] = job.external_id = row["canonical_key"]
+    ats = ", ".join("?" * len(ATS_SOURCES))
     existing = conn.execute(
-        "SELECT id, source, url, description FROM jobs WHERE canonical_key=? "
-        "ORDER BY CASE WHEN source='manual' THEN 0 ELSE 1 END, id",
-        (row["canonical_key"],)).fetchone()
+        "SELECT id, source, status, url, description FROM jobs WHERE canonical_key=? "
+        "ORDER BY CASE WHEN source='manual' THEN 0 ELSE 1 END, "
+        f"CASE WHEN status IN (?, ?) THEN 1 ELSE 0 END, "
+        f"CASE WHEN source IN ({ats}) THEN 0 ELSE 1 END, id",
+        (row["canonical_key"], *JUNK, *ATS_SOURCES)).fetchone()
     if existing:
-        job_id, source = existing["id"], existing["source"]
+        job_id, source, current = existing["id"], existing["source"], existing["status"]
         outcome = "seen" if source == "manual" else "matched"
-        if source == "manual":   # never overwrite a board's own URL or description
+        if source == "manual":
             if url and url != existing["url"]:
                 conn.execute("UPDATE jobs SET url=? WHERE id=?", (url, job_id))
-            if description and not existing["description"]:
+            if description and description != existing["description"]:
                 conn.execute("UPDATE jobs SET description=? WHERE id=?", (description, job_id))
+        if current in JUNK and not status:
+            status, outcome = "discovered", "revived"
     else:
-        upsert_job(conn, row, now_iso())
+        if upsert_job(conn, row, now_iso()) != "new":
+            sys.exit(f"Refusing: a manual row with key {row['canonical_key']} already exists "
+                     "but the canonical lookup missed it; inspect the DB.")
         job_id = conn.execute("SELECT id FROM jobs WHERE source='manual' AND external_id=?",
                               (job.external_id,)).fetchone()["id"]
-        source, outcome = "manual", "new"
+        source, outcome, current = "manual", "new", "discovered"
         status = status or "discovered"
 
-    current = conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()["status"]
-    if status or note:
-        target = status or current
-        try:
+    try:
+        if status or note:
+            target = status or current
             _set_status(conn, job_id, target, note=note, applied_at=applied_at,
                         followup_days=followup_days())
-        except ValueError as e:
-            sys.exit(str(e))
-        current = target
+            current = target
+        if applied_at:
+            # set_status only stamps an EMPTY applied_at; a human-entered date corrects
+            # a row that already has one (folder-mtime backfills are guesses).
+            conn.execute("UPDATE jobs SET applied_at=? WHERE id=? AND applied_at IS NOT NULL "
+                         "AND applied_at!=?", (_valid_date(applied_at, "applied_at"), job_id, applied_at))
+    except ValueError as e:
+        conn.rollback()
+        sys.exit(str(e))
     conn.commit()
     moved = sync_folder(int(job_id), current)
     out = {"id": job_id, "outcome": outcome, "source": source, "company": company,
