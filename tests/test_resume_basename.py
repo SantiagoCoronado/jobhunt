@@ -27,6 +27,18 @@ def test_resume_basename_defaults_to_the_profile_name_and_survives_no_profile(tm
     assert config.resume_basename() == "Resume"
 
 
+def test_profile_override_wins_and_is_normalized(tmp_path, monkeypatch):
+    prof = tmp_path / "profile.yaml"
+    monkeypatch.setitem(config.USER_FILES, "profile", prof)
+    prof.write_text('name: "Santiago Daniel Coronado Sroka"\nresume_basename: "Santiago Coronado"\n')
+    assert config.resume_basename() == "SantiagoCoronadoResume"
+    prof.write_text('name: "Alex Example"\nresume_basename: "Zoë-Resume"\n')
+    assert config.resume_basename() == "ZoeResume"
+    prof.write_text('name: "Alex Example"\nresume_basename: ""\n')
+    assert config.resume_basename() == "AlexExampleResume"
+    assert config.resume_basename("Explicit Name") == "ExplicitNameResume"   # an explicit name ignores the profile
+
+
 def test_cli_prints_the_stem(capsys):
     assert config.main(["resume-basename"]) == 0
     assert capsys.readouterr().out.strip() == "AlexExampleResume"

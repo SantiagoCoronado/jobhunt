@@ -5,6 +5,10 @@
 # Every key is read by code. Comments say who reads it.
 
 name: "Alex Example"
+# Optional: the file stem of every tailored deliverable. Default is every part of `name`
+# joined ("AlexExampleResume"); set this for a shorter form of a long name. Letters and
+# digits only after accent folding; "Resume" is appended when missing.
+# resume_basename: "AlexExample"
 
 # Titles you would apply for. Drives the keyword prescore and the title gate in discovery
 # (`config/sources.yaml` title_filter appends these words to its generic base list).

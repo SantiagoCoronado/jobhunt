@@ -46,18 +46,26 @@ def resume_basename(name: str | None = None) -> str:
     """`<NameParts>Resume`, the stem of every tailored deliverable (docs/spec-open-source.md
     decision 5): NFKD fold to ASCII, keep letters and digits only, join the name parts in
     order, append `Resume`; an empty result falls back to `Resume`.
-    "Zoë O'Brien-Smith" gives "ZoeOBrienSmithResume". The name defaults to profile.name."""
+    "Zoë O'Brien-Smith" gives "ZoeOBrienSmithResume". The name defaults to profile.name; a
+    `resume_basename:` key in the profile overrides the stem (same normalization, `Resume`
+    appended once), for a shorter form of a long name."""
     import re
     import unicodedata
 
+    def fold(text: str) -> str:
+        ascii_text = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode()
+        return "".join(re.sub(r"[^A-Za-z0-9]", "", part) for part in ascii_text.split())
+
     if name is None:
         try:
-            name = str(load_profile().get("name") or "")
+            prof = load_profile()
         except FileNotFoundError:
-            name = ""
-    folded = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()
-    stem = "".join(re.sub(r"[^A-Za-z0-9]", "", part) for part in folded.split())
-    return f"{stem}Resume"
+            prof = {}
+        override = fold(str(prof.get("resume_basename") or ""))
+        if override:
+            return override if override.endswith("Resume") else f"{override}Resume"
+        name = str(prof.get("name") or "")
+    return f"{fold(name)}Resume"
 
 
 # ---- sources: tracked mechanics + ignored targeting ------------------------------------
