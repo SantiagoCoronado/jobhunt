@@ -21,15 +21,15 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 2 | Notion | Full delete: `src/notion_pull.py`, its test, `/jh-notion-sync`, `query crm`, hints in run.sh, setup.sh, notify footer, docs wording. History docs keep past-tense mentions. Santiago disconnects the claude.ai Notion connector himself (it is not configured in the repo). | Half-killed code gets picked up by an agent one day. |
 | 3 | What it replaces | The Flask viewer and the Flask dependency. `report.html` stays as the offline, shareable dashboard. | A TUI cannot be opened on a phone or sent to someone. |
 | 4 | Sections | 1 board, 2 shortlist, 3 follow-ups, 4 apps, 5 stats (placeholder only), 6 run, 7 settings | Sections 1 to 3 are presets on one shared three-pane screen. |
-| 5 | Claude Code | v1 is the deterministic side only. LLM stages are shown as slash commands with copy-to-clipboard. A later phase runs them through a configurable harness (`claude -p`, codex, pi, opencode). | Shelling to `claude -p` from inside Textual inside Herdr inside tmux is a terminal-ownership rabbit hole for a first version. |
+| 5 | Claude Code | The TUI runs no model itself. LLM stages run through the hunt orchestrator (`docs/spec-hunt-orchestrator.md`): `python -m src.hunt run --only <stage>` or a full `run`, as a subprocess exactly like a Python stage, stdout tailed in the log pane. The harness behind it is chosen in `config/hunt.toml`, never in the TUI code. Copy-to-clipboard of the slash command stays as the secondary verb. (Amended 2026-09-07; before that, v1 was copy-only and harness execution was deferred.) | Shelling an interactive agent out of Textual inside Herdr is a terminal-ownership rabbit hole; a headless orchestrator with log files is not. |
 | 6 | Phone access | Lost, accepted. `textual serve` is the one-line escape hatch later. | The hunt stopped pushing to Notion on 2026-09-02 anyway. |
 | 7 | Process | Spec first, review in a separate session, one PR per phase, several commits per PR (one story each). | House workflow. |
 | 8 | Herdr plugin | Not in v1. Standalone `python -m src.tui`, opened in a Herdr tab by hand. A `herdr-plugin.toml` (placement `tab`) can be added later if the command gets typed a lot. | It buys one keybinding and an auto-start. |
 | 9 | Navigation | Sections 1 to 3 share one three-pane screen (status list, jobs table, detail pane). Sections 4 to 7 are their own screens. | Board, shortlist and follow-ups are the same rows with different filters. |
 | 10 | Board shape | Three-pane. Eleven kanban columns do not fit a terminal. | The status list is the counts strip turned vertical. |
 | 11 | Stars | Computed, never stored: a row is starred iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. | What the TUI shows starred is what a hunt would tailor. |
-| 12 | Runner scope | Python stages run in-process as subprocesses with a streamed log (discover, maintain, reconcile, report, mail_fetch manifest, stats). LLM stages (triage, match, research, tailor, gmail-sync, hunt) are listed with the exact slash command, `c` copies. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. | One process at a time keeps SQLite writes serialized. |
-| 13 | Settings | `config/tui.toml`, committed. Herdr-style modal opened with `,`: tabs `theme`, `sections`, `harness`, `follow-ups`, `editor`, a list, `enter` applies, `esc` closes. Plus a read-only view of `profile.yaml`, `sources.yaml`, `tui.toml` with open-in-`$EDITOR`. No YAML editing through forms. | `profile.yaml` is the single authority for scoring; open it in the editor rather than build a form. |
+| 12 | Runner scope | The stage list is the `src.hunt` registry (discover, triage, match, inbox, pick, research, tailor, report, plus the full hunt) and the extra Python stages (reconcile, stats). `enter` runs any of them as a subprocess with a streamed log; `c` still copies the slash command. A run list shows `data/hunt/*/state.json` with state and started time; selecting a run shows its stages and units and tails the selected unit's log. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. | One process at a time keeps SQLite writes serialized, and the orchestrator's lockfile enforces it for hunts. |
+| 13 | Settings | `config/tui.toml`, committed. Herdr-style modal opened with `,`: tabs `theme`, `sections`, `harness`, `follow-ups`, `editor`, a list, `enter` applies, `esc` closes. The `harness` tab edits `config/hunt.toml` (`harness.default` and one model per stage, picked from the harness's live catalog via `hunt models`), not `tui.toml`, and offers a `doctor` action. Plus a read-only view of `profile.yaml`, `sources.yaml`, `hunt.toml`, `tui.toml` with open-in-`$EDITOR`. No YAML editing through forms. | `profile.yaml` is the single authority for scoring and `hunt.toml` for how a hunt runs; open them in the editor rather than build forms. |
 | 14 | Cold rows | `discovered` hidden behind a dimmed `all` entry that loads lazily with search. `irrelevant` and `expired` never shown (`stats drops` audits them). | 26k discovered, 10k irrelevant, 7k expired. |
 | 15 | Multi-select | `space` toggles, `v` selects all visible, `esc` clears. Bulk verbs: status change, backlog, copy commands. `C` copies one `/jh-tailor <id>` per line for every starred row. | Multi-line paste into a Claude Code prompt runs in order; `/jh-tailor` weaves the dossier in when one exists. |
 | 16 | Detail pane | Header (title, company, location, source, dream flag, salary when present), status line (score, status, dates, folder bucket), dossier path when one exists, verdict (strengths and missing skills from `match_verdict`), notes, last 5 events, description scrolling. | Events are the only memory of what happened when. |
@@ -111,7 +111,7 @@ src/tui/
   app.py             App, section switching, global bindings, refresh timer
   data.py            the ONLY module that opens SQLite; pure functions returning dataclasses
   presets.py         board / shortlist / follow-ups filter + sort definitions
-  commands.py        slash-command strings, harness template, clipboard
+  commands.py        slash-command strings, `src.hunt` argv builders, clipboard
   settings.py        config/tui.toml load/save, defaults, kanagawa theme
   screens/
     jobs.py          three-pane screen (sections 1 to 3)
@@ -150,10 +150,8 @@ name = "kanagawa"           # any Textual built-in or "kanagawa" (custom, matche
 default = "board"           # section opened on launch
 detail_pane = true          # false = always overlay
 
-[harness]
-template = "{command}"      # "{command}" copies the slash command as-is
-# template = "claude -p '{command}'"
-# template = "codex exec '{command}'"
+# No [harness] block: the harness and per-stage models live in config/hunt.toml
+# (docs/spec-hunt-orchestrator.md section 6) and the settings modal edits that file.
 
 [followups]
 days = 7                    # display only; config.followup_days() stays the pipeline authority
@@ -216,14 +214,15 @@ any text the TUI renders or writes.
 1. **Settings file**: `settings.py` loads `config/tui.toml` with defaults and writes it back; tests for missing file, unknown theme, bad template.
 2. **Settings modal**: `,` opens the tabbed modal (theme, sections, harness, follow-ups, editor), `enter` applies and saves, `esc` closes.
 3. **Themes**: register the kanagawa theme; the theme tab lists Textual built-ins plus kanagawa; applies live.
-4. **Harness template**: `commands.py` formats every copied command through `harness.template`; the settings tab offers the presets from section 6.
-5. **Runner data**: stage registry (Python stages as argv lists, LLM stages as slash commands), last-run summary per source from the `runs` table.
-6. **Runner screen**: stage list, log pane streaming subprocess output, one stage at a time, `ctrl+c` cancels, `report` opens the html afterwards.
+4. **Harness settings**: the `harness` tab reads and writes `config/hunt.toml` (`harness.default`, one model per stage chosen from the live `hunt models` list) through `src.hunt.config`, and runs `python -m src.hunt doctor` with its table in a modal.
+5. **Runner data**: `data.stages()` from the `src.hunt` registry plus reconcile and stats, `data.hunt_runs()` and `data.hunt_status(run)` over `data/hunt/*/state.json`, last-run summary per source from the `runs` table.
+6. **Runner screen**: stage list, run list, log pane tailing subprocess stdout or the selected unit's `logs/<stage>/<unit>.log`, one process at a time, `ctrl+c` kills the subprocess (the orchestrator marks running units failed so `--resume` picks them up), `report` opens the html afterwards.
 7. **Stats placeholder**: section 5 renders `python -m src.stats funnel` output in a scrollable pane with a note that real widgets come later.
 8. **Config view**: read-only tabs for `profile.yaml`, `sources.yaml`, `tui.toml`, `e` opens the file in the configured editor.
 
 ## 9. Later (not scheduled)
 
-Harness execution (Q5 option b): run LLM stages through the configured harness with the log in
-the runner pane. Stats widgets over `stats.py` (funnel, calibration, latency, comp, source
-health). Herdr plugin manifest. `textual serve` for phone access.
+Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
+`stats.py` (funnel, calibration, latency, comp, source health). Herdr plugin manifest.
+`textual serve` for phone access. (Harness execution moved into scope on 2026-09-07 through
+`docs/spec-hunt-orchestrator.md`.)
