@@ -30,7 +30,7 @@ highest-signal listings.
 
 ```bash
 cd ~/projects/jobhunt
-./setup.sh                       # one command: venv + deps + scaffolds config/notify.yaml
+./setup.sh                       # one command: venv + deps + `python -m src.init` (your files from the examples)
 # ...or manually:
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 #    config/profile.yaml, target roles, real skills, locations, salary floor
 #    resume/master_resume.yaml, your master resume (RenderCV schema)
 #    config/sources.local.yaml, your Greenhouse/Lever/Ashby tokens and countries (see the .example)
-cp config/notify.example.yaml config/notify.yaml   # optional: Telegram/ntfy/email digest
+python -m src.init               # creates profile.yaml, master_resume.yaml, answers.yaml, sources.local.yaml, notify.yaml, .env from the examples
 ```
 
 ## Daily use
