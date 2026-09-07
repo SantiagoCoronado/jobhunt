@@ -116,15 +116,33 @@ def _terms_re(terms) -> re.Pattern[str] | None:
 
     Boundaries matter: a bare substring test for "ai" matches "Maintenance",
     "Trainer", and "Retail"; \bai\b does not.
+
+    A boundary only goes where the term's own edge is a word character. ".net", "c++" and
+    "c#" end or start on punctuation, and \b there asks for a word character that the term
+    itself rules out, so the pattern could never match ("Senior .NET Developer" included).
     """
     if not terms:
         return None
-    key = "\x00".join(str(t) for t in terms)
+    cleaned = [t for t in (str(t).lower().strip() for t in terms) if t]
+    if not cleaned:  # a list of blanks is no filter at all, not a filter nothing passes
+        return None
+    key = "\x00".join(cleaned)
     rx = _TERM_RE.get(key)
     if rx is None:
-        rx = re.compile("|".join(rf"\b{re.escape(str(t).lower())}\b" for t in terms))
+        rx = re.compile("|".join(_term_pattern(t) for t in cleaned))
         _TERM_RE[key] = rx
     return rx
+
+
+def _word_char(c: str) -> bool:
+    return c.isalnum() or c == "_"
+
+
+def _term_pattern(term: str) -> str:
+    """One escaped term, bounded on each side only where that side is a word character."""
+    left = r"\b" if _word_char(term[0]) else ""
+    right = r"\b" if _word_char(term[-1]) else ""
+    return f"{left}{re.escape(term)}{right}"
 
 
 def keep_title(cfg: dict, title: str) -> bool:

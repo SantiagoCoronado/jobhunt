@@ -77,14 +77,20 @@ def resume_basename(name: str | None = None) -> str:
 # them per source block: a list or dict in the local file REPLACES the tracked one, a scalar
 # OVERRIDES it, a source that only exists locally is ADDED. docs/spec-open-source.md decision 4.
 
+# Words that carry no role family at all: grammar, seniority, and posting format. Dropped
+# from every title, and never the reason a title yields no gate words.
+_TITLE_NOISE = frozenset({
+    "and", "or", "of", "the", "a", "an", "for", "in", "to", "with", "at", "on",
+    "senior", "sr", "jr", "junior", "staff", "principal", "associate",
+    "ii", "iii", "iv", "intern", "internship", "remote", "roles", "role",
+})
+
 # Title words that say nothing about the role family on their own (the generic base list
 # already covers the engineering nouns); dropped when deriving gate words from the profile.
-_TITLE_STOP = frozenset({
-    "and", "or", "of", "the", "a", "an", "for", "in", "to", "with", "at", "on",
+_TITLE_STOP = _TITLE_NOISE | frozenset({
     "engineer", "engineers", "engineering", "developer", "developers", "development",
-    "senior", "sr", "jr", "junior", "staff", "lead", "principal", "head", "director", "manager",
-    "management", "ii", "iii", "iv", "product", "products", "program", "project", "technical",
-    "specialist", "analyst", "associate", "intern", "internship", "remote", "roles", "role",
+    "lead", "head", "director", "manager", "management", "product", "products",
+    "program", "project", "technical", "specialist", "analyst",
 })
 
 
@@ -92,7 +98,12 @@ def title_words(titles: list[str]) -> list[str]:
     """Gate words derived from title strings: every cleaned multi-word phrase plus every
     word not in the stop list. "Software Engineer (AI products)" gives ["software"];
     "Deployment Strategist" gives ["deployment strategist", "deployment", "strategist"].
-    Order is first-seen, no duplicates."""
+    Order is first-seen, no duplicates.
+
+    A title made entirely of stop words never yields nothing: "Product Manager" would leave
+    no gate words at all and drop that user's whole role family at discovery, so such a
+    phrase falls back to the narrower noise list and gives
+    ["product manager", "product", "manager"]."""
     import re
 
     out: list[str] = []
@@ -108,6 +119,8 @@ def title_words(titles: list[str]) -> list[str]:
         for phrase in re.split(r"\s*(?:/|,|\bor\b)\s*", text):
             words = [w for w in re.split(r"[^a-z0-9.+#-]+", phrase) if w]
             kept = [w for w in words if w not in _TITLE_STOP and len(w) > 1]
+            if not kept:
+                kept = [w for w in words if w not in _TITLE_NOISE and len(w) > 1]
             if len(kept) >= 2:
                 add(" ".join(kept))
             for w in kept:
@@ -163,23 +176,36 @@ def sources(profile: dict | None = None) -> dict:
 
 
 # Sources that do nothing useful without the user's targeting (docs/spec-open-source.md
-# decision 4): `discover` skips an enabled source whose keys are all missing or empty and
+# decision 4): `discover` skips an enabled source whose targeting is missing or empty and
 # prints one hint naming config/sources.local.yaml.
-TARGETING_KEYS: dict[str, tuple[str, ...]] = {
-    "greenhouse": ("tokens",), "lever": ("companies",), "ashby": ("clients",),
-    "workable": ("accounts",), "recruitee": ("companies",), "smartrecruiters": ("companies",),
-    "personio": ("companies",), "bamboohr": ("companies",), "workday": ("sites",),
-    "consider": ("boards",), "teamtailor": ("companies",), "pinpoint": ("companies",),
-    "rippling": ("companies",), "dreamsheet": ("file_id",),
-    "adzuna": ("countries",), "careerjet": ("locale_code", "location"),
-    "getonbrd": ("queries",), "torre": ("queries",), "findwork": ("search",),
-    "themuse": ("locations", "categories"), "softserve": ("countries",),
+#
+# One entry per source, listing the groups of keys it needs. A group holds the keys the
+# adapter accepts interchangeably (`adzuna` reads `countries:` or singular `country:`) or
+# the independent filters any one of which targets the source (`themuse` narrows by
+# location, by category, or by both). A group is satisfied when any of its keys is set, and
+# a source counts as targeted once every group is satisfied, so `careerjet`, which raises
+# without both, keeps needing `locale_code:` and `location:`.
+TARGETING_KEYS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "greenhouse": (("tokens",),), "lever": (("companies",),), "ashby": (("clients",),),
+    "workable": (("accounts",),), "recruitee": (("companies",),),
+    "smartrecruiters": (("companies",),), "personio": (("companies",),),
+    "bamboohr": (("companies",),), "workday": (("sites",),), "consider": (("boards",),),
+    "teamtailor": (("companies",),), "pinpoint": (("companies",),),
+    "rippling": (("companies",),), "dreamsheet": (("file_id",),),
+    "adzuna": (("countries", "country"),), "careerjet": (("locale_code",), ("location",)),
+    "getonbrd": (("queries",),), "torre": (("queries",),), "findwork": (("search",),),
+    "themuse": (("locations", "location", "categories"),), "softserve": (("countries",),),
 }
 
 
 def missing_targeting(name: str, cfg: dict) -> tuple[str, ...]:
-    """The targeting keys a source needs that are absent or empty in its merged block."""
-    return tuple(k for k in TARGETING_KEYS.get(name, ()) if not cfg.get(k))
+    """The targeting a source needs that its merged block leaves absent or empty: one entry
+    per unsatisfied key group, alternatives joined by `|` for the hint discover prints."""
+    return tuple(
+        "|".join(group)
+        for group in TARGETING_KEYS.get(name, ())
+        if not any(cfg.get(k) for k in group)
+    )
 
 
 def notify_setting(key: str, default):

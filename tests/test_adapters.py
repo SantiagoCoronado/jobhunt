@@ -197,7 +197,7 @@ def test_findwork_429_exhausted_skips_query_not_whole_source(monkeypatch, capsys
 # ---- shared role-family title gate (src/adapters/keep_title) ----
 
 TITLE_FILTER = {
-    "include": ["engineer", "ai", "full stack", "front-end", "ingeniero"],
+    "include": ["engineer", "ai", "full stack", "front-end", "ingeniero", ".net", "c++", "c#"],
     "exclude": ["mechanical", "sales engineer", "recruiter"],
 }
 
@@ -214,6 +214,13 @@ TITLE_FILTER = {
     ("Technical Recruiter", False),
     ("Registered Nurse", False),
     ("", True),                              # no title to judge: keep, let triage decide
+    # A term whose own edge is punctuation gets no \b on that side: \b.net\b asks for a word
+    # character where "." already guarantees there is none, so it could never match.
+    ("Senior .NET Developer", True),
+    ("ASP.NET Consultant", True),
+    ("C++ Systems Programmer", True),
+    ("C# Backend", True),
+    ("Nutrition Assistant", False),          # ".net" must not match inside "Nutrition"
 ])
 def test_keep_title_word_boundaries(title, kept):
     from src.adapters import keep_title
@@ -233,7 +240,6 @@ def test_shipped_title_filter_keeps_every_target_role_family():
     titles must keep every target family and drop the off-field titles."""
     import src.adapters as adapters
 
-    adapters._TITLE_FILTER = None  # re-read the merged config
     try:
         for title in [
             "Full-Stack Engineer", "Software Engineer", "Product Engineer", "Frontend Engineer",
@@ -330,3 +336,25 @@ def test_torre_eligibility_header_strip_is_idempotent():
     # re-prepending after a strip never stacks headers
     twice = (header + " " + stripped).strip()
     assert twice.count("Eligibility:") == 1
+
+
+def test_torre_backfill_runs_every_configured_query(monkeypatch, tmp_path):
+    """The backfill re-runs the SAME searches the adapter uses, so it has to read the merged
+    config: reading the tracked sources.yaml alone left the queries behind in
+    sources.local.yaml and quietly reran one hardcoded default."""
+    import src.adapters.torre as torre
+    import src.config as cfg
+    import src.db as db
+
+    real_connect = db.connect
+    monkeypatch.setattr(cfg, "sources", lambda *a, **k: {"torre": {"queries": ["react", "golang"]}})
+    monkeypatch.setattr(db, "connect", lambda *a, **k: real_connect(tmp_path / "jobs.db"))
+    asked: list[str] = []
+
+    def fake_post(url, **kw):
+        asked.append(kw["json"]["skill/role"]["text"])
+        return {"results": []}
+
+    monkeypatch.setattr(torre, "post_json", fake_post)
+    torre.backfill_eligibility(pages=1)
+    assert asked == ["react", "golang"]

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 
 from .db import connect
-from .config import load_yaml, shortlist_threshold
+from .config import load_yaml, shortlist_threshold, user_file
 
 
 def _digest_rows(conn, threshold: int):
@@ -136,7 +136,7 @@ def _text(rows, threshold: int, status: str = "") -> str:
 
 def main() -> None:
     try:
-        cfg = load_yaml("notify.yaml")
+        cfg = load_yaml(user_file("notify"))
     except FileNotFoundError:
         cfg = {}
     # min_score is an optional override; the default is THE shortlist threshold

@@ -44,6 +44,19 @@ def resume_file() -> str:
     return f"{resume_basename()}.yaml"
 
 
+def legacy_deliverables(folder: Path) -> list[str]:
+    """Deliverables in the folder left under an earlier `profile.name` stem. The build writes
+    and renders under the current one, so these stay behind holding older content, and
+    scripts/export_pdf.sh regenerates their PDFs too: a human picking a file out of the
+    folder can attach the stale resume. Named, never deleted (the tailor owns the folder)."""
+    stem = resume_basename()
+    return sorted(
+        p.name
+        for p in folder.glob("*Resume.*")
+        if p.is_file() and p.suffix.lower() in (".yaml", ".yml", ".docx", ".pdf") and p.stem != stem
+    )
+
+
 def allowed_files() -> tuple[str, ...]:
     return (resume_file(), "CoverLetter.md", "match_report.md", "answers.md", "review_response.md")
 
@@ -373,6 +386,12 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     missing = [f for f in required_files() if not (folder / f).exists()]
     if missing:
         raise BuildError(f"missing {', '.join(missing)}")
+    legacy = legacy_deliverables(folder)
+    if legacy:
+        v.metrics["legacy_deliverables"] = legacy
+        v.warnings.append(f"{len(legacy)} deliverable(s) under an earlier name stem, not rebuilt "
+                          f"and not the ones to send: {', '.join(legacy)}. Delete them or keep "
+                          f"only {resume_file()}")
 
     # ---- text checks
     hits = _emdash_hits(folder)

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from src import config, dream
+from src import adapters, config, dream
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -28,5 +28,9 @@ def _user_files_from_fixtures(monkeypatch):
     for key, name in _FIXTURE_FILES.items():
         monkeypatch.setitem(config.USER_FILES, key, FIXTURES / name)
     dream.reset_cache()
+    # The shared title gate caches a value derived from those files, so a test that touches
+    # an adapter would otherwise leave the previous profile's gate behind for the next one.
+    adapters._TITLE_FILTER = None
     yield
     dream.reset_cache()
+    adapters._TITLE_FILTER = None

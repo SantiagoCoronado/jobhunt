@@ -174,6 +174,27 @@ def test_non_dream_relocation_line_is_only_a_warning(folder):
     assert v.ok and any("non-dream" in w for w in v.warnings)
 
 
+def test_deliverables_under_an_earlier_name_stem_warn(folder):
+    """After a profile.name change the build writes the new stem while the old files stay,
+    holding older content that export_pdf.sh happily re-renders. The verdict names them so
+    nobody attaches the stale resume."""
+    (folder / "SamplePersonResume.yaml").write_text("cv: {}\n")
+    (folder / "SamplePersonResume.pdf").write_bytes(b"%PDF-1.4 stale\n")
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert v.ok, v.failures
+    warning = next(w for w in v.warnings if "earlier name stem" in w)
+    assert "SamplePersonResume.yaml" in warning and "SamplePersonResume.pdf" in warning
+    assert RESUME in warning  # names the one to keep
+    assert json.loads((folder / "build.json").read_text())["metrics"]["legacy_deliverables"] == [
+        "SamplePersonResume.pdf", "SamplePersonResume.yaml"]
+
+
+def test_current_stem_deliverables_do_not_warn(folder):
+    tb.build(folder, job=JOB, no_pdf=True)  # writes AlexExampleResume.docx next to the yaml
+    v = tb.build(folder, job=JOB, no_pdf=True)
+    assert not any("earlier name stem" in w for w in v.warnings)
+
+
 def test_overflow_at_level_3_fails(folder, monkeypatch):
     monkeypatch.setattr(tb.rd, "estimate_height_pts", tb.rd.estimate_height_pts.__wrapped__
                         if hasattr(tb.rd.estimate_height_pts, "__wrapped__") else _real_estimate)
