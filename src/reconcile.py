@@ -27,7 +27,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from .config import ROOT, followup_days
+from .config import ROOT, followup_days, resume_basename
 from .db import connect, set_status
 
 APPS_DIR = ROOT / "applications"
@@ -145,7 +145,21 @@ def plan(conn: sqlite3.Connection, apps_dir: Path = APPS_DIR) -> dict:
                     f"set-status {jid} rejected|ghosted|withdrawn"
                 )
 
-    return {"db_updates": db_updates, "folder_moves": folder_moves, "unmatched": unmatched}
+    legacy = legacy_resume_names(folders)
+    return {"db_updates": db_updates, "folder_moves": folder_moves, "unmatched": unmatched,
+            "legacy_names": legacy}
+
+
+def legacy_resume_names(folders: list[tuple[str, Path]]) -> list[str]:
+    """Folders whose tailored resume carries a stem other than the current
+    `config.resume_basename()` (an earlier profile name). Reported, never renamed."""
+    current = f"{resume_basename()}.yaml"
+    out = []
+    for bucket, path in folders:
+        for f in sorted(path.glob("*Resume.yaml")):
+            if f.name != current:
+                out.append(f"{bucket}/{path.name}/{f.name}")
+    return out
 
 
 def main() -> None:
@@ -173,6 +187,11 @@ def main() -> None:
         print(f"Needs manual attention ({len(p['unmatched'])}):")
         for u in p["unmatched"]:
             print(f"  {u}")
+    if p["legacy_names"]:
+        print(f"Legacy resume file names ({len(p['legacy_names'])}), kept as they are; new drafts use "
+              f"{resume_basename()}.yaml:")
+        for n in p["legacy_names"]:
+            print(f"  {n}")
 
     if not args.apply:
         print("\nDry run. Re-run with --apply to execute.")

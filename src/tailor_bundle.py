@@ -29,7 +29,7 @@ import yaml
 from . import render_docx as rd
 from .answers_export import _slug, answers_path
 from .answers_export import render as render_answers
-from .config import ROOT, user_file
+from .config import ROOT, resume_basename, user_file
 from .db import connect
 from .dream import is_dream
 from .reconcile import APPS_DIR, find_folder
@@ -156,12 +156,13 @@ def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, di
         f"salary: {salary}",
         f"status: {job.get('status')}, match {job.get('match_score')}",
         f"dream: {'true (profile dream_rule applies)' if job['dream'] else 'false'}",
+        f"resume file: {resume_basename()}.yaml  (the name tailor_build expects in draft.md)",
     ]
     for k in ("recommendation", "location_ok", "visa_path", "missing_skills", "reasons"):
         if verdict.get(k) not in (None, "", []):
             lines.append(f"matcher {k}: {verdict[k]}")
     if curated:
-        lines += ["", "Curated (dream sheet), Santiago's own judgment; quote its priority, never recompute it:", curated.strip()]
+        lines += ["", "Curated (dream sheet), the user's own judgment; quote its priority, never recompute it:", curated.strip()]
     desc = (job.get("description") or "").strip()
     if desc and job.get("source") != "dreamsheet":
         lines += ["", "Description:", desc]
@@ -186,6 +187,17 @@ def _dossier_block(company: str, override: Path | None) -> tuple[str, dict]:
         head = (f"NOTE: dossier researched {info['researched']} ({info['age_days']} days ago, stale): "
                 "do not cite its time-sensitive facts (funding, news) as current.\n\n")
     return head + Path(info["path"]).read_text(encoding="utf-8"), {"dossier": Path(info["path"]).name, "stale": info["stale"]}
+
+
+def existing_resume(folder: Path) -> Path:
+    """The folder's tailored resume YAML: the current `<NameParts>Resume.yaml`, else a legacy
+    `*Resume.yaml` left by an earlier profile name (kept, never renamed), else the current
+    path (absent)."""
+    current = folder / f"{resume_basename()}.yaml"
+    if current.exists():
+        return current
+    legacy = sorted(p for p in folder.glob("*Resume.yaml") if p.is_file())
+    return legacy[0] if legacy else current
 
 
 def _review_block(folder: Path) -> tuple[str | None, int]:
@@ -215,7 +227,7 @@ def build_bundle(conn, job_id: int, company: str | None = None, dossier: str | N
         {"id": job["id"], "company": job["display_company"], "title": job.get("title")}, entries)
     dossier_text, dmeta = _dossier_block(job["display_company"], Path(dossier) if dossier else None)
     folder = application_folder(job_id, job["display_company"], apps_dir)
-    existing = folder / "SantiagoCoronadoResume.yaml"
+    existing = existing_resume(folder)
     review_text, n_review = _review_block(folder)
 
     parts: list[tuple[int, str]] = [

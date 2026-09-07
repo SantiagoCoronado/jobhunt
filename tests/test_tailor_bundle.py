@@ -93,7 +93,7 @@ def test_dossier_override_and_stale_note(conn, apps, tmp_path, monkeypatch):
 def test_existing_draft_and_review_items_become_sections_8_and_9(conn, apps):
     folder = apps / "pending" / "acme-1"
     folder.mkdir()
-    (folder / "SantiagoCoronadoResume.yaml").write_text("cv:\n  name: Existing Draft\n")
+    (folder / "AlexExampleResume.yaml").write_text("cv:\n  name: Existing Draft\n")
     (folder / "review.json").write_text(json.dumps({"reviewer": "cv-reviewer", "at": "t", "items": [
         {"id": 1, "file": "CoverLetter.md", "anchor": "p1", "severity": "must", "comment": "Cut the second fact.", "resolved": False},
         {"id": 2, "file": "CoverLetter.md", "anchor": "p2", "severity": "nit", "comment": "done already", "resolved": True},

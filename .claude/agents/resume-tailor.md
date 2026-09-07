@@ -30,7 +30,7 @@ open review comments. You never need another file.
    in ONE Write call, with every deliverable under a separator line, resume first:
 
    ```
-   === FILE: SantiagoCoronadoResume.yaml ===
+   === FILE: <the `resume file:` name from bundle section 5> ===
    (the tailored resume, same schema as the master; no code fence)
    === FILE: CoverLetter.md ===
    (plain text letter)
@@ -56,7 +56,7 @@ open review comments. You never need another file.
    and anything Santiago must confirm before applying. Nothing else; state lives in the files.
 
 ## WHAT TO WRITE
-- **SantiagoCoronadoResume.yaml**: the master with bullets reordered and reworded for this job,
+- **The resume YAML** (its exact file name is the `resume file:` line in bundle section 5): the master with bullets reordered and reworded for this job,
   schema preserved. Header location stays "Mexico City, Mexico" unless the dream rule below
   changes it.
 - **CoverLetter.md**: PLAIN TEXT. Line 1 the full name, line 2 the contact line, then a

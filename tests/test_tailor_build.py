@@ -14,6 +14,8 @@ from src import render_docx as _rd
 
 _real_estimate = _rd.estimate_height_pts
 
+RESUME = "AlexExampleResume.yaml"
+RESUME_DOCX = "AlexExampleResume.docx"
 NAME = "Alex Example"
 CONTACT = "Lisbon, Portugal | alex@example.com | +351-900-000-000"
 
@@ -60,7 +62,7 @@ def clean_audit(monkeypatch):
 def folder(tmp_path):
     d = tmp_path / "acme-7"
     d.mkdir()
-    (d / "SantiagoCoronadoResume.yaml").write_text(yaml.safe_dump(small_resume(), allow_unicode=True, sort_keys=False))
+    (d / RESUME).write_text(yaml.safe_dump(small_resume(), allow_unicode=True, sort_keys=False))
     (d / "CoverLetter.md").write_text(letter())
     (d / "match_report.md").write_text("# Match report\n\nGaps: none.\n")
     (d / "answers.md").write_text("## Why Acme?\nBecause of the product.\n")
@@ -73,7 +75,7 @@ JOB = {"id": 7, "company": "Acme", "dream": False}
 def test_green_build_writes_build_and_state(folder):
     v = tb.build(folder, job=JOB, no_pdf=True)
     assert v.ok, v.failures
-    assert (folder / "SantiagoCoronadoResume.docx").exists()
+    assert (folder / RESUME_DOCX).exists()
     assert (folder / "CoverLetter.docx").exists()
     doc = json.loads((folder / "build.json").read_text())
     assert doc["ok"] is True and doc["stage"] == "tailor" and doc["job_id"] == 7
@@ -84,9 +86,9 @@ def test_green_build_writes_build_and_state(folder):
 
 
 def test_split_draft_writes_allowed_files_and_removes_draft(folder):
-    (folder / "SantiagoCoronadoResume.yaml").unlink()
+    (folder / RESUME).unlink()
     (folder / "CoverLetter.md").unlink()
-    draft = ("=== FILE: SantiagoCoronadoResume.yaml ===\n"
+    draft = (f"=== FILE: {RESUME} ===\n"
              + yaml.safe_dump(small_resume(), allow_unicode=True, sort_keys=False)
              + "=== FILE: CoverLetter.md ===\n" + letter()
              + "=== FILE: match_report.md ===\n# report\n")
@@ -95,7 +97,7 @@ def test_split_draft_writes_allowed_files_and_removes_draft(folder):
     assert v.ok, v.failures
     assert not (folder / "draft.md").exists()
     assert (folder / "CoverLetter.md").read_text().startswith(NAME)
-    assert v.metrics["split"] == ["SantiagoCoronadoResume.yaml", "CoverLetter.md", "match_report.md"]
+    assert v.metrics["split"] == [RESUME, "CoverLetter.md", "match_report.md"]
 
 
 def test_split_rejects_unknown_file_name(folder):
@@ -146,14 +148,14 @@ def test_letter_without_re_line_fails(folder):
 
 def test_dream_header_without_relocation_line_fails(folder):
     res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
-    (folder / "SantiagoCoronadoResume.yaml").write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
+    (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
     assert not v.ok and any(relocation_line() in f for f in v.failures)
 
 
 def test_dream_relocation_line_matches_header(folder):
     res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
-    (folder / "SantiagoCoronadoResume.yaml").write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
+    (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
     assert v.ok, v.failures
@@ -178,7 +180,7 @@ def test_overflow_at_level_3_fails(folder, monkeypatch):
     res = small_resume()
     long_bullet = "Shipped a feature that mattered to customers and measured the outcome honestly across teams. " * 3
     res["cv"]["sections"]["experience"][0]["highlights"] = [long_bullet] * 30
-    (folder / "SantiagoCoronadoResume.yaml").write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
+    (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     v = tb.build(folder, job=JOB, no_pdf=True)
     assert not v.ok and any("fit level 3" in f for f in v.failures)
     assert v.metrics["fit_level"] == 3
@@ -194,7 +196,7 @@ def test_audit_findings_warn_then_fail(folder, monkeypatch):
 
 
 def test_broken_yaml_fails_cleanly(folder):
-    (folder / "SantiagoCoronadoResume.yaml").write_text("cv: [unclosed\n")
+    (folder / RESUME).write_text("cv: [unclosed\n")
     v = tb.build(folder, job=JOB, no_pdf=True)
     assert not v.ok and "does not parse" in v.failures[0]
 
@@ -202,7 +204,7 @@ def test_broken_yaml_fails_cleanly(folder):
 def test_review_items_tracked_and_resolved_by_response(folder):
     review = {"reviewer": "cv-reviewer", "at": "2026-09-03T00:00:00Z", "items": [
         {"id": 1, "file": "CoverLetter.md", "anchor": "p2", "severity": "must", "comment": "hook repeats", "resolved": False},
-        {"id": 2, "file": "SantiagoCoronadoResume.yaml", "anchor": "experience/0", "severity": "nit", "comment": "tighten", "resolved": False},
+        {"id": 2, "file": RESUME, "anchor": "experience/0", "severity": "nit", "comment": "tighten", "resolved": False},
     ]}
     (folder / "review.json").write_text(json.dumps(review))
     v = tb.build(folder, job=JOB, no_pdf=True, strict_review=True)
@@ -235,7 +237,7 @@ def test_failures_and_warnings_print_in_verdict_lines(folder):
     assert any(ln.startswith("FAIL") and "match_report.md:2" in ln for ln in v.lines)
     res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
     (folder / "match_report.md").write_text("clean\n")
-    (folder / "SantiagoCoronadoResume.yaml").write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
+    (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
     assert any(ln.startswith("LETTER") and ln.rstrip().endswith("FAIL") for ln in v.lines)
     assert any(ln.startswith("FAIL") and "relocation_line" in ln for ln in v.lines)
@@ -251,14 +253,14 @@ def test_underfill_at_level_0_is_a_failure_with_free_lines(folder, monkeypatch):
 
 
 def test_split_strips_code_fences(folder):
-    (folder / "SantiagoCoronadoResume.yaml").unlink()
-    draft = ("=== FILE: SantiagoCoronadoResume.yaml ===\n```yaml\n"
+    (folder / RESUME).unlink()
+    draft = (f"=== FILE: {RESUME} ===\n```yaml\n"
              + yaml.safe_dump(small_resume(), allow_unicode=True, sort_keys=False)
              + "```\n=== FILE: CoverLetter.md ===\n```\n" + letter() + "```\n")
     (folder / "draft.md").write_text(draft)
     v = tb.build(folder, job=JOB, no_pdf=True)
     assert v.ok, v.failures
-    assert not (folder / "SantiagoCoronadoResume.yaml").read_text().startswith("```")
+    assert not (folder / RESUME).read_text().startswith("```")
 
 
 def test_non_us_dream_row_rejects_tn_line_and_wants_visa_note(folder):

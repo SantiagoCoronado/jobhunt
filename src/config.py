@@ -42,6 +42,24 @@ def load_profile() -> dict:
     return load_yaml(user_file("profile"))
 
 
+def resume_basename(name: str | None = None) -> str:
+    """`<NameParts>Resume`, the stem of every tailored deliverable (docs/spec-open-source.md
+    decision 5): NFKD fold to ASCII, keep letters and digits only, join the name parts in
+    order, append `Resume`; an empty result falls back to `Resume`.
+    "Zoë O'Brien-Smith" gives "ZoeOBrienSmithResume". The name defaults to profile.name."""
+    import re
+    import unicodedata
+
+    if name is None:
+        try:
+            name = str(load_profile().get("name") or "")
+        except FileNotFoundError:
+            name = ""
+    folded = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()
+    stem = "".join(re.sub(r"[^A-Za-z0-9]", "", part) for part in folded.split())
+    return f"{stem}Resume"
+
+
 # ---- sources: tracked mechanics + ignored targeting ------------------------------------
 #
 # config/sources.yaml (tracked) carries adapter mechanics only: endpoints, page sizes,
@@ -223,3 +241,20 @@ def get_secret(key: str, default: str | None = None) -> str | None:
     if val:
         return val
     return load_env().get(key, default)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`python -m src.config resume-basename` prints the deliverable stem for shell scripts."""
+    import argparse
+
+    ap = argparse.ArgumentParser(description="jobhunt config helpers")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("resume-basename", help="print <NameParts>Resume from profile.name")
+    args = ap.parse_args(argv)
+    if args.cmd == "resume-basename":
+        print(resume_basename())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

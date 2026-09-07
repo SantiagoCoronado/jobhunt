@@ -22,7 +22,7 @@ Tailor my application for job id **$ARGUMENTS**.
    Dream: <yes/no>. Reply in at most 80 words.`
    The agent reads the bundle once, writes `<folder>/draft.md` once, runs
    `python -m src.tailor_build <folder>` once (plus at most one fix round), and replies.
-   Deliverables: `SantiagoCoronadoResume.{yaml,docx,pdf}`, `CoverLetter.{md,docx,pdf}`,
+   Deliverables: `<NameParts>Resume.{yaml,docx,pdf}` (stem from `profile.name`, printed in the bundle), `CoverLetter.{md,docx,pdf}`,
    `match_report.md`, `answers.md`, plus `build.json` and `state.json` for the record.
 
 3. **Summarize** from the agent's reply. If it lacks the fill line, run
