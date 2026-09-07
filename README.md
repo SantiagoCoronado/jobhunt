@@ -39,7 +39,7 @@ pip install -r requirements.txt
 #    config/profile.yaml, target roles, real skills, locations, salary floor
 #    resume/master_resume.yaml, your master resume (RenderCV schema)
 #    config/sources.yaml, add Greenhouse/Lever/Ashby tokens for target companies
-cp config/notify.yaml.example config/notify.yaml   # optional: Telegram/ntfy/email digest
+cp config/notify.example.yaml config/notify.yaml   # optional: Telegram/ntfy/email digest
 ```
 
 ## Daily use

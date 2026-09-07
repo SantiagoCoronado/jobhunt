@@ -1,0 +1,127 @@
+# Your target profile. The matcher scores every job against this file, the triage rubric
+# reads its dealbreakers, the tailor cites its rules verbatim. Copy to `profile.yaml`
+# (`python -m src.init` does it) and replace every value; the person below is invented.
+#
+# Every key is read by code. Comments say who reads it.
+
+name: "Alex Example"
+
+# Titles you would apply for. Drives the keyword prescore and the title gate in discovery
+# (`config/sources.yaml` title_filter appends these words to its generic base list).
+target_titles:
+  - "Full-Stack Engineer"
+  - "Software Engineer"
+  - "Product Engineer"
+  - "Frontend Engineer"
+  - "Front-End Engineer"
+  - "React Engineer"
+  - "Web Engineer"
+  - "TypeScript Engineer"
+
+seniority: "mid to senior"    # free text; the matcher reads it when judging seniority fit
+
+# Skills you can defend in an interview. Drive the keyword prescore and the honest gap
+# analysis (`python -m src.gaps`). Lowercase, one per line.
+must_have_skills:
+  - typescript
+  - javascript
+  - react
+  - node.js
+  - postgresql
+  - rest apis
+  - sql
+  - git
+nice_to_have_skills:
+  - next.js
+  - vite
+  - tailwind
+  - graphql
+  - docker
+  - aws
+  - testing library
+  - playwright
+  - accessibility
+  - design systems
+
+# Hard filters. Human-readable; the matcher applies `location_rule` below, not this list.
+locations:
+  - Remote (EU)
+  - Remote (worldwide)
+  - Hybrid Lisbon
+  - Lisbon
+  - Portugal
+timezones:
+  - "Any if fully remote; hybrid must be Lisbon (WET/WEST)"
+
+# THE shortlist cutoff: `match ingest` and the notify digest read this. 0 to 100.
+shortlist_threshold: 70
+
+# THE authoritative compensation block. Agents defer here; no other file restates it.
+# Postings quote different periods and currencies. Normalize before comparing anything:
+# a USD figure under 20,000 is a MONTHLY rate, multiply by 12.
+comp:
+  target_usd: 85000             # annual base you anchor on for remote roles
+  min_usd: 60000                # walk-away floor for remote roles
+  min_usd_latam_scope: 60000    # floor for roles priced for a cheaper region (kept separate on purpose)
+  quote_period: annual          # never quote monthly, never quote net
+  band_rule: >
+    When the posted band is known, anchor at or above its midpoint and never quote below
+    its floor; the band overrides target_usd.
+  contractor_note: >
+    Contractor arrangements sit above the equivalent employee salary because they absorb
+    benefits and self-paid contributions. Never convert an employee figure to a contractor
+    rate by tax gross-up alone.
+
+# THE authoritative location rule. Agents cite this verbatim; no other file may restate it.
+# Write it as instructions to a recruiter judging one posting.
+location_rule: >
+  The candidate lives in Lisbon and will not relocate. OK: fully remote, hired from
+  Portugal; remote roles scoped to the EU or worldwide; Lisbon on-site or hybrid; remote
+  roles with occasional travel. DEALBREAKER (cap the score at 25): any role that REQUIRES a
+  work location outside Portugal, on-site or hybrid, and remote roles that exclude
+  Portugal-based candidates (country-locked elsewhere, "US only"). Judge the REQUIREMENT,
+  not the office address: a role headquartered in Berlin that hires remotely from Portugal
+  is fine; the same role requiring in-office days is not.
+
+# Triage drops on these only when the posting states them plainly (keep-on-doubt).
+dealbreakers:
+  - "on-site or hybrid required anywhere outside Portugal"
+  - "unpaid"
+  - "annualized base shown and below comp.min_usd_latam_scope"   # annualize first
+  - "requires citizenship of a specific country"
+
+# Dream companies: constraints waived, honesty kept (see dream_rule). `src/dream.py` matches
+# the `match` aliases against the posting's company on word boundaries. The entry below is
+# invented so a fresh clone waives nothing by accident; replace it with real companies.
+dream_companies:
+  - {name: "Example Robotics", match: [example robotics, examplerobotics]}
+
+# THE authoritative dream-company rule. Agents cite this verbatim; no other file restates it.
+dream_rule: >
+  For a job at a dream company (dream_companies above; exported rows carry `dream: true`)
+  the constraints are WAIVED and the honesty is NOT. Waived: location_rule (the candidate
+  is open to relocating for these companies when the employer sponsors the visa), the comp
+  floors, and the on-site/hybrid dealbreaker. Do NOT cap or penalize the score for location
+  or pay: score on fit alone, set `location_ok:false` when the role requires presence
+  elsewhere, and add a one-line `visa_path`. STILL HARD BLOCKS (cap at 25, triage drop):
+  citizenship-only requirements and active security clearance. Fit is still scored
+  honestly: a stretch role at a dream company still says so.
+
+# The one relocation sentence application text may use for a dream-company role that
+# requires presence elsewhere. Plain voice; the tailor copies it, never rewrites it.
+relocation_line: "I am based in Lisbon and open to relocating for this role with employer-sponsored visa support."
+
+# Shortlist cutoff for dream-company rows. Lower on purpose.
+dream_shortlist_threshold: 60
+
+# Free text the matcher reads for framing: what you are strongest at, what is a domain angle
+# rather than a role family, what to weight, what to ignore. Keep it in the third person.
+notes: >
+  Mid-level full-stack engineer based in Lisbon, strongest on the frontend: four years of
+  React and TypeScript in production, two of them owning a design system used by three
+  product teams. Comfortable across the stack (Node, PostgreSQL, REST) and prefers product
+  teams that ship weekly. Fintech is a domain angle, not a role family: two years at a
+  payments startup count as a positive for fintech postings, but roles that require a
+  finance degree or a licence stay off-target. Do not penalize a Product Engineer title as
+  "not engineering". Bilingual (PT/EN). Salary rule: the `comp` block above is the single
+  authority; annualize before judging and keep unlisted-pay roles in play.

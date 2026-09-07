@@ -16,7 +16,7 @@ pip install --upgrade pip >/dev/null
 pip install -r requirements.txt
 
 if [ ! -f config/notify.yaml ]; then
-  cp config/notify.yaml.example config/notify.yaml
+  cp config/notify.example.yaml config/notify.yaml
   echo "== Created config/notify.yaml from the example (git-ignored)."
   echo "   Add your Gmail app password there to enable the email digest. =="
 fi
