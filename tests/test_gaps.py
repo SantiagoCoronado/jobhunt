@@ -108,6 +108,6 @@ def test_real_lexicon_and_profile_load(conn):
     lex = Lexicon.load()
     covered = profile_covered(lex)
     assert len(lex.entries) >= 60
-    assert "react" in covered and "python" in covered
+    assert "react" in covered and "typescript" in covered
     out = fleet_gaps(conn, lex, covered)   # empty DB: shape holds
     assert out["jobs_scanned"] == 0 and out["matcher_missing"] == []

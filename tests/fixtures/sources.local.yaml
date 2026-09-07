@@ -1,0 +1,67 @@
+# Your targeting on top of config/sources.yaml. Copy to `sources.local.yaml`
+# (`python -m src.init` does it) and uncomment what you want; the file is git-ignored.
+#
+# How it merges (src/config.py `sources()`): each top-level key here is one source block from
+# config/sources.yaml. Lists REPLACE the tracked list, scalars OVERRIDE the tracked value,
+# a source name that does not exist in sources.yaml is ADDED as a new block.
+#
+# Everything below is commented out on purpose. An unedited copy searches nowhere: a source
+# with no targeting keys prints a hint and yields nothing. The values shown are for an
+# invented candidate in Lisbon; replace them with yours.
+
+# ---- ATS boards of companies you follow (highest-signal listings) --------------------
+# greenhouse:
+#   tokens: [examplecorp, ledgerly]          # https://boards.greenhouse.io/<token>
+#   names: {examplecorp: "Example Corp"}     # display name when the token is not the name
+# lever:
+#   companies: [examplecorp]                 # https://jobs.lever.co/<company>
+# ashby:
+#   clients: [examplecorp]                   # https://jobs.ashbyhq.com/<client>
+# smartrecruiters:
+#   companies: [ExampleCorp]
+# workday:
+#   sites: []                                # see the workday block in sources.yaml for the shape
+
+# ---- Geography and queries for the aggregators ----------------------------------------
+# adzuna:                                    # needs ADZUNA_APP_ID / ADZUNA_APP_KEY in .env
+#   countries: [gb, de, nl]                  # Adzuna country codes
+#   queries: [frontend engineer, full stack engineer, react developer]
+#   country_queries: {gb: [typescript engineer]}   # per-country extras, optional
+# careerjet:                                 # needs CAREERJET_AFFID in .env
+#   locale_code: en_GB
+#   location: Remote
+#   keywords: [frontend engineer, full stack engineer]
+# getonbrd:
+#   queries: [frontend, react, typescript]
+# torre:
+#   queries: [frontend engineer, full stack engineer, react]
+# findwork:                                  # needs FINDWORK_TOKEN in .env
+#   search: [frontend, react, typescript]
+# themuse:
+#   locations: ["Flexible / Remote", "Lisbon, Portugal"]
+#   categories: ["Software Engineering"]
+# softserve:
+#   countries: [Portugal, Spain]
+# jobicy:
+#   tags: [frontend, javascript, react, typescript]
+
+# ---- Extra title words for the discovery gate (appended to the profile-derived list) ----
+# title_filter:
+#   include_extra: [product engineer, ui engineer]
+
+# ---- Dream-company boards (off in sources.yaml; turn on and point at the company) --------
+# teamtailor:
+#   enabled: true
+#   companies: [examplecorp]
+# pinpoint:
+#   enabled: true
+#   companies: [examplecorp]
+# rippling:
+#   enabled: true
+#   companies: [examplecorp]
+
+# ---- Hand-curated dream sheet (optional, a private Google Sheet read by /jh-discover) ----
+# dreamsheet:
+#   enabled: true
+#   file_id: "<google sheet file id>"
+#   path: data/dream_sheet.md

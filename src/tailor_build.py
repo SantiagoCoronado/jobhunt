@@ -31,13 +31,40 @@ import yaml
 
 from . import render_docx as rd
 from .db import connect
+from .config import resume_basename
 from .dream import is_dream, relocation_line
 from .reconcile import folder_job_id
 from .render_cover_letter import render as render_letter
 from .tailor_state import update_state
 
-ALLOWED_FILES = ("SantiagoCoronadoResume.yaml", "CoverLetter.md", "match_report.md", "answers.md", "review_response.md")
-REQUIRED_FILES = ("SantiagoCoronadoResume.yaml", "CoverLetter.md", "match_report.md")
+
+
+def resume_file() -> str:
+    """`<NameParts>Resume.yaml`, from profile.name (config.resume_basename)."""
+    return f"{resume_basename()}.yaml"
+
+
+def legacy_deliverables(folder: Path) -> list[str]:
+    """Deliverables in the folder left under an earlier `profile.name` stem. The build writes
+    and renders under the current one, so these stay behind holding older content, and
+    scripts/export_pdf.sh regenerates their PDFs too: a human picking a file out of the
+    folder can attach the stale resume. Named, never deleted (the tailor owns the folder)."""
+    stem = resume_basename()
+    return sorted(
+        p.name
+        for p in folder.glob("*Resume.*")
+        if p.is_file() and p.suffix.lower() in (".yaml", ".yml", ".docx", ".pdf") and p.stem != stem
+    )
+
+
+def allowed_files() -> tuple[str, ...]:
+    return (resume_file(), "CoverLetter.md", "match_report.md", "answers.md", "review_response.md")
+
+
+def required_files() -> tuple[str, ...]:
+    return (resume_file(), "CoverLetter.md", "match_report.md")
+
+
 SPLIT_RE = re.compile(r"^=== FILE: ([A-Za-z0-9_.-]+) ===\s*$")
 EMDASH = "\u2014"  # the em-dash, written as an escape so this file itself stays free of it
 LETTER_MIN, LETTER_MAX = 220, 280
@@ -89,8 +116,8 @@ def split_draft(folder: Path, keep: bool = False) -> list[str]:
         m = SPLIT_RE.match(line)
         if m:
             current = m.group(1)
-            if current not in ALLOWED_FILES:
-                raise BuildError(f"draft.md names an unknown file {current!r}; allowed: {', '.join(ALLOWED_FILES)}")
+            if current not in allowed_files():
+                raise BuildError(f"draft.md names an unknown file {current!r}; allowed: {', '.join(allowed_files())}")
             parts.setdefault(current, [])
             continue
         if current is not None:
@@ -356,9 +383,15 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     written = split_draft(folder, keep_draft)
     if written:
         v.metrics["split"] = written
-    missing = [f for f in REQUIRED_FILES if not (folder / f).exists()]
+    missing = [f for f in required_files() if not (folder / f).exists()]
     if missing:
         raise BuildError(f"missing {', '.join(missing)}")
+    legacy = legacy_deliverables(folder)
+    if legacy:
+        v.metrics["legacy_deliverables"] = legacy
+        v.warnings.append(f"{len(legacy)} deliverable(s) under an earlier name stem, not rebuilt "
+                          f"and not the ones to send: {', '.join(legacy)}. Delete them or keep "
+                          f"only {resume_file()}")
 
     # ---- text checks
     hits = _emdash_hits(folder)
@@ -383,13 +416,13 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     if not (LETTER_MIN <= letter["body_words"] <= LETTER_MAX):
         v.failures.append(f"CoverLetter.md body is {letter['body_words']} words; must be {LETTER_MIN}-{LETTER_MAX}")
 
-    ypath = folder / "SantiagoCoronadoResume.yaml"
+    ypath = folder / resume_file()
     try:
         data = yaml.safe_load(ypath.read_text(encoding="utf-8"))
     except yaml.YAMLError as e:
-        raise BuildError(f"SantiagoCoronadoResume.yaml does not parse: {str(e).splitlines()[0]}") from e
+        raise BuildError(f"{ypath.name} does not parse: {str(e).splitlines()[0]}") from e
     if not isinstance(data, dict) or "cv" not in data or not isinstance(data["cv"].get("sections"), dict):
-        raise BuildError("SantiagoCoronadoResume.yaml needs a top-level `cv:` with `sections:`")
+        raise BuildError(f"{ypath.name} needs a top-level `cv:` with `sections:`")
 
     # ---- dream checks
     header_loc = str(data["cv"].get("location") or "")

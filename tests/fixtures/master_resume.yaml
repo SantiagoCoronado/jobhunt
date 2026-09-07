@@ -1,0 +1,86 @@
+# MASTER RESUME: single source of truth for every tailored version. Everything in it must be
+# TRUE. The resume-tailor agent copies this per job and trims or reorders; it never invents.
+# Copy to `master_resume.yaml` (`python -m src.init` does it) and replace every line; the
+# person below is invented. Render a check copy with:
+#   python -m src.render_docx resume/master_resume.yaml --pdf
+#
+# Schema: `cv.name`, `cv.location`, `cv.email`, `cv.phone`, `cv.social_networks`, then
+# `cv.sections` with summary, experience, projects, skills, education, additional. Section
+# names are what `src/render_docx.py` prints as headings; keep them.
+
+cv:
+  name: Alex Example
+  location: Lisbon, Portugal
+  email: alex@example.com
+  phone: "+351-900-000-000"
+  social_networks:
+    - network: LinkedIn
+      username: alexexample
+  sections:
+    summary:
+      - "Full-stack engineer with five years shipping web products in TypeScript, strongest on the frontend: owned a React design system used by three product teams, built the checkout flow of a payments startup from the first commit, and pairs hands-on engineering with close work with designers and product managers."
+
+    experience:
+      - company: Ledgerly
+        position: Software Engineer
+        start_date: 2023-04
+        end_date: present
+        location: Lisbon, PT
+        highlights:
+          - "Built the merchant checkout flow (React 18, TypeScript, Node.js on PostgreSQL) used by 400+ merchants, taking it from prototype to production in four months with a 99.9% monthly availability target met every quarter since."
+          - "Owned the component library (Radix UI primitives, CSS-variable tokens, light and dark themes) adopted by three product teams, cutting new-screen delivery time from about a week to two days."
+          - "Introduced Playwright end-to-end tests for the five revenue-critical flows and a Vitest suite of 300+ unit tests, which caught two regressions before release in the first quarter."
+          - "Worked directly with two designers and a product manager in weekly discovery sessions, turning customer interviews into shipped features within the same sprint."
+
+      - company: Brightpath Studio
+        position: Frontend Developer
+        start_date: 2021-02
+        end_date: 2023-03
+        location: Remote (EU)
+        highlights:
+          - "Delivered eleven client websites and two web apps in React and Next.js for an agency of eight, including a booking platform handling 2,000 reservations a month."
+          - "Raised Lighthouse performance scores from the 50s to 90+ on the agency's template through code splitting, image optimization and font loading fixes."
+          - "Set up the agency's shared ESLint, Prettier and CI configuration, removing a recurring class of merge conflicts."
+
+      - company: Universidade de Lisboa (student job)
+        position: Web Developer
+        start_date: 2019-09
+        end_date: 2021-01
+        location: Lisbon, PT
+        highlights:
+          - "Maintained the faculty's internal course-registration site (PHP, JavaScript, MySQL) and rebuilt its schedule view in React, used by 3,000 students each semester."
+
+    projects:
+      - name: "Shelfmate (open-source reading tracker)"
+        date: "2025"
+        highlights:
+          - "Built and open-sourced a reading tracker with a Next.js frontend, a Node.js API and PostgreSQL, with OAuth sign-in, offline-first syncing through a service worker, and 120 Vitest tests; 80 GitHub stars."
+      - name: "Lisbon Transit Widget"
+        date: "2024"
+        highlights:
+          - "Shipped a macOS menu-bar widget in Electron and TypeScript showing live departures from the city transit API, with a 2,000-download first month."
+
+    skills:
+      - label: "Frontend"
+        details: "React 18, TypeScript, Next.js, Vite, Tailwind CSS, Radix UI, Design Systems and Design Tokens, Accessibility (WCAG 2.1), Responsive Design; Testing: Playwright (E2E), Vitest, Testing Library"
+      - label: "Backend & Cloud"
+        details: "Node.js, Express, PostgreSQL, Prisma, REST APIs, GraphQL, Docker, AWS (ECS, RDS), Vercel, GitHub Actions"
+      - label: "Product & Collaboration"
+        details: "Discovery with designers and product managers, Agile delivery, Code review, Technical writing, Mentoring juniors"
+
+    education:
+      - institution: Universidade de Lisboa
+        area: Computer Science
+        degree: BSc
+        location: Lisbon, PT
+        start_date: 2017-09
+        end_date: 2020-07
+
+    additional:
+      - label: "Languages"
+        details: "Portuguese (Native), English (Fluent), Spanish (Conversational)"
+      - label: "Work Authorization"
+        details: "EU citizen (Portugal), no sponsorship needed in the EU"
+
+design:
+  theme: engineeringresumes

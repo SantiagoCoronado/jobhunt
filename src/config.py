@@ -7,22 +7,212 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 
+# The user-owned files (docs/spec-open-source.md decision 3): git-ignored, created from the
+# tracked `*.example.*` by `python -m src.init`. Every loader resolves them through this table
+# at call time, so tests point it at tests/fixtures/ and never read a real person's data.
+USER_FILES: dict[str, Path] = {
+    "profile": CONFIG_DIR / "profile.yaml",
+    "notify": CONFIG_DIR / "notify.yaml",
+    "sources_local": CONFIG_DIR / "sources.local.yaml",
+    "master_resume": ROOT / "resume" / "master_resume.yaml",
+    "answers": ROOT / "resume" / "answers.yaml",
+}
 
-def load_yaml(name: str) -> dict:
+
+def user_file(key: str) -> Path:
+    """Path of one user-owned file by logical name (see USER_FILES)."""
+    return USER_FILES[key]
+
+
+def load_yaml(name: str | Path) -> dict:
     import yaml  # PyYAML
 
-    path = CONFIG_DIR / name if not name.startswith("/") else Path(name)
+    if isinstance(name, Path):
+        path = name
+    else:
+        path = CONFIG_DIR / name if not name.startswith("/") else Path(name)
     if not path.exists():
         raise FileNotFoundError(f"Missing config: {path}. Copy the .example and edit it.")
     with open(path) as f:
         return yaml.safe_load(f) or {}
 
 
+def load_profile() -> dict:
+    """config/profile.yaml (or the test fixture): the single authority on what a fit is."""
+    return load_yaml(user_file("profile"))
+
+
+def resume_basename(name: str | None = None) -> str:
+    """`<NameParts>Resume`, the stem of every tailored deliverable (docs/spec-open-source.md
+    decision 5): NFKD fold to ASCII, keep letters and digits only, join the name parts in
+    order, append `Resume`; an empty result falls back to `Resume`.
+    "Zoë O'Brien-Smith" gives "ZoeOBrienSmithResume". The name defaults to profile.name; a
+    `resume_basename:` key in the profile overrides the stem (same normalization, `Resume`
+    appended once), for a shorter form of a long name."""
+    import re
+    import unicodedata
+
+    def fold(text: str) -> str:
+        ascii_text = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode()
+        return "".join(re.sub(r"[^A-Za-z0-9]", "", part) for part in ascii_text.split())
+
+    if name is None:
+        try:
+            prof = load_profile()
+        except FileNotFoundError:
+            prof = {}
+        override = fold(str(prof.get("resume_basename") or ""))
+        if override:
+            return override if override.endswith("Resume") else f"{override}Resume"
+        name = str(prof.get("name") or "")
+    return f"{fold(name)}Resume"
+
+
+# ---- sources: tracked mechanics + ignored targeting ------------------------------------
+#
+# config/sources.yaml (tracked) carries adapter mechanics only: endpoints, page sizes,
+# `enabled:`, field mappings, and the generic-engineering base of the title gate.
+# config/sources.local.yaml (ignored, example tracked) carries the user's targeting: ATS
+# tokens, countries, locales, query lists, dream boards, extra title words. `sources()` merges
+# them per source block: a list or dict in the local file REPLACES the tracked one, a scalar
+# OVERRIDES it, a source that only exists locally is ADDED. docs/spec-open-source.md decision 4.
+
+# Words that carry no role family at all: grammar, seniority, and posting format. Dropped
+# from every title, and never the reason a title yields no gate words.
+_TITLE_NOISE = frozenset({
+    "and", "or", "of", "the", "a", "an", "for", "in", "to", "with", "at", "on",
+    "senior", "sr", "jr", "junior", "staff", "principal", "associate",
+    "ii", "iii", "iv", "intern", "internship", "remote", "roles", "role",
+})
+
+# Title words that say nothing about the role family on their own (the generic base list
+# already covers the engineering nouns); dropped when deriving gate words from the profile.
+_TITLE_STOP = _TITLE_NOISE | frozenset({
+    "engineer", "engineers", "engineering", "developer", "developers", "development",
+    "lead", "head", "director", "manager", "management", "product", "products",
+    "program", "project", "technical", "specialist", "analyst",
+})
+
+
+def title_words(titles: list[str]) -> list[str]:
+    """Gate words derived from title strings: every cleaned multi-word phrase plus every
+    word not in the stop list. "Software Engineer (AI products)" gives ["software"];
+    "Deployment Strategist" gives ["deployment strategist", "deployment", "strategist"].
+    Order is first-seen, no duplicates.
+
+    A title made entirely of stop words never yields nothing: "Product Manager" would leave
+    no gate words at all and drop that user's whole role family at discovery, so such a
+    phrase falls back to the narrower noise list and gives
+    ["product manager", "product", "manager"]."""
+    import re
+
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(w: str) -> None:
+        if w and w not in seen:
+            seen.add(w)
+            out.append(w)
+
+    for raw in titles:
+        text = re.sub(r"\([^)]*\)", " ", str(raw)).lower()
+        for phrase in re.split(r"\s*(?:/|,|\bor\b)\s*", text):
+            words = [w for w in re.split(r"[^a-z0-9.+#-]+", phrase) if w]
+            kept = [w for w in words if w not in _TITLE_STOP and len(w) > 1]
+            if not kept:
+                kept = [w for w in words if w not in _TITLE_NOISE and len(w) > 1]
+            if len(kept) >= 2:
+                add(" ".join(kept))
+            for w in kept:
+                add(w)
+    return out
+
+
+def merge_sources(base: dict, local: dict | None) -> dict:
+    """Per-source deep merge: lists and dicts replace, scalars override, new sources add."""
+    out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in (base or {}).items()}
+    for name, block in (local or {}).items():
+        if not isinstance(block, dict):
+            out[name] = block
+            continue
+        target = out.get(name)
+        if not isinstance(target, dict):
+            out[name] = dict(block)
+            continue
+        for key, val in block.items():
+            target[key] = val
+    return out
+
+
+def sources(profile: dict | None = None) -> dict:
+    """The merged source config with `title_filter.include` computed: the tracked base list,
+    then words from the profile's `target_titles` and `role_families[].titles`, then the
+    local file's `title_filter.include_extra`. Callers never read sources.yaml directly."""
+    base = load_yaml("sources.yaml")
+    local_path = user_file("sources_local")
+    local = load_yaml(local_path) if local_path.exists() else {}
+    merged = merge_sources(base, local)
+    tf = dict(merged.get("title_filter") or {})
+    include = list(tf.get("include") or [])
+    if profile is None:
+        try:
+            profile = load_profile()
+        except FileNotFoundError:
+            profile = {}
+    titles = [str(t) for t in (profile.get("target_titles") or [])]
+    for fam in profile.get("role_families") or []:
+        if isinstance(fam, dict):
+            titles += [str(t) for t in (fam.get("titles") or [])]
+    extra = list(((local.get("title_filter") or {}).get("include_extra")) or [])
+    seen = {str(w).lower() for w in include}
+    for w in title_words(titles) + [str(w).lower() for w in extra]:
+        if w not in seen:
+            seen.add(w)
+            include.append(w)
+    tf["include"] = include
+    tf.pop("include_extra", None)
+    merged["title_filter"] = tf
+    return merged
+
+
+# Sources that do nothing useful without the user's targeting (docs/spec-open-source.md
+# decision 4): `discover` skips an enabled source whose targeting is missing or empty and
+# prints one hint naming config/sources.local.yaml.
+#
+# One entry per source, listing the groups of keys it needs. A group holds the keys the
+# adapter accepts interchangeably (`adzuna` reads `countries:` or singular `country:`) or
+# the independent filters any one of which targets the source (`themuse` narrows by
+# location, by category, or by both). A group is satisfied when any of its keys is set, and
+# a source counts as targeted once every group is satisfied, so `careerjet`, which raises
+# without both, keeps needing `locale_code:` and `location:`.
+TARGETING_KEYS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "greenhouse": (("tokens",),), "lever": (("companies",),), "ashby": (("clients",),),
+    "workable": (("accounts",),), "recruitee": (("companies",),),
+    "smartrecruiters": (("companies",),), "personio": (("companies",),),
+    "bamboohr": (("companies",),), "workday": (("sites",),), "consider": (("boards",),),
+    "teamtailor": (("companies",),), "pinpoint": (("companies",),),
+    "rippling": (("companies",),), "dreamsheet": (("file_id",),),
+    "adzuna": (("countries", "country"),), "careerjet": (("locale_code",), ("location",)),
+    "getonbrd": (("queries",),), "torre": (("queries",),), "findwork": (("search",),),
+    "themuse": (("locations", "location", "categories"),), "softserve": (("countries",),),
+}
+
+
+def missing_targeting(name: str, cfg: dict) -> tuple[str, ...]:
+    """The targeting a source needs that its merged block leaves absent or empty: one entry
+    per unsatisfied key group, alternatives joined by `|` for the hint discover prints."""
+    return tuple(
+        "|".join(group)
+        for group in TARGETING_KEYS.get(name, ())
+        if not any(cfg.get(k) for k in group)
+    )
+
+
 def notify_setting(key: str, default):
     """Read one key from config/notify.yaml; falls back to default if the file
     is absent (it is gitignored, so fresh clones won't have it)."""
     try:
-        return load_yaml("notify.yaml").get(key, default)
+        return load_yaml(user_file("notify")).get(key, default)
     except FileNotFoundError:
         return default
 
@@ -40,7 +230,7 @@ def shortlist_threshold() -> int:
     """The one shortlist cutoff (profile.yaml: shortlist_threshold, default 70).
     match ingest and the notify digest both read THIS; nothing hardcodes 70."""
     try:
-        raw = load_yaml("profile.yaml").get("shortlist_threshold", 70)
+        raw = load_profile().get("shortlist_threshold", 70)
     except FileNotFoundError:
         return 70
     try:
@@ -85,3 +275,20 @@ def get_secret(key: str, default: str | None = None) -> str | None:
     if val:
         return val
     return load_env().get(key, default)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`python -m src.config resume-basename` prints the deliverable stem for shell scripts."""
+    import argparse
+
+    ap = argparse.ArgumentParser(description="jobhunt config helpers")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("resume-basename", help="print <NameParts>Resume from profile.name")
+    args = ap.parse_args(argv)
+    if args.cmd == "resume-basename":
+        print(resume_basename())
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

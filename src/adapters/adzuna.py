@@ -21,7 +21,9 @@ def fetch(cfg: dict) -> list[Job]:
     # `countries:` (a list) supersedes the older single `country:`; Mexico for
     # local roles, US for USD-priced remote roles that hire from Mexico. Adzuna
     # allows ~250 calls/day, so keep countries x queries x pages under that.
-    countries = cfg.get("countries") or [cfg.get("country") or "mx"]
+    countries = cfg.get("countries") or ([cfg["country"]] if cfg.get("country") else [])
+    if not countries:
+        raise ValueError("adzuna: set `countries:` in config/sources.local.yaml (no default country)")
     per_page = cfg.get("results_per_page", 50)
     pages = cfg.get("pages", 2)
     base_queries = cfg.get("queries") or [""]

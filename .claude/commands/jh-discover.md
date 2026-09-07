@@ -6,7 +6,8 @@ allowed-tools: Bash, Write, mcp__claude_ai_Google_Drive__read_file_content
 Run the discovery pipeline and report the summary.
 
 0. **Refresh the dream sheet first.** The hand-curated dream-company sheet is a private
-   Google Sheet; its file id is `dreamsheet.file_id` in `config/sources.yaml`. Read it with
+   Google Sheet; its file id is `dreamsheet.file_id` in `config/sources.local.yaml` (the
+   git-ignored targeting file; `python -m src.config` never puts it in the tracked one). Read it with
    the Google Drive `read_file_content` tool and save the returned markdown table, verbatim,
    to `data/dream_sheet.md` (the `dreamsheet` adapter parses that file; header row must keep
    the Company / Role / Apply URL columns). If the Drive tool is unavailable, say so and keep

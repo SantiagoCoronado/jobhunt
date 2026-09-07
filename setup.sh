@@ -15,13 +15,8 @@ echo "== Installing dependencies (this pulls the Typst renderer, give it a minut
 pip install --upgrade pip >/dev/null
 pip install -r requirements.txt
 
-if [ ! -f config/notify.yaml ]; then
-  cp config/notify.yaml.example config/notify.yaml
-  echo "== Created config/notify.yaml from the example (git-ignored)."
-  echo "   Add your Gmail app password there to enable the email digest. =="
-fi
-
-mkdir -p data applications
+echo "== Creating your user files from the examples (git-ignored; existing files are kept) =="
+python -m src.init
 echo
 echo "Setup complete. Next:"
 echo "  source .venv/bin/activate"

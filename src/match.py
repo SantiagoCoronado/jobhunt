@@ -17,7 +17,7 @@ import re
 
 from pathlib import Path
 
-from .config import load_yaml, shortlist_threshold, ROOT
+from .config import load_profile, shortlist_threshold, ROOT
 from .db import connect
 from .dream import dream_shortlist_threshold, is_dream
 from .models import normalize_text, now_iso
@@ -28,7 +28,7 @@ MATCH_DIR = ROOT / "data" / "match"   # chunked scaled-scoring handoff (see expo
 
 
 def _profile_skills() -> list[str]:
-    p = load_yaml("profile.yaml")
+    p = load_profile()
     skills = (p.get("must_have_skills") or []) + (p.get("nice_to_have_skills") or [])
     return [normalize_text(s) for s in skills if s]
 

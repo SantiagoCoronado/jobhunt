@@ -22,10 +22,14 @@ from pathlib import Path
 
 import yaml
 
-from .config import ROOT
+from .config import ROOT, user_file
 from .db import connect
 
-ANSWERS = ROOT / "resume" / "answers.yaml"
+
+
+def answers_path() -> Path:
+    """resume/answers.yaml, resolved through config.USER_FILES at call time."""
+    return user_file("answers")
 # Entries whose stored body is an instruction to the tailor, not an answer: rendered under a
 # TAILOR marker so the build's marker check refuses a folder that still carries it verbatim.
 TEMPLATE_IDS = {
@@ -88,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     job = dict(row)
     if a.company:
         job["company"] = a.company
-    entries = (yaml.safe_load(ANSWERS.read_text()) or {}).get("answers") or []
+    entries = (yaml.safe_load(answers_path().read_text()) or {}).get("answers") or []
     text, drafts = render(job, entries)
     if a.stdout:
         print(text)

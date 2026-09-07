@@ -2,9 +2,9 @@
 # Export tailored resume .docx files to PDF (house design preserved).
 #
 # Usage:
-#   scripts/export_pdf.sh                          # export ALL applications/**/SantiagoCoronadoResume.docx + CoverLetter.docx
+#   scripts/export_pdf.sh                          # export ALL applications/**/<NameParts>Resume.docx + CoverLetter.docx
 #   scripts/export_pdf.sh applications/belvo-applied-ai        # one application folder
-#   scripts/export_pdf.sh applications/foo/SantiagoCoronadoResume.docx  # explicit file(s)
+#   scripts/export_pdf.sh applications/foo/AlexExampleResume.docx  # explicit file(s)
 #
 # Converter preference:
 #   1. LibreOffice (soffice) if installed  - headless, no UI
@@ -15,12 +15,19 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# The resume stem comes from profile.name (python -m src.config resume-basename); older folders
+# may carry an earlier stem, so the recursive default also matches any *Resume.docx.
+PY="${PYTHON:-}"
+[[ -z "$PY" && -x .venv/bin/python ]] && PY=.venv/bin/python
+[[ -z "$PY" ]] && PY=python3
+RESUME_STEM="$("$PY" -m src.config resume-basename 2>/dev/null || echo Resume)"
+
 # ---------- collect targets ----------
 targets=()
 if [[ $# -eq 0 ]]; then
   # recurse: apps are filed under applications/{applied,pending,other}/<slug>/
   while IFS= read -r f; do targets+=("$f"); done \
-    < <(find applications -type f \( -name 'SantiagoCoronadoResume.docx' -o -name 'CoverLetter.docx' \) 2>/dev/null)
+    < <(find applications -type f \( -name "${RESUME_STEM}.docx" -o -name '*Resume.docx' -o -name 'CoverLetter.docx' \) 2>/dev/null | sort -u)
 else
   for arg in "$@"; do
     if [[ -d "$arg" ]]; then

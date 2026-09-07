@@ -27,9 +27,9 @@ from pathlib import Path
 import yaml
 
 from . import render_docx as rd
-from .answers_export import ANSWERS, _slug
+from .answers_export import _slug, answers_path
 from .answers_export import render as render_answers
-from .config import ROOT
+from .config import ROOT, resume_basename, user_file
 from .db import connect
 from .dream import is_dream
 from .reconcile import APPS_DIR, find_folder
@@ -38,8 +38,6 @@ from .tailor_state import update_state
 
 TAILOR_DIR = ROOT / "data" / "tailor"
 VOICE = ROOT / "docs" / "writing-voice.md"
-PROFILE = ROOT / "config" / "profile.yaml"
-MASTER = ROOT / "resume" / "master_resume.yaml"
 
 SECTION_PURPOSE = {
     1: "Voice rules. Every sentence you write obeys these.",
@@ -158,12 +156,13 @@ def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, di
         f"salary: {salary}",
         f"status: {job.get('status')}, match {job.get('match_score')}",
         f"dream: {'true (profile dream_rule applies)' if job['dream'] else 'false'}",
+        f"resume file: {resume_basename()}.yaml  (the name tailor_build expects in draft.md)",
     ]
     for k in ("recommendation", "location_ok", "visa_path", "missing_skills", "reasons"):
         if verdict.get(k) not in (None, "", []):
             lines.append(f"matcher {k}: {verdict[k]}")
     if curated:
-        lines += ["", "Curated (dream sheet), Santiago's own judgment; quote its priority, never recompute it:", curated.strip()]
+        lines += ["", "Curated (dream sheet), the user's own judgment; quote its priority, never recompute it:", curated.strip()]
     desc = (job.get("description") or "").strip()
     if desc and job.get("source") != "dreamsheet":
         lines += ["", "Description:", desc]
@@ -190,6 +189,17 @@ def _dossier_block(company: str, override: Path | None) -> tuple[str, dict]:
     return head + Path(info["path"]).read_text(encoding="utf-8"), {"dossier": Path(info["path"]).name, "stale": info["stale"]}
 
 
+def existing_resume(folder: Path) -> Path:
+    """The folder's tailored resume YAML: the current `<NameParts>Resume.yaml`, else a legacy
+    `*Resume.yaml` left by an earlier profile name (kept, never renamed), else the current
+    path (absent)."""
+    current = folder / f"{resume_basename()}.yaml"
+    if current.exists():
+        return current
+    legacy = sorted(p for p in folder.glob("*Resume.yaml") if p.is_file())
+    return legacy[0] if legacy else current
+
+
 def _review_block(folder: Path) -> tuple[str | None, int]:
     p = folder / "review.json"
     if not p.exists():
@@ -211,19 +221,19 @@ def build_bundle(conn, job_id: int, company: str | None = None, dossier: str | N
                  apps_dir: Path = APPS_DIR) -> tuple[str, dict]:
     """Return (bundle text, meta). Pure apart from reading the repo files and the DB."""
     job_text, job = _job_block(conn, job_id, company)
-    master = yaml.safe_load(MASTER.read_text(encoding="utf-8"))
-    entries = (yaml.safe_load(ANSWERS.read_text(encoding="utf-8")) or {}).get("answers") or []
+    master = yaml.safe_load(user_file("master_resume").read_text(encoding="utf-8"))
+    entries = (yaml.safe_load(answers_path().read_text(encoding="utf-8")) or {}).get("answers") or []
     answers_text, drafts = render_answers(
         {"id": job["id"], "company": job["display_company"], "title": job.get("title")}, entries)
     dossier_text, dmeta = _dossier_block(job["display_company"], Path(dossier) if dossier else None)
     folder = application_folder(job_id, job["display_company"], apps_dir)
-    existing = folder / "SantiagoCoronadoResume.yaml"
+    existing = existing_resume(folder)
     review_text, n_review = _review_block(folder)
 
     parts: list[tuple[int, str]] = [
         (1, VOICE.read_text(encoding="utf-8")),
-        (2, PROFILE.read_text(encoding="utf-8")),
-        (3, MASTER.read_text(encoding="utf-8")),
+        (2, user_file("profile").read_text(encoding="utf-8")),
+        (3, user_file("master_resume").read_text(encoding="utf-8")),
         (4, geometry_block(master)),
         (5, job_text),
         (6, dossier_text),

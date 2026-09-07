@@ -145,10 +145,10 @@ def backfill_eligibility(pages: int = 6) -> None:
     not-refreshed; their status/data otherwise stays exactly as-is (this never
     changes `status`).
     """
-    from ..config import load_yaml
+    from ..config import sources
     from ..db import connect
 
-    cfg = (load_yaml("sources.yaml").get("torre")) or {}
+    cfg = sources().get("torre") or {}
     queries = cfg.get("queries") or ["software engineer"]
     size = min(cfg.get("size", 20), 30)
     remote_only = cfg.get("remote", True)

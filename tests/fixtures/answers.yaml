@@ -1,0 +1,65 @@
+# Reusable application and interview answers, the "answer bank". `/jh-tailor` emits a
+# per-job answers.md from the approved entries; `/jh-debrief` proposes new ones.
+# Copy to `answers.yaml` (`python -m src.init` does it) and rewrite every answer in your
+# own words; the entries below belong to an invented candidate.
+#
+# Rules:
+# - draft: true  = proposed, NOT used anywhere until you review it and flip draft to false.
+# - Answers obey the never-fabricate rule: only facts from resume/master_resume.yaml and
+#   config/profile.yaml. Salary figures come from you, never generated.
+# - {company} placeholders are personalized per job from the company dossier.
+# - Zero em-dashes in answers, house rule.
+# - Entries whose id is `why-company` or `what-do-you-know-about-us` are templates: the
+#   tailor replaces them per job from the dossier (see src/answers_export.py TEMPLATE_IDS).
+
+answers:
+  - id: visa-status
+    question: "Do you require visa sponsorship? / Are you authorized to work in the EU?"
+    answer: >
+      I am an EU citizen (Portugal) and need no sponsorship anywhere in the EU. For roles
+      outside the EU I would need employer-sponsored visa support.
+    draft: false
+
+  - id: location-remote
+    question: "Where are you located? / What is your remote setup?"
+    answer: >
+      Lisbon (WET, one hour behind central Europe, overlaps the US East Coast morning).
+      Dedicated home office with fiber, and four years of remote-first work with teams
+      across the EU. Open to hybrid or on-site in Lisbon.
+    draft: false
+
+  - id: languages
+    question: "What languages do you speak?"
+    answer: "Portuguese (native), English (fluent), Spanish (conversational)."
+    draft: false
+
+  - id: why-company
+    question: "Why do you want to work at {company}?"
+    answer: >
+      TEMPLATE: personalized per job from research/companies/<slug>.md. Structure that
+      works: one concrete product or company fact that genuinely resonates, one line
+      connecting it to my own work, one line on what I would ship first.
+    draft: false
+
+  - id: salary-expectations
+    question: "What are your salary expectations?"
+    answer: >
+      For a remote role my target is 85,000 USD annually. If the engagement is a
+      contractor arrangement rather than employment, I would expect the equivalent to
+      account for the benefits and contributions I would be covering directly. Open to
+      discussing base and equity for the right role.
+    draft: false   # the figure is yours; if the posted band is known, quote per comp.band_rule
+
+  - id: notice-period
+    question: "When can you start? / What is your notice period?"
+    answer: "I can start four weeks after signing; earlier for the right role."
+    draft: false
+
+  - id: strengths
+    question: "What are your strengths as an engineer?"
+    answer: >
+      Turning a design into a production screen quickly and cleanly, keeping a component
+      library coherent as three teams build on it, and writing the end-to-end tests that
+      let the team ship on Fridays. I am at my best on small product teams that talk to
+      customers every week.
+    draft: true    # example of a proposed entry awaiting review; flip to false to use it

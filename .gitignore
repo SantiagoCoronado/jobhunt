@@ -15,7 +15,18 @@ config/notify.yaml
 .env
 # interview transcripts + debriefs: other people's words, possibly confidential
 # company info. Local only, never committed (see /jh-debrief).
-interviews/
+interviews/*
+!interviews/.gitkeep
+# user-owned files (docs/spec-open-source.md decision 3): created from the tracked
+# *.example.* by `python -m src.init`, backed up by scripts/backup_user_data.sh
+config/profile.yaml
+config/sources.local.yaml
+config/identity.local.yaml
+resume/master_resume.yaml
+resume/answers.yaml
+resume/originals/
+research/companies/
+research/upskill/
 # browser-automation scratch (Claude in Chrome / Playwright MCP)
 .playwright-mcp/
 # one-off sitemap dump (SoftServe source research, 2026-08-11)

@@ -5,14 +5,20 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 ## Pipeline
 1. **Discover** (`/jh-discover` → `src/discover.py`), pull free ATS APIs + aggregators → SQLite (`data/jobs.db`).
    Sources live in `config/sources.yaml` (one block per adapter in `src/adapters/`, each a
-   `fetch(cfg) -> list[Job]`). Keyed sources read `.env` (copy `.env.example`) via
+   `fetch(cfg) -> list[Job]`), which is tracked and holds adapter MECHANICS only: endpoints,
+   page sizes, `enabled:`, field mappings. The user's TARGETING (ATS tokens, countries,
+   locales, query lists, the dreamsheet file id, extra title words) lives in the git-ignored
+   `config/sources.local.yaml`. Read the merged view with `src.config.sources()`, never
+   `load_yaml("sources.yaml")`; `missing_targeting` skips an enabled source whose targeting
+   is absent, with a hint. Keyed sources read `.env` (copy `.env.example`) via
    `src.config.get_secret`; a source with no key prints a hint and yields nothing (never breaks the run).
-   Active new sources: Adzuna (MX + US, keyed), The Muse, Findwork (keyed), Torre (remote-LATAM),
-   PostHog cool-tech-jobs (curated dev-tool boards, no key), Careerjet, SmartRecruiters, Workday.
-   Opt-in via `enabled:`: Personio, BambooHR, Consider, YC (see `docs/new-sources.md`).
-   A shared `title_filter:` block in `config/sources.yaml` gates off-family titles centrally in
-   `src/discover.py` (word-boundary match; calibrated 2026-08-27 to keep every row that ever reached
-   shortlisted); a source can opt out of it (hackernews does). Never filter by location there.
+   Opt-in sources are gated by `enabled:` in the tracked file (see `docs/new-sources.md`).
+   A shared `title_filter:` gates off-family titles centrally in `src/discover.py`
+   (word-boundary match; calibrated 2026-08-27 to keep every row that ever reached shortlisted).
+   `config.sources()` builds its `include` list from the tracked generic-engineering base plus
+   words derived from the profile's `target_titles` / `role_families` (`config.title_words`)
+   plus `title_filter.include_extra` in the local file; a source can opt out of the gate
+   (hackernews does). Never filter by location there.
 2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
    `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
    sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become
@@ -68,11 +74,9 @@ For those companies the location rule and comp floors are waived, the title gate
 match export sorts them first with `dream: true`, ingest shortlists them at the lower cutoff,
 `/jh-hunt` reserves up to 2 of the 5 stars for them, and the tailor adds the relocation line
 when US presence is required. ITAR / US-person / citizens-only / clearance stay hard blocks.
-The hand-curated sheet (`dreamsheet` in `config/sources.yaml`, private Google Sheet) is read
+The hand-curated sheet (`dreamsheet` in `config/sources.local.yaml`, private Google Sheet) is read
 by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses.
-Dream-company boards added for it: Teamtailor (Steven.com), Pinpoint (dbrand), Rippling
-(Framework Computer), Secretlab's in-house API, plus Greenhouse/Lever/Ashby tokens. Arga Labs
-and ASUS have no usable board: sheet rows and outreach only.
+Arga Labs and ASUS have no usable board: sheet rows and outreach only.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
@@ -118,10 +122,8 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
   `design.page.*_margin` crashes its Typst template.
 
 ## Commands
-All skills are `jh-` prefixed. `/jh-hunt` (full pipeline), `/jh-discover` `/jh-match`
-`/jh-research <company|id>` `/jh-tailor <id>` `/jh-followups`
-`/jh-gmail-sync` `/jh-report`, see `.claude/commands/`.
-Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T [--url U] [--status S] [--applied-at D]` (reuses a same company+title row when one exists, else inserts source `manual` as `discovered`; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
+All commands are `jh-` prefixed; see `.claude/commands/`.
+Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T ...` (reuses a same company+title row when one exists; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
 application folder to its bucket). Record contact: `python -m src.query touch <id> [--bump]`.

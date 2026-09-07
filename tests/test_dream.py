@@ -341,16 +341,11 @@ def test_second_batch_boards_rank_as_ats(tmp_path):
 
 
 @pytest.mark.parametrize("company,expected", [
-    ("Framework Computer", "Framework Computer"),
-    ("Framework Computer Inc", "Framework Computer"),
-    ("Django Framework Co", None),          # bare "framework" is deliberately not an alias
-    ("Arga Labs", "Arga Labs"),
-    ("Peec", "Peec AI"),
-    ("Secretlab", "Secretlab"),
-    ("Dbrand", "dbrand"),
-    ("ASUSTeK", "ASUS"),
+    ("Example Robotics", "Example Robotics"),
+    ("ExampleRobotics GmbH", "Example Robotics"),
+    ("Robotics Example", None),
 ])
-def test_second_batch_aliases_against_live_profile(company, expected):
+def test_aliases_against_fixture_profile(company, expected):
     dream.reset_cache()
     try:
         assert dream.dream_name(company) == expected
