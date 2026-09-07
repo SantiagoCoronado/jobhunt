@@ -30,39 +30,14 @@ hackernews:                        # monthly "Who is Hiring" thread, via HN's Al
   # HN ad "titles" are company names ("Acme", "FusionAuth"), not role titles, so
   # the shared role-family gate would drop ~80% of real ads. Off for this source.
   title_filter: {enabled: false}
-getonbrd:                          # LatAm / Mexico
+getonbrd:                          # LatAm boards; queries come from sources.local.yaml
   enabled: true
   per_page: 100
   pages: 3                         # the API paginates; the adapter used to read page 1 only
-  queries:
-    - "remote backend"
-    - "machine learning"
-    - "data engineer"
-    - "ai engineer"
-    - "applied ai"
-    - "full stack"
-    - "founding engineer"
-    - "llm"
-    - "python"
-    - "react"
-    - "node"
-    - "typescript"
-    - "solutions engineer"
-    - "solutions architect"
-    - "frontend"
-    - "internal tools"
-    - "developer experience"
-    - "platform engineer"
-    - "automation"
-    - "ecommerce"                 # domain angle, set 2026-08-27
-    - "marketplace"
-
 jobicy:
   enabled: true
   count: 100
   # `ai` is NOT a valid Jobicy tag (the API 400s on it); machine-learning is.
-  tags: [python, javascript, engineering, react, nodejs, typescript, dev,
-         machine-learning, data, devops, frontend, backend, fullstack]
 arbeitnow:
   enabled: true
   pages: 10                        # was 3; the feed goes much deeper
@@ -89,37 +64,14 @@ smartrecruiters:                   # per-company; list endpoint has no descripti
   # Verified 2026-08-27. Endava is a LATAM/EU delivery shop that hires remote in
   # Mexico. BoschGroup also answers (4,809 rows) but is overwhelmingly Spanish-
   # language manufacturing; deliberately left out.
-  companies: [Endava,
-              NBCUniversal3]           # dream company, verified 2026-09-01 (title-only rows)
-
-# Company ATS boards (verified tokens). AI-forward + remote/LatAm-friendly first.
+# Company ATS boards. Tokens, company lists and display names live in config/sources.local.yaml.
 greenhouse:
   enabled: true
-  tokens: [anthropic, gitlab, vercel, mercury, clara, nubank, planetscale, scaleai, bitso, netlify,
-           lovable, brex, cresta, assemblyai, warp, labelbox, prisma, clickhouse, grafanalabs,
-           tailscale, descript, cockroachlabs, knock, typeface, imbue, bold, hightouch, fivetran,
-           webflow, galileo, turing, backblaze,
-           # added 2026-08-27, each curl-verified 200 with a non-empty jobs array
-           databricks, stripe, datadog, mongodb, okta, elastic, cloudflare, canonical, samsara,
-           affirm, remotecom, coinbase, figma, reddit, twilio, robinhood, asana, instacart,
-           mixpanel, gusto, chainguard, duolingo, sigmacomputing, temporaltechnologies, discord,
-           pagerduty, amplitude, wizeline, alloy, starburst, modernhealth, make, airtable,
-           lithic, consensys,
-           # dream companies (profile.yaml dream_companies, 2026-09-01), each curl-verified
-           # 200: riotgames 164 rows, xai 251, nintendo 50, pokemoncareers 27. bitso above.
-           riotgames, xai, nintendo, pokemoncareers]
   # Display names for tokens whose Title()-cased slug is not the company name. Matters
   # for dream companies: the dream-sheet row and the ATS row must share a canonical_key.
-  names:
-    riotgames: "Riot Games"
-    xai: "xAI"
-    pokemoncareers: "The Pokémon Company International"
 lever:
   enabled: true
   # mistral answers 200 with an empty list right now (board between postings); kept.
-  companies: [mistral, kavak, yuno, neon, xepelin, fintual, dlocal, anyscale,
-              matchgroup, jumpcloud, tekton, swissborg,
-              binance]                 # dream company, verified 2026-09-01
 ashby:
   enabled: true
   # fal-ai: fal.ai moved off Greenhouse (token 'fal' 404s) onto Ashby, slug
@@ -129,20 +81,6 @@ ashby:
   # renders a jobs.ashbyhq.com/vellum page but the public posting-api 404s (no live postings
   # exposed via API); re-add if they reopen a public board.
   # nubank: its Greenhouse token now returns 0 jobs; the live board is here (120 roles).
-  clients: [openai, harvey, elevenlabs, cohere, ramp, plaid, notion, replit, baseten, deepgram,
-            writer, supabase, sentry, perplexity, linear, render, posthog, zapier, airbyte,
-            railway, sierra, resend, belvo, reka, pinecone, gorgias, weaviate, modal, browserbase,
-            temporal, abridge, crusoe, langchain, synthesia, kueski, decagon, braintrust, tavus,
-            cerebras, langfuse, vapi, bland, openevidence, mercor, workos, stytch, coder,
-            1password, runpod, poolside, suno, doppler, cognition, gamma, inngest, zed, infisical,
-            prefect, astronomer, nomic, distyl, cluely, clickup, character, artisan, julius,
-            granola, andela, motherduck, sardine, fal-ai,
-            # added 2026-08-27, each curl-verified 200 with a non-empty jobs array
-            cursor, nubank, attio, n8n, hex, antithesis, dust, alchemy, mintlify, column, numeric,
-            signoz, phantom, persona, pylon, opusclip, netbird, namespace, footprint, pika,
-            propel, uniswap, unify, oso, nango, neon, unit, materialize, lightdash, magiceden,
-            deepnote, runa, depot,
-            peec]                    # Peec AI, dream company, verified 2026-09-01 (27 rows)
 workable:
   enabled: false
   # Probed 2026-08-27: apply.workable.com/api/v1/widget/accounts/<slug> now answers
@@ -155,129 +93,35 @@ workable:
 # ---------------------------------------------------------------------------
 
 # Aggregators (on by default; keyed ones skip cleanly until their key is in .env)
-adzuna:                            # Mexico + 12 countries; needs ADZUNA_APP_ID / ADZUNA_APP_KEY
+adzuna:                            # countries + queries from sources.local.yaml; needs ADZUNA_APP_ID / ADZUNA_APP_KEY
   enabled: true
   # `countries:` replaces the old single `country:`. Adzuna allows ~250 calls/day;
   # this config spends ~90 (18 MX queries x 3 pages + 10 US queries x 3 pages).
-  countries: [mx, us]
   pages: 3
   results_per_page: 50
-  queries:                         # used for MX
-    - "ai engineer"
-    - "applied ai"
-    - "machine learning"
-    - "backend"
-    - "full stack"
-    - "founding engineer"
-    - "data engineer"
-    - "python"
-    - "react"
-    - "typescript"
-    - "frontend developer"
-    - "internal tools"
-    - "developer experience"
-    - "solutions engineer"
-    - "solutions architect"
-    - "platform engineer"
-    - "ecommerce developer"       # domain angle, set 2026-08-27
-    - "marketplace engineer"
-  country_queries:
-    # US roles are only in scope when they hire remotely (profile.location_rule),
-    # and `where=remote` returns 0, so "remote" goes in the free-text query.
-    us:
-      - "remote ai engineer"
-      - "remote applied ai engineer"
-      - "remote forward deployed engineer"
-      - "remote founding engineer"
-      - "remote full stack engineer"
-      - "remote frontend engineer"
-      - "remote react engineer"
-      - "remote solutions engineer"
-      - "remote internal tools engineer"
-      - "remote developer experience engineer"
 themuse:                           # US/global tech; works anon, THEMUSE_API_KEY optional
   enabled: true
   # Was pages: 3, i.e. 60 of the 1,196 rows behind the Software Engineering +
   # Flexible/Remote filter. 25 pages x 20 rows x 2 categories is the real depth.
   pages: 25
-  locations:
-    - "Flexible / Remote"
-    - "Mexico City, Mexico"
-    - "Guadalajara, Mexico"
-    - "Monterrey, Mexico"
-  categories:
-    - "Software Engineering"
-    - "Data and Analytics"
 findwork:                          # remote/tech; needs FINDWORK_TOKEN
   enabled: true
   remote: true
   # 2 not 3: findwork's undocumented limiter starts 429ing past ~30 requests a
   # run, and the backoff sleeps were the single biggest cost of the discover run.
   pages: 2
-  search:
-    - "ai engineer"
-    - "applied ai"
-    - "machine learning"
-    - "backend"
-    - "full stack"
-    - "frontend"
-    - "react"
-    - "typescript"
-    - "internal tools"
-    - "developer experience"
-    - "solutions engineer"
-    - "founding engineer"
-    - "platform engineer"
-    - "ecommerce"                 # domain angle, set 2026-08-27
-    - "marketplace"
 softserve:                         # SoftServe own careers board (SEO sitemap + JSON-LD JobPosting; no key)
   enabled: true
   workers: 8
-  countries: [Mexico, Brazil, Colombia, Argentina, Chile, Peru, Costa Rica, Uruguay]
-
-torre:                             # remote-LATAM depth (grey-zone public JSON, no key)
+torre:                             # remote-LATAM depth (grey-zone public JSON, no key); queries from sources.local.yaml
   enabled: true
   size: 20                         # endpoint 400s above ~30 per page
   pages: 3
   remote: true
-  queries:
-    - "software engineer"
-    - "ai engineer"
-    - "applied ai engineer"
-    - "machine learning engineer"
-    - "backend engineer"
-    - "full stack engineer"
-    - "founding engineer"
-    - "frontend engineer"
-    - "react engineer"
-    - "internal tools engineer"
-    - "developer experience engineer"
-    - "platform engineer"
-    - "solutions engineer"
-    - "solutions architect"
-    - "forward deployed engineer"
-    - "automation engineer"
-    - "ecommerce engineer"        # domain angle, set 2026-08-27
-careerjet:                         # Mexico via es_MX; uses CAREERJET_AFFID (verified live)
+careerjet:                         # locale + location from sources.local.yaml; uses CAREERJET_AFFID (verified live)
   enabled: true
-  locale_code: es_MX
-  location: Mexico
   pagesize: 50
   pages: 5                         # response reports ~25 pages for a broad keyword
-  keywords:
-    - "developer"
-    - "ingeniero de software"
-    - "desarrollador"
-    - "machine learning"
-    - "inteligencia artificial"
-    - "backend"
-    - "frontend"
-    - "react"
-    - "python"
-    - "full stack"
-    - "solutions engineer"
-    - "devops"
-
 # Net-new ATS platforms (curate slugs, then flip enabled - like recruitee)
 personio:                          # EU startups; XML feed, no key
   enabled: false
@@ -296,45 +140,23 @@ workday:                           # large enterprises on Workday CxS (POST, no 
   # Verified 2026-08-27 (POST returns a jobPostings array). The list endpoint has
   # no description text, so these rows match on title + location only; `search`
   # keeps each tenant's slice engineering-shaped.
-  sites:
-    - {tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite, search: "software engineer"}
-    # NVIDIA is a dream company (profile.yaml): its SA / agentic reqs never say "software
-    # engineer", so two more slices (same tenant, dedupes on the posting path).
-    - {tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite, search: "solutions architect"}
-    - {tenant: nvidia, wd: 5, site: NVIDIAExternalCareerSite, search: "agentic"}
-    - {tenant: adobe, wd: 5, site: external_experienced, search: "engineer"}
-    - {tenant: autodesk, wd: 1, site: Ext, search: "engineer"}
-    - {tenant: intel, wd: 1, site: External, search: "software engineer"}
-    - {tenant: bbva, wd: 3, site: BBVA, search: "ingeniero"}
-    - {tenant: workday, wd: 5, site: Workday, search: "engineer"}
-    - {tenant: paypal, wd: 1, site: jobs, search: "engineer"}
-
 teamtailor:                        # per-company JSON Feed ({slug}.teamtailor.com/jobs.json), no key
-  enabled: true
+  enabled: false
   # flightstory = Steven.com / The Diary of a CEO (dream company), verified 2026-09-01,
   # 32 rows with full descriptions and schema.org locations.
-  companies: [flightstory]
-  names:
-    flightstory: "Steven.com"
-
 pinpoint:                          # Pinpoint ATS, {subdomain}.pinpointhq.com/postings.json, no key
-  enabled: true
-  companies: [dbrand]              # dream company, verified 2026-09-01 (5 rows, CAD bands)
+  enabled: false
 rippling:                          # Rippling ATS public board API, no key
-  enabled: true
-  companies: [framework]           # Framework Computer (jobs.frame.work), verified 2026-09-01
-  names:
-    framework: "Framework Computer"
+  enabled: false
 secretlab:                         # Secretlab's in-house openings API (single company), no key
-  enabled: true                    # dream company, verified 2026-09-01 (19 rows, all Singapore)
+  enabled: false                    # dream company, verified 2026-09-01 (19 rows, all Singapore)
 
 # The hand-curated dream-company sheet (Google Sheets, private: its CSV export 401s).
 # `/jh-discover` reads it through the Drive tool and saves the markdown table to `path`;
 # this adapter only parses that file. Rows bypass the title gate (they are hand-picked)
 # and land with the sheet's priority / work-auth / notes as a "Curated:" block.
 dreamsheet:
-  enabled: true
-  file_id: 16XQsIRN8NSiSZ9NnH68kdKUb5mD8PA9q-NwttMyGVDc
+  enabled: false
   path: data/dream_sheet.md
   title_filter: {enabled: false}
 
@@ -378,82 +200,25 @@ title_filter:
     - software
     - swe
     - technologist
-    # Family A, AI / full stack
-    - ai
-    - a.i.
-    - ml
-    - llm
-    - genai
-    - "machine learning"
-    - "deep learning"
-    - "artificial intelligence"
-    - "data science"
-    - "data scientist"
-    - "research scientist"
-    - "full stack"
-    - fullstack
-    - "full-stack"
-    - backend
-    - "back-end"
-    - "back end"
-    - founding
-    # Family B, deployment / enablement / solutions / GTM
-    - solutions
-    - solution
-    - "forward deployed"
-    - "forward-deployed"
-    - deployment
-    - strategist
-    - enablement
-    - adoption
-    - transformation
-    - gtm
-    - "go-to-market"
-    - "customer engineer"
-    - "field engineer"
-    - "technical account"
-    - "technical program"
-    - "technical product"
+    - "tech lead"
     - "technical lead"
-    - "technical consultant"
-    - consultant
-    - "professional services"
-    # Family C, frontend / web
-    - frontend
-    - "front-end"
-    - "front end"
-    - ui
-    - ux
-    - web
-    - react
+    # languages and runtimes: a title that names one is an engineering title
+    - python
     - javascript
     - typescript
-    - mobile
-    - "design engineer"
-    # Family D, internal tools / platform / devex
-    - "internal tools"
-    - "internal tooling"
-    - "developer experience"
-    - "developer productivity"
-    - "developer relations"
-    - devrel
-    - devex
-    - platform
-    - infrastructure
-    - infra
-    - devops
-    - sre
-    - "site reliability"
-    - automation
-    - integrations
-    - integration
-    - "business systems"
-    - "data engineer"
-    - "analytics engineer"
-    - python
+    - java
+    - golang
+    - rust
+    - ruby
+    - kotlin
+    - swift
+    - scala
+    - php
     - node
-    - "cloud engineer"
-    - api
+    - react
+    - ".net"
+    - "c++"
+    - "c#"
     # Spanish-language titles (SmartRecruiters MX, Personio, Workday LATAM)
     - ingeniero
     - ingeniera

@@ -229,18 +229,16 @@ def test_keep_title_can_be_disabled_per_source():
 
 
 def test_shipped_title_filter_keeps_every_target_role_family():
-    """config/sources.yaml must not gate out any of profile.yaml's role families."""
+    """The tracked base list plus the words derived from the (fixture) profile's target
+    titles must keep every target family and drop the off-field titles."""
     import src.adapters as adapters
 
-    adapters._TITLE_FILTER = None  # re-read the shipped config
+    adapters._TITLE_FILTER = None  # re-read the merged config
     try:
         for title in [
-            "Applied AI Engineer", "Forward Deployed Engineer", "Founding Engineer",
-            "Full-Stack Engineer", "Deployment Strategist", "AI Solutions Architect",
-            "AI Enablement Director, LATAM", "GTM Engineer", "Frontend Engineer",
-            "React Engineer", "UI Engineer", "Internal Tools Engineer",
-            "Developer Experience Engineer", "Workflow Automation Engineer",
-            "Software Engineer, Web", "Technical Program Manager, AI",
+            "Full-Stack Engineer", "Software Engineer", "Product Engineer", "Frontend Engineer",
+            "React Engineer", "Web Engineer", "TypeScript Engineer", "Senior Software Developer",
+            "Tech Lead", "Python Cloud Native Lead", "Ingeniero de Software",
         ]:
             assert adapters.keep_title({}, title), title
         for title in ["Registered Nurse", "Manufacturing Engineer", "Account Executive"]:

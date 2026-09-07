@@ -1,4 +1,4 @@
-"""Careerjet affiliate job search (Mexico via es_MX locale). Needs a partner affid.
+"""Careerjet affiliate job search (locale and location from config/sources.local.yaml). Needs a partner affid.
 GET http://public.api.careerjet.net/search   (a Referer header is required)
 NOTE: the legacy public endpoint now serves only pre-existing legacy affiliates; new
 partners must use the v4 API (https://www.careerjet.com/partners/api).
@@ -20,8 +20,10 @@ def fetch(cfg: dict) -> list[Job]:
         print("  ! careerjet: set CAREERJET_AFFID in .env (see .env.example)")
         return []
 
-    locale = cfg.get("locale_code", "es_MX")
-    location = cfg.get("location", "Mexico")
+    locale = cfg.get("locale_code")
+    location = cfg.get("location")
+    if not locale or not location:
+        raise ValueError("careerjet: set `locale_code:` and `location:` in config/sources.local.yaml (no defaults)")
     pagesize = cfg.get("pagesize", 50)
     max_pages = cfg.get("pages", 1)
     keywords = cfg.get("keywords") or [""]

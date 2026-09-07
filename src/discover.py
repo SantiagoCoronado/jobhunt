@@ -16,7 +16,7 @@ from __future__ import annotations
 import importlib
 
 from .adapters import keep_title
-from .config import load_yaml
+from .config import missing_targeting, sources as load_sources
 from .db import connect
 from .dream import is_dream
 from .models import now_iso
@@ -38,15 +38,20 @@ ADAPTERS = [
 
 
 def main() -> None:
-    sources = load_yaml("sources.yaml")
+    sources = load_sources()
     skip_dream = bool((sources.get("title_filter") or {}).get("skip_dream_companies", True))
     conn = connect()
     now = now_iso()
     total_new = total_seen = total_dropped = 0
+    untargeted: list[str] = []
 
     for name in ADAPTERS:
         cfg = sources.get(name) or {}
         if not cfg.get("enabled"):
+            continue
+        missing = missing_targeting(name, cfg)
+        if missing:
+            untargeted.append(f"{name} ({', '.join(missing)})")
             continue
         try:
             mod = importlib.import_module(f".adapters.{name}", package="src")
@@ -82,6 +87,9 @@ def main() -> None:
         print(f"  ✓ {name:15s} {new:4d} new  {seen:4d} seen  "
               f"({len(jobs)} kept of {pulled} pulled){off_family}")
 
+    if untargeted:
+        print(f"  - skipped, no targeting in config/sources.local.yaml: {'; '.join(untargeted)}"
+              "\n    (copy config/sources.local.example.yaml and fill in the keys named above)")
     print(f"\nDone. {total_new} new jobs added, {total_seen} already known, "
           f"{total_dropped} dropped by the role-family title gate.")
 

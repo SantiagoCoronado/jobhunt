@@ -42,6 +42,120 @@ def load_profile() -> dict:
     return load_yaml(user_file("profile"))
 
 
+# ---- sources: tracked mechanics + ignored targeting ------------------------------------
+#
+# config/sources.yaml (tracked) carries adapter mechanics only: endpoints, page sizes,
+# `enabled:`, field mappings, and the generic-engineering base of the title gate.
+# config/sources.local.yaml (ignored, example tracked) carries the user's targeting: ATS
+# tokens, countries, locales, query lists, dream boards, extra title words. `sources()` merges
+# them per source block: a list or dict in the local file REPLACES the tracked one, a scalar
+# OVERRIDES it, a source that only exists locally is ADDED. docs/spec-open-source.md decision 4.
+
+# Title words that say nothing about the role family on their own (the generic base list
+# already covers the engineering nouns); dropped when deriving gate words from the profile.
+_TITLE_STOP = frozenset({
+    "and", "or", "of", "the", "a", "an", "for", "in", "to", "with", "at", "on",
+    "engineer", "engineers", "engineering", "developer", "developers", "development",
+    "senior", "sr", "jr", "junior", "staff", "lead", "principal", "head", "director", "manager",
+    "management", "ii", "iii", "iv", "product", "products", "program", "project", "technical",
+    "specialist", "analyst", "associate", "intern", "internship", "remote", "roles", "role",
+})
+
+
+def title_words(titles: list[str]) -> list[str]:
+    """Gate words derived from title strings: every cleaned multi-word phrase plus every
+    word not in the stop list. "Software Engineer (AI products)" gives ["software"];
+    "Deployment Strategist" gives ["deployment strategist", "deployment", "strategist"].
+    Order is first-seen, no duplicates."""
+    import re
+
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(w: str) -> None:
+        if w and w not in seen:
+            seen.add(w)
+            out.append(w)
+
+    for raw in titles:
+        text = re.sub(r"\([^)]*\)", " ", str(raw)).lower()
+        for phrase in re.split(r"\s*(?:/|,|\bor\b)\s*", text):
+            words = [w for w in re.split(r"[^a-z0-9.+#-]+", phrase) if w]
+            kept = [w for w in words if w not in _TITLE_STOP and len(w) > 1]
+            if len(kept) >= 2:
+                add(" ".join(kept))
+            for w in kept:
+                add(w)
+    return out
+
+
+def merge_sources(base: dict, local: dict | None) -> dict:
+    """Per-source deep merge: lists and dicts replace, scalars override, new sources add."""
+    out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in (base or {}).items()}
+    for name, block in (local or {}).items():
+        if not isinstance(block, dict):
+            out[name] = block
+            continue
+        target = out.get(name)
+        if not isinstance(target, dict):
+            out[name] = dict(block)
+            continue
+        for key, val in block.items():
+            target[key] = val
+    return out
+
+
+def sources(profile: dict | None = None) -> dict:
+    """The merged source config with `title_filter.include` computed: the tracked base list,
+    then words from the profile's `target_titles` and `role_families[].titles`, then the
+    local file's `title_filter.include_extra`. Callers never read sources.yaml directly."""
+    base = load_yaml("sources.yaml")
+    local_path = user_file("sources_local")
+    local = load_yaml(local_path) if local_path.exists() else {}
+    merged = merge_sources(base, local)
+    tf = dict(merged.get("title_filter") or {})
+    include = list(tf.get("include") or [])
+    if profile is None:
+        try:
+            profile = load_profile()
+        except FileNotFoundError:
+            profile = {}
+    titles = [str(t) for t in (profile.get("target_titles") or [])]
+    for fam in profile.get("role_families") or []:
+        if isinstance(fam, dict):
+            titles += [str(t) for t in (fam.get("titles") or [])]
+    extra = list(((local.get("title_filter") or {}).get("include_extra")) or [])
+    seen = {str(w).lower() for w in include}
+    for w in title_words(titles) + [str(w).lower() for w in extra]:
+        if w not in seen:
+            seen.add(w)
+            include.append(w)
+    tf["include"] = include
+    tf.pop("include_extra", None)
+    merged["title_filter"] = tf
+    return merged
+
+
+# Sources that do nothing useful without the user's targeting (docs/spec-open-source.md
+# decision 4): `discover` skips an enabled source whose keys are all missing or empty and
+# prints one hint naming config/sources.local.yaml.
+TARGETING_KEYS: dict[str, tuple[str, ...]] = {
+    "greenhouse": ("tokens",), "lever": ("companies",), "ashby": ("clients",),
+    "workable": ("accounts",), "recruitee": ("companies",), "smartrecruiters": ("companies",),
+    "personio": ("companies",), "bamboohr": ("companies",), "workday": ("sites",),
+    "consider": ("boards",), "teamtailor": ("companies",), "pinpoint": ("companies",),
+    "rippling": ("companies",), "dreamsheet": ("file_id",),
+    "adzuna": ("countries",), "careerjet": ("locale_code", "location"),
+    "getonbrd": ("queries",), "torre": ("queries",), "findwork": ("search",),
+    "themuse": ("locations", "categories"), "softserve": ("countries",),
+}
+
+
+def missing_targeting(name: str, cfg: dict) -> tuple[str, ...]:
+    """The targeting keys a source needs that are absent or empty in its merged block."""
+    return tuple(k for k in TARGETING_KEYS.get(name, ()) if not cfg.get(k))
+
+
 def notify_setting(key: str, default):
     """Read one key from config/notify.yaml; falls back to default if the file
     is absent (it is gitignored, so fresh clones won't have it)."""

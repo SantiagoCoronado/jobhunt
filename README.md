@@ -38,7 +38,7 @@ pip install -r requirements.txt
 # 1. Edit your yardstick + resume (keep everything true):
 #    config/profile.yaml, target roles, real skills, locations, salary floor
 #    resume/master_resume.yaml, your master resume (RenderCV schema)
-#    config/sources.yaml, add Greenhouse/Lever/Ashby tokens for target companies
+#    config/sources.local.yaml, your Greenhouse/Lever/Ashby tokens and countries (see the .example)
 cp config/notify.example.yaml config/notify.yaml   # optional: Telegram/ntfy/email digest
 ```
 

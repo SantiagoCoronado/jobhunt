@@ -14,9 +14,13 @@
 #   tokens: [examplecorp, ledgerly]          # https://boards.greenhouse.io/<token>
 #   names: {examplecorp: "Example Corp"}     # display name when the token is not the name
 # lever:
-#   tokens: [examplecorp]                    # https://jobs.lever.co/<token>
+#   companies: [examplecorp]                 # https://jobs.lever.co/<company>
 # ashby:
-#   tokens: [examplecorp]                    # https://jobs.ashbyhq.com/<token>
+#   clients: [examplecorp]                   # https://jobs.ashbyhq.com/<client>
+# smartrecruiters:
+#   companies: [ExampleCorp]
+# workday:
+#   sites: []                                # see the workday block in sources.yaml for the shape
 
 # ---- Geography and queries for the aggregators ----------------------------------------
 # adzuna:                                    # needs ADZUNA_APP_ID / ADZUNA_APP_KEY in .env
@@ -27,16 +31,34 @@
 #   locale_code: en_GB
 #   location: Remote
 #   keywords: [frontend engineer, full stack engineer]
+# getonbrd:
+#   queries: [frontend, react, typescript]
 # torre:
 #   queries: [frontend engineer, full stack engineer, react]
-# remotive:
-#   categories: [software-dev]
+# findwork:                                  # needs FINDWORK_TOKEN in .env
+#   search: [frontend, react, typescript]
+# themuse:
+#   locations: ["Flexible / Remote", "Lisbon, Portugal"]
+#   categories: ["Software Engineering"]
+# softserve:
+#   countries: [Portugal, Spain]
 # jobicy:
 #   tags: [frontend, javascript, react, typescript]
 
 # ---- Extra title words for the discovery gate (appended to the profile-derived list) ----
 # title_filter:
 #   include_extra: [product engineer, ui engineer]
+
+# ---- Dream-company boards (off in sources.yaml; turn on and point at the company) --------
+# teamtailor:
+#   enabled: true
+#   companies: [examplecorp]
+# pinpoint:
+#   enabled: true
+#   companies: [examplecorp]
+# rippling:
+#   enabled: true
+#   companies: [examplecorp]
 
 # ---- Hand-curated dream sheet (optional, a private Google Sheet read by /jh-discover) ----
 # dreamsheet:

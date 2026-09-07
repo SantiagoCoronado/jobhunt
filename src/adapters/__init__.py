@@ -103,9 +103,9 @@ _TERM_RE: dict[str, re.Pattern[str]] = {}
 def _shared_title_filter() -> dict:
     global _TITLE_FILTER
     if _TITLE_FILTER is None:
-        from ..config import load_yaml
+        from ..config import sources
         try:
-            _TITLE_FILTER = load_yaml("sources.yaml").get("title_filter") or {}
+            _TITLE_FILTER = sources().get("title_filter") or {}
         except FileNotFoundError:
             _TITLE_FILTER = {}
     return _TITLE_FILTER
