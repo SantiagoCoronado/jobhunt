@@ -7,22 +7,46 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = ROOT / "config"
 
+# The user-owned files (docs/spec-open-source.md decision 3): git-ignored, created from the
+# tracked `*.example.*` by `python -m src.init`. Every loader resolves them through this table
+# at call time, so tests point it at tests/fixtures/ and never read a real person's data.
+USER_FILES: dict[str, Path] = {
+    "profile": CONFIG_DIR / "profile.yaml",
+    "notify": CONFIG_DIR / "notify.yaml",
+    "sources_local": CONFIG_DIR / "sources.local.yaml",
+    "master_resume": ROOT / "resume" / "master_resume.yaml",
+    "answers": ROOT / "resume" / "answers.yaml",
+}
 
-def load_yaml(name: str) -> dict:
+
+def user_file(key: str) -> Path:
+    """Path of one user-owned file by logical name (see USER_FILES)."""
+    return USER_FILES[key]
+
+
+def load_yaml(name: str | Path) -> dict:
     import yaml  # PyYAML
 
-    path = CONFIG_DIR / name if not name.startswith("/") else Path(name)
+    if isinstance(name, Path):
+        path = name
+    else:
+        path = CONFIG_DIR / name if not name.startswith("/") else Path(name)
     if not path.exists():
         raise FileNotFoundError(f"Missing config: {path}. Copy the .example and edit it.")
     with open(path) as f:
         return yaml.safe_load(f) or {}
 
 
+def load_profile() -> dict:
+    """config/profile.yaml (or the test fixture): the single authority on what a fit is."""
+    return load_yaml(user_file("profile"))
+
+
 def notify_setting(key: str, default):
     """Read one key from config/notify.yaml; falls back to default if the file
     is absent (it is gitignored, so fresh clones won't have it)."""
     try:
-        return load_yaml("notify.yaml").get(key, default)
+        return load_yaml(user_file("notify")).get(key, default)
     except FileNotFoundError:
         return default
 
@@ -40,7 +64,7 @@ def shortlist_threshold() -> int:
     """The one shortlist cutoff (profile.yaml: shortlist_threshold, default 70).
     match ingest and the notify digest both read THIS; nothing hardcodes 70."""
     try:
-        raw = load_yaml("profile.yaml").get("shortlist_threshold", 70)
+        raw = load_profile().get("shortlist_threshold", 70)
     except FileNotFoundError:
         return 70
     try:

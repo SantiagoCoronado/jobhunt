@@ -22,8 +22,9 @@ import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
 
-from .config import load_yaml
+from .config import load_profile, load_yaml
 from .db import connect
 from .stats import _outcome
 
@@ -81,10 +82,10 @@ class Lexicon:
                 if any(p.search(low) for p in e["patterns"])]
 
 
-def profile_covered(lex: Lexicon, profile_name: str = "profile.yaml") -> set[str]:
+def profile_covered(lex: Lexicon, profile_name: str | Path | None = None) -> set[str]:
     """Lexicon terms the profile already claims (term or alias matches any
     profile skill string), the subtraction set."""
-    prof = load_yaml(profile_name)
+    prof = load_yaml(profile_name) if profile_name else load_profile()
     blob = " | ".join(
         str(s) for s in (prof.get("must_have_skills") or []) + (prof.get("nice_to_have_skills") or []))
     return {e["term"] for e in lex.hits(blob)}

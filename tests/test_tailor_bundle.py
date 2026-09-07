@@ -18,9 +18,9 @@ def conn(tmp_path):
     rows = [
         (1, "ashby", "x1", "k1", "Acme", "Senior Engineer", "Remote", "https://a/1", "shortlisted",
          "Build things with React and Python.", 82, json.dumps({"recommendation": "Yes", "location_ok": True}), None, None, None),
-        (2, "workday", "x2", "k2", "Nvidia", "Senior Solutions Architect", "Santa Clara", "https://n/2", "shortlisted",
+        (2, "workday", "x2", "k2", "Example Robotics", "Senior Solutions Architect", "Santa Clara", "https://n/2", "shortlisted",
          "", 90, json.dumps({"visa_path": "TN, employer files"}), None, None, None),
-        (3, "dreamsheet", "x3", "k2", "NVIDIA", "Senior Solutions Architect", "Santa Clara", "https://n/2", "discovered",
+        (3, "dreamsheet", "x3", "k2", "ExampleRobotics", "Senior Solutions Architect", "Santa Clara", "https://n/2", "discovered",
          "Curated (dream sheet):\nPriority: Apply this week", None, None, None, None, None),
         (4, "hackernews", "x4", "k4", "HN: Who is Hiring", "Quill", "", "https://hn/4", "shortlisted",
          "Quill | Fullstack SWE | Remote", 84, None, 150000, 210000, "USD"),
@@ -119,8 +119,8 @@ def test_unknown_job_exits(conn, apps):
 def test_geometry_block_numbers_are_sane():
     import yaml
 
-    from src.config import ROOT
-    master = yaml.safe_load((ROOT / "resume" / "master_resume.yaml").read_text())
+    from src.config import user_file
+    master = yaml.safe_load(user_file("master_resume").read_text())
     block = tbd.geometry_block(master)
     m = re.search(r"about (\d+) characters \((\d+) at level 3\)", block)
     assert m and 90 <= int(m.group(1)) <= 130 and int(m.group(2)) >= int(m.group(1))

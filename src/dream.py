@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from .config import load_yaml, shortlist_threshold
+from .config import load_profile, shortlist_threshold
 
 _CACHE: dict | None = None
 
@@ -22,7 +22,7 @@ def _profile() -> dict:
     global _CACHE
     if _CACHE is None:
         try:
-            _CACHE = load_yaml("profile.yaml")
+            _CACHE = load_profile()
         except FileNotFoundError:
             _CACHE = {}
     return _CACHE

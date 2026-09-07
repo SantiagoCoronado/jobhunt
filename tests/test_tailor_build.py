@@ -7,15 +7,15 @@ import pytest
 import yaml
 
 from src import tailor_build as tb
-from src.config import ROOT
+from src.config import user_file
 from src.dream import relocation_line
 
 from src import render_docx as _rd
 
 _real_estimate = _rd.estimate_height_pts
 
-NAME = "Santiago Daniel Coronado Sroka"
-CONTACT = "Mexico City, Mexico | s.coronado.sroka@gmail.com | +52-55-1627-3510"
+NAME = "Alex Example"
+CONTACT = "Lisbon, Portugal | alex@example.com | +351-900-000-000"
 
 
 def _body(words: int) -> str:
@@ -33,8 +33,8 @@ def letter(words: int = 250, extra: str = "") -> str:
     return f"{NAME}\n{CONTACT}\nRe: Senior Engineer, Acme\n\nDear Acme team,\n\n{_body(words - fixed)}\n{extra}\n\nSincerely,\n{NAME}\n"
 
 
-def small_resume(location: str = "Mexico City, Mexico") -> dict:
-    master = yaml.safe_load((ROOT / "resume" / "master_resume.yaml").read_text())
+def small_resume(location: str = "Lisbon, Portugal") -> dict:
+    master = yaml.safe_load(user_file("master_resume").read_text())
     cv = master["cv"]
     secs = cv["sections"]
     return {"cv": {**cv, "location": location, "sections": {
