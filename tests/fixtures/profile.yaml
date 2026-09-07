@@ -24,6 +24,44 @@ target_titles:
 
 seniority: "mid to senior"    # free text; the matcher reads it when judging seniority fit
 
+# The four prompt keys (docs/spec-open-source.md section 4). No prompt, agent file or line
+# of code names a person, a city or a visa: they read these. `python -m src.config candidate`
+# prints the block the triage and match prompts open with; `python -m src.config check`
+# validates them.
+
+# One sentence: who you are, where you are, your work status. Third person, no pronouns.
+candidate_line: >-
+  Alex, full-stack engineer, Lisbon, bilingual PT/EN, EU work authorization.
+
+# Ordered role families. The prompts render them as a lettered list and weight by `strength`
+# (strongest | core | adjacent); `titles` feed the discovery title gate like target_titles;
+# `skills` are the family's signals; an optional `match` list adds phrases `python -m
+# src.stats` uses to bucket a title into the family on top of its title words; an optional
+# `note` is one line the prompts carry with the family. The FIRST family is the catch-all:
+# a title that matches no other family is counted there.
+role_families:
+  - key: A
+    name: hands-on full-stack engineering
+    titles: [Full-Stack Engineer, Software Engineer, Product Engineer]
+    skills: [TypeScript, React, Node, Postgres]
+    strength: core
+  - key: B
+    name: frontend engineering
+    titles: [Frontend Engineer, UI Engineer]
+    skills: [React, TypeScript, Vite]
+    strength: strongest
+
+# Told to the prompts (summary) and rendered in the resume header (header_item; "" renders
+# nothing). Never claim more than is true: the tailor copies these, it never rewrites them.
+work_authorization:
+  summary: EU citizen, no sponsorship needed in the EU
+  header_item: EU Work Authorization
+
+# What the tailored resume header must say; the build checks it. "" = the master resume's
+# cv.location. A dream-company role that requires presence elsewhere appends the relocation
+# note to it (see dream_rule and relocation_line below).
+header_location: Lisbon, Portugal
+
 # Skills you can defend in an interview. Drive the keyword prescore and the honest gap
 # analysis (`python -m src.gaps`). Lowercase, one per line.
 must_have_skills:

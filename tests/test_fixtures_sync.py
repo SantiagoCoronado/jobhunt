@@ -24,8 +24,10 @@ def test_examples_parse_and_carry_the_invented_candidate():
     assert master["cv"]["name"] == prof["name"]
     assert isinstance(prof["shortlist_threshold"], int)
     for key in ("comp", "location_rule", "dealbreakers", "dream_companies", "dream_rule",
-                "relocation_line", "dream_shortlist_threshold", "notes"):
+                "relocation_line", "dream_shortlist_threshold", "notes",
+                "candidate_line", "role_families", "work_authorization", "header_location"):
         assert key in prof, key
+    assert master["cv"]["location"] == prof["header_location"]
     ids = [e["id"] for e in answers["answers"]]
     assert "why-company" in ids and len(ids) == len(set(ids))
     assert all(isinstance(e["draft"], bool) for e in answers["answers"])

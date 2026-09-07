@@ -1,21 +1,29 @@
 """First-run setup: create every user-owned file from its tracked example, never overwrite.
 
-    python -m src.init            copy the examples that have no real file yet, make the data dirs
-    python -m src.init --check    report only, exit 1 when a user file is missing
+    python -m src.init            copy the examples that have no real file yet, make the data dirs,
+                                  append the prompt keys an older profile.yaml lacks
+    python -m src.init --check    report only, exit 1 when a user file or a profile key is missing
 
 The user-owned files (docs/spec-open-source.md decision 3) are git-ignored and come from the
 tracked `<name>.example.<ext>` next to them (`.env.example` is the one suffix form). This never
 touches a tracked file and never overwrites an existing real file, so it is safe to re-run.
 `config/identity.local.example.yaml` is documentation only and is deliberately NOT copied:
 the guard test's identity rule is opt-in (write `config/identity.local.yaml` by hand).
+
+Migration: a profile.yaml written before the prompt keys existed (`candidate_line`,
+`role_families`, `work_authorization`, `header_location`, docs/spec-open-source.md section 4)
+gets the missing ones APPENDED with defaults derived from its own keys (the name, the target
+titles), under a dated comment, so the file keeps every line the user wrote. Keys already
+present are never touched; a second run appends nothing.
 """
 from __future__ import annotations
 
 import argparse
 import shutil
+from datetime import date
 from pathlib import Path
 
-from .config import ROOT
+from .config import PROFILE_KEYS, ROOT, default_profile_keys, missing_profile_keys
 
 # example (tracked) -> real (ignored); both spellings of "example" are handled
 EXAMPLES: dict[str, str] = {
@@ -40,9 +48,64 @@ def real_name(example: str) -> str:
     return example.replace(".example.", ".", 1)
 
 
+PROFILE = "config/profile.yaml"
+KEY_HELP = {
+    "candidate_line": "one sentence the triage and match prompts open with (who you are, where, work status)",
+    "role_families": "ordered families the prompts use; strength: strongest | core | adjacent",
+    "work_authorization": "summary told to the prompts; header_item rendered in the resume header (\"\" = nothing)",
+    "header_location": "what the tailored resume header must say; \"\" = the master resume's cv.location",
+}
+
+
+def profile_missing_keys(root: Path = ROOT) -> list[str]:
+    """The prompt keys the real profile under `root` lacks ([] when the file is absent)."""
+    import yaml
+
+    path = root / PROFILE
+    if not path.exists():
+        return []
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return missing_profile_keys(raw) if isinstance(raw, dict) else list(PROFILE_KEYS)
+
+
+def migration_block(raw: dict, keys: list[str], today: str | None = None) -> str:
+    """The YAML text appended to an older profile: one dated comment, then each missing key
+    with its derived default and a one-line comment saying who reads it."""
+    import yaml
+
+    defaults = default_profile_keys(raw)
+    lines = [
+        "",
+        f"# ---- added by `python -m src.init` on {today or date.today().isoformat()}: the prompt keys from",
+        "# docs/spec-open-source.md section 4. The values are derived from the keys above; edit them.",
+    ]
+    for key in keys:
+        lines.append(f"# {key}: {KEY_HELP[key]}")
+        lines.append(yaml.safe_dump({key: defaults[key]}, sort_keys=False, allow_unicode=True,
+                                    default_flow_style=False, width=100).rstrip())
+    return "\n".join(lines) + "\n"
+
+
+def migrate_profile(root: Path = ROOT, today: str | None = None) -> list[str]:
+    """Append the missing prompt keys to the real profile; returns the keys added."""
+    import yaml
+
+    keys = profile_missing_keys(root)
+    if not keys:
+        return []
+    path = root / PROFILE
+    text = path.read_text(encoding="utf-8")
+    raw = yaml.safe_load(text) or {}
+    block = migration_block(raw if isinstance(raw, dict) else {}, keys, today)
+    path.write_text(text.rstrip("\n") + "\n" + block, encoding="utf-8")
+    return keys
+
+
 def plan(root: Path = ROOT) -> dict[str, list[str]]:
-    """What a run would do: {'copy': [...], 'keep': [...], 'missing_example': [...], 'mkdir': [...]}."""
-    out: dict[str, list[str]] = {"copy": [], "keep": [], "missing_example": [], "mkdir": []}
+    """What a run would do: {'copy': [...], 'keep': [...], 'missing_example': [...], 'mkdir': [...],
+    'migrate': [<profile keys to append>]}."""
+    out: dict[str, list[str]] = {"copy": [], "keep": [], "missing_example": [], "mkdir": [],
+                                 "migrate": profile_missing_keys(root)}
     for ex, real in EXAMPLES.items():
         assert real_name(ex) == real, ex
         if not (root / ex).exists():
@@ -66,8 +129,11 @@ def run(root: Path = ROOT, check: bool = False) -> int:
             print(f"  present  {real}")
         for ex in p["missing_example"]:
             print(f"  ! no example on disk: {ex}")
-        print("user files complete" if not p["copy"] and not p["missing_example"] else "user files incomplete")
-        return 1 if p["copy"] or p["missing_example"] else 0
+        for key in p["migrate"]:
+            print(f"  missing  {PROFILE}: {key}  (python -m src.init appends a default)")
+        incomplete = bool(p["copy"] or p["missing_example"] or p["migrate"])
+        print("user files incomplete" if incomplete else "user files complete")
+        return 1 if incomplete else 0
     for ex, real in EXAMPLES.items():
         if real in p["copy"]:
             (root / real).parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +146,9 @@ def run(root: Path = ROOT, check: bool = False) -> int:
     for d in p["mkdir"]:
         (root / d).mkdir(parents=True, exist_ok=True)
         print(f"  mkdir    {d}/")
+    if p["migrate"] and PROFILE not in p["copy"]:      # a fresh copy of the example has them all
+        added = migrate_profile(root)
+        print(f"  migrated {PROFILE}: appended {', '.join(added)} with derived defaults; edit them")
     for ex in SKIPPED_EXAMPLES:
         print(f"  skipped  {ex}  (documentation; write {real_name(ex)} by hand to enable the identity guard)")
     print("Next: edit config/profile.yaml, resume/master_resume.yaml and resume/answers.yaml, "
