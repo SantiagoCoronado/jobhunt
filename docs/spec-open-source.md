@@ -29,15 +29,15 @@ Two facts shape the plan:
 | # | Decision | Choice | Why |
 |---|----------|--------|-----|
 | 1 | Public repo | A fresh repository seeded from a clean snapshot with one initial commit. The current repo is renamed `jobhunt-private` and kept as history. Development moves to the public repo after the release; the author's private files live on disk in the ignored paths. | History rewriting with `filter-repo` on a repo this size and this personal is more work and more risk than a clean seed. |
-| 2 | User file pattern | Tracked `*.example.*` next to an ignored real file, the pattern `.env.example` already uses. `python -m src.init` copies every example to its real name when the real one is missing, never overwrites. | One convention, already known in the repo, no home-directory relocation. |
-| 3 | What is user data | `config/profile.yaml`, `config/sources.local.yaml`, `config/notify.yaml`, `resume/master_resume.yaml`, `resume/answers.yaml`, `resume/originals/`, `research/companies/`, `research/upskill/`, `research/aliases.yaml`, `applications/`, `interviews/`, `data/`, `.env`. Everything else is the product. | Anything derived from one person's career or one person's targeting. |
-| 4 | Sources split | `config/sources.yaml` stays tracked and generic (every adapter block, token lists empty, `dreamsheet` disabled). `config/sources.local.yaml` (ignored, example tracked) is deep-merged on top per source block at load time: lists replace, scalars override, unknown sources are added. | The adapter config is product; which companies' boards to poll is targeting. |
-| 5 | Deliverable names | `SantiagoCoronadoResume.*` becomes `<FirstLast>Resume.*`, derived from `profile.name` by `config.resume_basename()`. `CoverLetter.*` stays. `tailor_build`, `tailor_bundle`, `export_pdf.sh`, the tailor prompt and the tests read the helper. Existing folders keep their old file names; `reconcile` reports them, never renames. | A file name with the author's name in it is the most visible leak. |
-| 6 | Profile-driven prompts | Every personal fact in a prompt becomes a slot filled from `profile.yaml` at assembly time (the orchestrator's decision 7 already assembles prompts in Python). New profile keys: `candidate_line`, `role_families`, `work_authorization`, `header_location`. Nothing in `prompts/agents/`, `.claude/agents/` or `.claude/commands/` names a person, a city or a visa after this. | The rubric text "Santiago, founder-engineer, Mexico City, TN-visa eligible" is exactly what a second user must not inherit. |
-| 7 | Code constants | `tailor_build`'s relocation header check, its city and region lists, `match.py`'s LATAM and Mexico regexes, `render_docx`'s visa item, `torre.py`'s timezone, `answers_export`'s wording and `pick.py`'s docstring read from the profile (`header_location`, `locations`, `timezones`, `work_authorization`) or a new tracked `config/geo.yaml` (city to region table, product data). | Location logic is product; which region is home is profile. |
+| 2 | User file pattern | Tracked `<name>.example.<ext>` (infix) next to an ignored real file: `profile.example.yaml`, `master_resume.example.yaml`. The existing `config/notify.yaml.example` is renamed `notify.example.yaml`; `.env.example` is the one suffix form and stays. `python -m src.init` maps both forms and copies every example to its real name when the real one is missing, never overwrites. | One convention (infix keeps editor highlighting), no home-directory relocation. |
+| 3 | What is user data | `config/profile.yaml`, `config/sources.local.yaml`, `config/notify.yaml`, `resume/master_resume.yaml`, `resume/answers.yaml`, `resume/originals/`, `research/companies/`, `research/upskill/`, `applications/`, `interviews/`, `data/`, `.env`. Everything else is the product, including `research/aliases.yaml` (a company slug table every user would otherwise rebuild). | Anything derived from one person's career or one person's targeting. |
+| 4 | Sources split | `config/sources.yaml` stays tracked and carries adapter mechanics only: endpoints, rate limits, `enabled:`, field mappings. Everything that is targeting leaves it: ATS token lists, `dreamsheet`, Adzuna `countries`, Careerjet `locale_code` and `location`, Torre `countries`, every per-source keyword and query list. Those live in `config/sources.local.yaml` (ignored, example tracked with Alex Example's Lisbon and EU values), deep-merged on top per source block at load time: lists replace, scalars override, unknown sources are added. `title_filter.include` stops being a hand list: it defaults to the union of `profile.target_titles` and `role_families[].titles`, and `sources.local.yaml` may extend or replace it. A source whose targeting keys are absent prints a hint and yields nothing, the way a keyed source without a key already does; no adapter keeps a country or locale default in code (`adzuna.py` `mx`, `careerjet.py` `es_MX` and `Mexico` go). | The adapter config is product; where to search and for what is targeting, and a stranger must never inherit someone else's country. |
+| 5 | Deliverable names | `SantiagoCoronadoResume.*` becomes `<FirstLast>Resume.*`, derived from `profile.name` by `config.resume_basename()`. `CoverLetter.*` stays. `tailor_build`, `tailor_bundle`, `export_pdf.sh`, the tailor prompt and the tests read the helper. Normalization: NFKD fold to ASCII, drop everything but letters and digits, join the name parts in order, append `Resume`; an empty result falls back to `Resume` (`Zoë O'Brien-Smith` gives `ZoeOBrienSmithResume`). Exposed as `python -m src.config resume-basename` for `export_pdf.sh`. Existing folders keep their old file names; `reconcile` reports them, never renames. | A file name with the author's name in it is the most visible leak. |
+| 6 | Profile-driven prompts | Every personal fact in a prompt becomes a slot filled from `profile.yaml` at assembly time (the orchestrator's decision 7 already assembles prompts in Python). New profile keys: `candidate_line`, `role_families`, `work_authorization`, `header_location`. Nothing in `prompts/agents/`, `.claude/agents/` or `.claude/commands/` names a person, a city or a visa after this. Two render modes: the orchestrator inlines the values into each unit prompt under the ignored run folder; the committed native agent files never embed profile values, they tell the agent which `profile.yaml` keys to read (the matcher and the researcher already read the profile, the tailor gets it in the bundle). The tracked tree is therefore identical for every user and `init` never rewrites a tracked file. | The rubric text "Santiago, founder-engineer, Mexico City, TN-visa eligible" is exactly what a second user must not inherit. |
+| 7 | Code constants | `tailor_build`'s relocation header check, its city and region lists, `match.py`'s LATAM and Mexico regexes, `render_docx`'s visa item, `torre.py`'s timezone, `stats.py`'s `FAMILIES` regexes (built from `role_families`, so `title_family` and `/jh-review` bucket by the user's families), `report.py`'s LatAm note, `answers_export`'s wording and `pick.py`'s docstring read from the profile (`header_location`, `locations`, `timezones`, `work_authorization`) or a new tracked `config/geo.yaml` (city to region table, product data). | Location logic is product; which region is home is profile. |
 | 8 | Tests | No test reads a real user file. `tests/fixtures/` gets a full fake person (`profile.yaml`, `master_resume.yaml`, `answers.yaml`) and tests point `config.CONFIG_DIR` and the resume paths there. The example files and the fixtures are the same content, generated from one source so they cannot drift. | CI has no user files, and a stranger's `pytest` must pass on a fresh clone. |
-| 9 | Guard test | `tests/test_no_user_data.py` fails if any tracked path under `config/`, `resume/`, `research/`, `applications/`, `interviews/` is not an `*.example.*`, a `README.md`, `.gitkeep`, or on an explicit product allowlist (`sources.yaml`, `skills_lexicon.yaml`, `mail_hints.yaml`, `hunt.toml`, `tui.toml`, `geo.yaml`); and if any tracked text file outside `docs/` matches the author's name or email. | The rule that keeps the next contributor from committing their resume. |
-| 10 | Docs | `CLAUDE.md`, `README.md`, the agent files and the commands lose the author's name entirely. Specs under `docs/` keep dated decisions but attribute them to "the author"; measured numbers stay. `docs/writing-voice.md` stays as product guidance. The memory directory is per machine and never in the repo. | Specs are history and useful to a reader; a name in a rule is a leak, a name in a dated decision is provenance. |
+| 9 | Guard test | `tests/test_no_user_data.py` fails if any tracked path under `config/`, `resume/`, `research/`, `applications/`, `interviews/` is not a `*.example.*` file, `.env.example`, a `README.md`, `.gitkeep`, or on an explicit product allowlist (`sources.yaml`, `skills_lexicon.yaml`, `mail_hints.yaml`, `hunt.toml`, `tui.toml`, `geo.yaml`, `research/aliases.yaml`); if any tracked text file outside `docs/` matches the author's name, either email, the phone number or the old deliverable basename; and if any line under `docs/` matches them except a dated attribution (`(Santiago, 2026-` or `Santiago + Fable`). | The rule that keeps the next contributor from committing their resume. |
+| 10 | Docs | `CLAUDE.md`, `README.md`, the agent files and the commands lose the author's name entirely. Specs under `docs/` keep dated attributions; measured numbers stay. Literal product names in specs are converted: `SantiagoCoronadoResume.yaml` becomes `<FirstLast>Resume.yaml` in `docs/spec-tailor-lean.md`, the `-Users-santiagocoronado-jobhunt` path in `docs/token-efficiency.md` becomes `<project memory dir>`, so the guard's docs rule (decision 9) passes on attributions alone. `docs/writing-voice.md` stays as product guidance. The memory directory is per machine and never in the repo. | Specs are history and useful to a reader; a name in a rule is a leak, a name in a dated decision is provenance. |
 | 11 | Licence | MIT. `LICENSE` at the root, copyright the author. | Permissive, the default for a personal tool people fork. |
 | 12 | README | Rewritten for a stranger: what it is, the human-on-submit rule, five-minute setup (`init`, fill the three files, pick a harness with `hunt doctor`), the pipeline table, the token-cost expectations, how to add a source, how to add a harness. | Today's README assumes the author's machine. |
 | 13 | Release checklist | Executed once, in order, in section 7. Secrets scan on the clean tree, name and email grep, fresh repo, one commit, CI green, branch protection, then the private rename. | A checklist because it happens once and cannot be undone. |
@@ -54,17 +54,17 @@ tracked `sources.yaml`, documented as optional; zero em-dashes in anything gener
 | `config/profile.example.yaml` | tracked | full fake profile, every key documented inline |
 | `config/profile.yaml` | ignored | the user's |
 | `config/sources.yaml` | tracked | generic adapter config, tokens empty, `dreamsheet: enabled: false` |
-| `config/sources.local.example.yaml` | tracked | shows token lists and the dreamsheet block |
+| `config/sources.local.example.yaml` | tracked | token lists, dreamsheet block, countries, locales, query lists for Alex Example |
 | `config/sources.local.yaml` | ignored | deep-merged on top |
-| `config/notify.yaml.example` | tracked (exists) | |
-| `config/skills_lexicon.yaml`, `config/mail_hints.yaml`, `config/hunt.toml`, `config/tui.toml`, `config/geo.yaml` | tracked | product data |
+| `config/notify.example.yaml` | tracked | renamed from `notify.yaml.example` |
+| `config/skills_lexicon.yaml`, `config/mail_hints.yaml`, `config/hunt.toml`, `config/tui.toml`, `config/geo.yaml`, `research/aliases.yaml` | tracked | product data |
 | `resume/master_resume.example.yaml`, `resume/answers.example.yaml` | tracked | Alex Example |
 | `resume/master_resume.yaml`, `resume/answers.yaml`, `resume/originals/` | ignored | |
-| `research/README.md`, `research/aliases.example.yaml` | tracked | |
-| `research/companies/`, `research/upskill/`, `research/aliases.yaml` | ignored | dossiers are the user's research |
+| `research/README.md` | tracked | |
+| `research/companies/`, `research/upskill/` | ignored | dossiers and learning plans are the user's |
 | `applications/.gitkeep`, `interviews/.gitkeep` | tracked | folders exist on clone |
 | `applications/`, `interviews/`, `data/` | ignored (already) | |
-| `prompts/agents/*.md`, generated native agent files | tracked | profile-driven, no person in them |
+| `prompts/agents/*.md`, generated native agent files | tracked | slots point at profile keys, no values embedded, identical for every user |
 | `.env.example` | tracked (exists) | |
 
 `.gitignore` after the change (the new lines):
@@ -77,12 +77,14 @@ resume/answers.yaml
 resume/originals/
 research/companies/
 research/upskill/
-research/aliases.yaml
 ```
 
 In the private repo these files are removed from the index with `git rm --cached` and stay on
-disk. The author may keep them under their own private git repo elsewhere; the product does not
-depend on that.
+disk. Before that command runs, `scripts/backup_user_data.sh` copies every path in decision 3 to
+a directory outside the repo (`~/jobhunt-user-data/<date>/`), prints a file count and a checksum
+list, and the story is not done until that count equals `git ls-files` over the same paths.
+Keeping that directory under a private git repo is recommended in the docs, not required by the
+product.
 
 ## 4. Profile keys added
 
@@ -123,26 +125,33 @@ author's real profile by appending the new keys with the current hardcoded value
 | inbox-classifier (from `jh-gmail-sync.md`) | account labels and the author's addresses in examples | `{mail_accounts}` from `.env` labels |
 | `/jh-upskill`, `/jh-tailor`, `/jh-triage`, `/jh-gmail-sync` command files | one mention each | none |
 
-The orchestrator's prompt assembler (`docs/spec-hunt-orchestrator.md` section 4) fills the slots.
-For interactive use, `sync-agents` fills them at generation time and the generated native agent
-files are committed with the **example** profile's values; `init` regenerates them for the user's
-profile after the copy, and the guard test checks that the committed ones match the example.
+Two render modes for the same role file. Headless: the orchestrator's prompt assembler
+(`docs/spec-hunt-orchestrator.md` section 4) inlines the values into `data/hunt/<run>/prompts/`,
+which is ignored. Interactive: `sync-agents` renders the native agent files with each slot
+replaced by an instruction to read the named keys from `config/profile.yaml` (the bundle already
+carries the profile for the tailor). No committed file ever contains a profile value, so `init`
+never touches a tracked file and no user's tree goes dirty; `sync-agents --check` in CI asserts
+the committed renders match the role files.
 
 ## 6. Code changes by file
 
 | File | Change |
 |---|---|
-| `src/config.py` | `profile()` with validation and defaults for the new keys; `resume_basename()`; `sources()` doing the `sources.local.yaml` deep merge |
+| `src/config.py` | `profile()` with validation and defaults for the new keys; `resume_basename()` with the decision 5 normalization and a `python -m src.config resume-basename` entry point; `sources()` doing the `sources.local.yaml` deep merge and the `title_filter` default |
 | `src/init.py` | copy examples, migrate an existing profile, regenerate native agent files, print a summary; idempotent |
 | `src/discover.py` | reads `config.sources()` |
 | `src/tailor_build.py` | `ALLOWED_FILES`, `REQUIRED_FILES`, the YAML path and the header check from `resume_basename()` and `header_location`; city and region lists from `config/geo.yaml` |
 | `src/tailor_bundle.py` | existing-draft path from `resume_basename()`; "Santiago's own judgment" becomes "the user's own judgment" |
 | `src/match.py` | region regexes built from `profile.locations` and `geo.yaml` |
 | `src/render_docx.py` | header item from `work_authorization.header_item` instead of sniffing "tn visa" |
-| `src/adapters/torre.py` | timezone from `profile.timezones` |
+| `src/adapters/torre.py` | timezone from `profile.timezones`; `countries` from the local sources file |
+| `src/adapters/adzuna.py`, `src/adapters/careerjet.py` | the `mx`, `es_MX` and `Mexico` defaults removed; missing targeting keys print a hint and yield nothing |
+| `src/stats.py`, `src/report.py` | `FAMILIES` built from `role_families`; the LatAm note reads `profile.locations` |
+| `scripts/backup_user_data.sh` | decision 3 paths to `~/jobhunt-user-data/<date>/`, count and checksums |
+| `config/notify.yaml.example` | renamed `notify.example.yaml` |
 | `src/answers_export.py`, `src/pick.py` | wording |
 | `scripts/export_pdf.sh` | file pattern from `python -m src.config resume-basename` |
-| `tests/` | fixtures for the fake person; `test_tailor_bundle`, `test_tailor_build`, `test_adapters`, `test_pick`, `test_mail_fetch`, `test_render_cover_letter`, `test_answers_export`, `test_data_quality` stop reading real files or the author's name |
+| `tests/` | fixtures for the fake person; `test_tailor_bundle`, `test_tailor_build`, `test_adapters`, `test_pick`, `test_mail_fetch`, `test_render_cover_letter`, `test_answers_export`, `test_data_quality`, `test_intelligence` stop reading real files or asserting the author's families and cities |
 | `tests/test_no_user_data.py` | the guard from decision 9 |
 | `.gitignore` | section 3 |
 | `CLAUDE.md`, `README.md`, `.claude/agents/*.md`, `.claude/commands/*.md`, `docs/*.md` | name pass per decision 10 |
@@ -153,15 +162,19 @@ profile after the copy, and the guard test checks that the committed ones match 
    user files (`git clone` into a temp dir, `python -m src.init`, `pytest`).
 2. `python -m src.init` output reviewed: every example copies, every stage runs on Alex Example
    through `python -m src.hunt run --dry-run`.
-3. Secrets and identity scan on the clean tree: `gitleaks detect --no-git`, then a grep for the
+3. Build the clean tree away from the working directory: `git clone --depth 1` the private repo
+   into a temp dir (a clone carries tracked files only), `rm -rf .git` there. Every later step
+   runs in that directory, never in the author's checkout.
+4. Secrets and identity scan in the clean tree: `gitleaks detect --no-git`, then a grep for the
    author's name, both email addresses, the phone number, the Google Sheet id, every token in
-   `sources.local.yaml`. Zero hits outside `docs/` provenance lines.
-4. Create the public repo empty, no template. From the clean tree: `git init`, one commit
+   `sources.local.yaml`, and the old deliverable basename. Zero hits except dated attributions
+   under `docs/`. Run the guard test there too.
+5. Create the public repo empty, no template. In the clean tree: `git init`, one commit
    "jobhunt: initial public release", push. Enable CI, protect `main`, require the checks.
-5. Rename this repository `jobhunt-private`, keep it private, add a README line pointing at the
+6. Rename this repository `jobhunt-private`, keep it private, add a README line pointing at the
    public one. Move local development to a clone of the public repo; copy the ignored user files
    into it by hand once.
-6. Tag `v0.1.0` on the public repo after the first green CI.
+7. Tag `v0.1.0` on the public repo after the first green CI.
 
 ## 8. Non-goals
 
@@ -183,19 +196,21 @@ the project does before going public.
 ### PR 2: `feat/user-data-split`
 
 1. **Examples**: `config/profile.example.yaml`, `config/sources.local.example.yaml`,
-   `resume/master_resume.example.yaml`, `resume/answers.example.yaml`,
-   `research/aliases.example.yaml` for Alex Example; `tests/fixtures/` generated from the same
+   `resume/master_resume.example.yaml`, `resume/answers.example.yaml` for Alex Example;
+   `config/notify.yaml.example` renamed; `tests/fixtures/` generated from the same
    content by one script (`scripts/gen_fixtures.py`) and a test that they match.
-2. **gitignore and index**: the section 3 lines; `git rm --cached` for every newly ignored path;
-   `applications/.gitkeep` and `interviews/.gitkeep`.
-3. **`config.sources()`** with the local deep merge; `discover` reads it; `sources.yaml` tokens
-   emptied and `dreamsheet` disabled; the author's lists move to `sources.local.yaml`; tests.
+2. **Backup, gitignore and index**: `scripts/backup_user_data.sh` run and verified first (the
+   count check in section 3); then the section 3 lines, `git rm --cached` for every newly
+   ignored path, `applications/.gitkeep` and `interviews/.gitkeep`.
+3. **`config.sources()`** with the local deep merge and the `title_filter` default; `discover`
+   reads it; every targeting key (tokens, dreamsheet, countries, locales, query lists,
+   `title_filter.include`) leaves `sources.yaml` for the author's `sources.local.yaml`; the
+   adzuna and careerjet code defaults removed; tests.
 4. **`resume_basename()`** and its use in `tailor_build`, `tailor_bundle`, `export_pdf.sh`,
    the tailor prompt; `reconcile` reports legacy file names; tests.
 5. **`python -m src.init`**: copy, migrate, summary; test on a temp tree.
-6. **Tests off real files**: every test in the section 6 list on fixtures; CI green with the user
-   files absent (a CI step deletes them before `pytest` to prove it, until phase 4 makes that
-   the natural state).
+6. **Tests off real files**: every test in the section 6 list on fixtures; CI is green with the
+   user files absent, which after story 2 is simply what a checkout contains.
 7. **Guard test**: `tests/test_no_user_data.py`.
 
 ### PR 3: `feat/profile-driven-prompts`
@@ -203,10 +218,11 @@ the project does before going public.
 1. **Profile keys**: `candidate_line`, `role_families`, `work_authorization`,
    `header_location`; `config.profile()` validation and defaults; `init` migration; the
    author's real profile updated.
-2. **Code constants**: `geo.yaml`; `tailor_build`, `match`, `render_docx`, `torre`,
-   `answers_export`, `pick` per section 6; tests.
+2. **Code constants**: `geo.yaml`; `tailor_build`, `match`, `render_docx`, `torre`, `stats`,
+   `report`, `answers_export`, `pick` per section 6; `test_intelligence` on fixture families;
+   tests.
 3. **Agent and command files**: slots per section 5 in `.claude/agents/*.md` and
-   `.claude/commands/*.md` (these become `prompts/agents/` in `feat/hunt-core`, which starts
+   `.claude/commands/*.md`, rendered as read-these-profile-keys instructions, never values (these become `prompts/agents/` in `feat/hunt-core`, which starts
    from this state); the tailor and matcher run once on a real job to confirm no regression in
    the verdict and the letter.
 4. **Docs pass**: `CLAUDE.md`, `README.md` (structure only, the stranger rewrite is phase 4),
