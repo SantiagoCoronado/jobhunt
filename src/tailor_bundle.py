@@ -4,7 +4,8 @@
 
 Writes `data/tailor/<id>/inputs.md` with, in this fixed order:
   1. voice rules (docs/writing-voice.md, verbatim)
-  2. profile (config/profile.yaml, verbatim: dream_rule, relocation_line, location_rule, comp ...)
+  2. profile (config/profile.yaml, verbatim: dream_rule, relocation_line, location_rule, comp,
+     header_location, work_authorization ...)
   3. master resume (resume/master_resume.yaml, verbatim, the single source of truth)
   4. page geometry (generated from src/render_docx constants, so it can never go stale)
   5. the job (DB row, dream flag, the dream sheet's Curated block, full description)
@@ -41,7 +42,7 @@ VOICE = ROOT / "docs" / "writing-voice.md"
 
 SECTION_PURPOSE = {
     1: "Voice rules. Every sentence you write obeys these.",
-    2: "Profile. dream_rule, relocation_line, location_rule and comp are quoted here verbatim; apply them as written.",
+    2: "Profile. dream_rule, relocation_line, location_rule, comp, header_location and work_authorization are quoted here verbatim; apply them as written.",
     3: "Master resume. The single source of truth: reorder, reframe, rephrase; never add a fact that is not here.",
     4: "Page geometry. Write to this grid on the FIRST draft so the build passes without a fit loop.",
     5: "The job.",

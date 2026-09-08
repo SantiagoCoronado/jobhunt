@@ -42,6 +42,6 @@ Vocabulary gaps become proposed profile diffs; only real gaps get a learning pla
    the single highest-leverage thing to learn next and why (evidence line).
 
 HARD RULE (CLAUDE.md): the learning plan NEVER feeds resume or answer-bank
-content. A skill enters `master_resume.yaml` only after Santiago actually learns
-it and can prove it, by his own hand. Voice rules per `docs/writing-voice.md`;
+content. A skill enters `master_resume.yaml` only after the candidate actually
+learns it and can prove it, by their own hand. Voice rules per `docs/writing-voice.md`;
 zero em-dashes; small n is an anecdote, print the n.
