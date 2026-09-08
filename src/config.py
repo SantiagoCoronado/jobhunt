@@ -487,11 +487,18 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "candidate":
         try:
             print(candidate_text())
+        except FileNotFoundError:
+            print(f"  ! missing {user_file('profile')} (python -m src.init creates it)")
+            return 1
         except ValueError as e:
             print(f"  ! {e}")
             return 1
     elif args.cmd == "check":
-        raw = load_profile()
+        try:
+            raw = load_profile()
+        except FileNotFoundError:
+            print(f"  ! missing {user_file('profile')} (python -m src.init creates it)")
+            return 1
         try:
             profile(raw)
         except ValueError as e:

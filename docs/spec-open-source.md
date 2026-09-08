@@ -162,7 +162,7 @@ the committed renders match the role files.
 | `src/discover.py` | reads `config.sources()` |
 | `src/tailor_build.py` | `ALLOWED_FILES`, `REQUIRED_FILES`, the YAML path and the header check from `resume_basename()` and `header_location`; city and region lists from `config/geo.yaml` |
 | `src/tailor_bundle.py` | existing-draft path from `resume_basename()`; "Santiago's own judgment" becomes "the user's own judgment" |
-| `src/match.py` | `--eligible-only` regexes built from the home region (`header_location`, else `locations`) and `geo.yaml`; a bare non-remote "United States" row is now locked out for a profile whose home is elsewhere, which the location rule always said |
+| `src/match.py` | `--eligible-only` regexes built from the home region (`header_location`, else `locations`) and `geo.yaml`: cities, states and state names of other regions lock a non-remote row out; bare country and region words never do, since a stored location string is not authoritative and the matcher reads the description (settled in the PR #22 review) |
 | `src/render_docx.py` | header item from `work_authorization.header_item` instead of sniffing "tn visa" |
 | `src/adapters/torre.py` | the home GMT offset parsed from `profile.timezones` (none written = no band excludes); `countries` from the local sources file |
 | `src/adapters/adzuna.py`, `src/adapters/careerjet.py` | the `mx`, `es_MX` and `Mexico` defaults removed; missing targeting keys print a hint and yield nothing |

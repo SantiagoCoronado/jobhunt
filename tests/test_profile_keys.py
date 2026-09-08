@@ -163,6 +163,8 @@ def test_safe_profile_degrades_with_one_warning_and_candidate_exits_1(tmp_path, 
     assert "strength must be one of" in capsys.readouterr().out
     monkeypatch.setitem(config.USER_FILES, "profile", tmp_path / "absent.yaml")
     assert config.safe_profile() == {}
+    assert config.main(["candidate"]) == 1 and "missing" in capsys.readouterr().out    # no traceback
+    assert config.main(["check"]) == 1 and "src.init" in capsys.readouterr().out
 
 
 # ---- init migration ----

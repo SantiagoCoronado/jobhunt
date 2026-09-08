@@ -373,6 +373,19 @@ def test_header_work_auth_item_comes_from_the_profile_and_is_not_duplicated():
     cv2 = {"email": "alex@us.example.com", "location": "Somewhere",
            "social_networks": [{"network": "LinkedIn", "username": "us-eu"}], "sections": {}}
     assert "US Work Authorization" in [t for t, _ in _contact_items(cv2, header_item="US Work Authorization")]
+    # fourth review: a location or extra carrying only the token never counts as stating the item;
+    # the header shows it, and the body entry goes because the header shows it (one decision)
+    from src.render_docx import contact_line
+    cv3 = {"email": "a@b.c", "location": "Austin, TX, US", "contact_extras": ["Open to EU roles"],
+           "sections": {"additional": [{"label": "Work Authorization", "details": "US citizen"}]}}
+    items, shown = contact_line(cv3, header_item="US Work Authorization")
+    assert "US Work Authorization" in [t for t, _ in items] and shown == "US Work Authorization"
+    assert _surfaced_in_header(cv3["sections"]["additional"][0], shown) is True
+    items, shown = contact_line(cv3, header_item="EU Work Authorization")
+    assert "EU Work Authorization" in [t for t, _ in items]
+    cv4 = {"location": "Somewhere (open to US relocation, TN eligible)", "sections": {}}
+    items, shown = contact_line(cv4, header_item="TN Visa Eligible")
+    assert "TN Visa Eligible" not in [t for t, _ in items] and shown == "TN Visa Eligible"
     # default: the fixture profile's header_item
     assert work_auth_header_item() == "EU Work Authorization"
     assert "EU Work Authorization" in [t for t, _ in _contact_items(cv)]

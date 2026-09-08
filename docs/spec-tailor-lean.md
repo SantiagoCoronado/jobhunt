@@ -156,11 +156,12 @@ RESULT  OK with 1 warning (exit 0)
 
 Exit codes: 0 green or warnings only, 1 the agent must fix (each FAIL line says what,
 including a resume YAML that does not parse), 2 environment problem (LibreOffice missing).
-The "outside the US" test in step 3 is a keyword heuristic on the job's location string
-(`OUTSIDE_COUNTRIES` / `OUTSIDE_CITIES` in `tailor_build.py`, weighed per location part against
-the US/MX/CA markers in `TN_COUNTRY_MARKERS`, which win); a location it
-does not recognise is treated as TN territory, and a missing pypdf downgrades the page count
-to a printed warning rather than a silent pass. `--json` prints the same as
+The "outside the relocation regions" test in step 3 is `geo.outside()` on the job's location
+string against the tracked region table `config/geo.yaml` and the profile's
+`work_authorization.relocation_regions` plus home (since 2026-09-08; it used to be hardcoded
+TN-country tables in `tailor_build.py`): each location part resolves to regions, a part inside
+the scope keeps the row inside, and a location it does not recognise is never "outside". A
+missing pypdf downgrades the page count to a printed warning rather than a silent pass. `--json` prints the same as
 one object for tests and for `/jh-hunt`'s report.
 
 Two more things the build always does, for other agents rather than for the tailor:

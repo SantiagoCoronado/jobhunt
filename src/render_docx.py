@@ -281,12 +281,18 @@ _AUTH_STOP = frozenset({"visa", "eligible", "eligibility", "work", "authorizatio
                         "permit", "status", "citizen", "citizenship", "no", "needed", "sponsorship"})
 
 
+_HEADER_ITEM: str | None = None       # the profile's item, read once per process (tests reset it)
+
+
 def work_auth_header_item(header_item: str | None = None) -> str:
     """The work-authorization item the header carries: the argument when given, else the
     profile's `work_authorization.header_item` ("" = nothing; no profile = nothing)."""
+    global _HEADER_ITEM
     if header_item is not None:
         return header_item
-    return str((safe_profile().get("work_authorization") or {}).get("header_item") or "")
+    if _HEADER_ITEM is None:
+        _HEADER_ITEM = str((safe_profile().get("work_authorization") or {}).get("header_item") or "")
+    return _HEADER_ITEM
 
 
 def header_item_for(cv: dict, header_item: str | None = None) -> str:
@@ -310,19 +316,35 @@ def _says(text: str, header_item: str) -> bool:
     return all(re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", text.lower()) for w in words)
 
 
-def _surfaced_in_header(entry: dict, header_item: str) -> bool:
-    """An `additional` entry about work authorization leaves the body when the header carries
-    the item AND the entry (label plus details) carries the item's distinctive words. Any
-    extra detail in that entry ("EU citizen, no sponsorship needed") leaves with it, as the
-    old rule did; an entry that does not carry the item's words stays."""
-    return (bool(header_item) and bool(_AUTH_LABEL.search(str(entry.get("label") or "")))
-            and _says(f"{entry.get('label') or ''} {entry.get('details') or ''}", header_item))
+_AUTH_WORDS = re.compile(r"\b(?:eligible|eligibility|authori[sz]ation|authori[sz]ed|visa|permit|citizen|"
+                         r"citizenship|sponsorship|sponsored|work status)\b", re.I)
+
+
+def _surfaced_in_header(entry: dict, shown_item: str) -> bool:
+    """An `additional` entry about work authorization leaves the body when the header SHOWS
+    the item (`contact_line` decided that) AND the entry (label plus details) carries the
+    item's distinctive words. Any extra detail in that entry ("EU citizen, no sponsorship
+    needed") leaves with it, as the old rule did; an entry that does not carry the item's
+    words stays."""
+    return (bool(shown_item) and bool(_AUTH_LABEL.search(str(entry.get("label") or "")))
+            and _says(f"{entry.get('label') or ''} {entry.get('details') or ''}", shown_item))
 
 
 def _header_already_says(items: list, header_item: str) -> bool:
-    """Only the plain-text items count (location, contact extras): an email or LinkedIn
-    handle containing "us" or "eu" must not count as the header saying it."""
-    return _says(" ".join(t for t, kind in items if kind == "text"), header_item)
+    """One plain-text item (the location note, a contact extra) already STATES the item: it
+    carries the item's distinctive words AND a work-status word. "(open to US relocation, TN
+    eligible)" states "TN Visa Eligible"; a location "Austin, TX, US" or an extra "Open to EU
+    roles" does not, and an email or LinkedIn handle never counts."""
+    return any(kind == "text" and _AUTH_WORDS.search(t) and _says(t, header_item) for t, kind in items)
+
+
+def contact_line(cv, header_item: str | None = None) -> tuple[list, str]:
+    """(items, shown): the header's contact items and the work-status item the header shows,
+    "" when none. The ONE place that decides: the item is appended unless a header item
+    already states it, and `shown` is the item either way; the body filter follows `shown`,
+    so the header and the body can never disagree."""
+    items = _contact_items(cv, header_item)
+    return items, header_item_for(cv, header_item)
 
 
 def _contact_items(cv, header_item: str | None = None):
@@ -385,7 +407,7 @@ def build(data: dict, level: int, lang: str = "en") -> DocumentType:
     # contact line
     p = para(WD_ALIGN_PARAGRAPH.CENTER)
     _spacing(p, after=SP["contact_after"][L])
-    items = _contact_items(cv)
+    items, shown_item = contact_line(cv)
     for i, (text, kind) in enumerate(items):
         if i:
             _run(p, "  |  ", FS["contact"][L], LIGHT)
@@ -471,9 +493,8 @@ def build(data: dict, level: int, lang: str = "en") -> DocumentType:
             if e.get("start_date") or e.get("end_date"):
                 details += f" ({_fmt_date(e.get('start_date'))} – {_fmt_date(e.get('end_date'))})"
             _run(p, details, FS["body"][L], DARK)
-        header_item = header_item_for(cv)
         for a in extra:
-            if _surfaced_in_header(a, header_item):
+            if _surfaced_in_header(a, shown_item):
                 continue  # already surfaced in the contact line
             p = para()
             _spacing(p, after=SP["body_after"][L])
@@ -499,7 +520,8 @@ def estimate_height_pts(data: dict, level: int) -> float:
         h += before + lines * size * LINE + after
 
     block(1, FS["name"][L], after=SP["name_after"][L])
-    contact = "  |  ".join(t for t, _ in _contact_items(cv))
+    items, shown_item = contact_line(cv)
+    contact = "  |  ".join(t for t, _ in items)
     block(_wrapped_lines(contact, FS["contact"][L], avail), FS["contact"][L],
           after=SP["contact_after"][L])
 
@@ -535,9 +557,8 @@ def estimate_height_pts(data: dict, level: int) -> float:
             block(_wrapped_lines(txt, FS["body"][L], avail), FS["body"][L],
                   after=SP["body_after"][L])
     edu = sections.get("education") or []
-    header_item = header_item_for(cv)
     extra = [a for a in (sections.get("additional") or [])
-             if not _surfaced_in_header(a, header_item)]
+             if not _surfaced_in_header(a, shown_item)]
     if edu or extra:
         header()
         for _ in edu:

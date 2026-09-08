@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from src import adapters, config, dream, match, stats
+from src import adapters, config, dream, match, render_docx, stats
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -33,8 +33,10 @@ def _user_files_from_fixtures(monkeypatch):
     adapters._TITLE_FILTER = None
     match._LOCATION_RES = None            # home-region prefilter regexes, from the profile
     stats._FAMILIES = None                # role-family regexes, from the profile
+    render_docx._HEADER_ITEM = None       # the header work-status item, from the profile
     yield
     dream.reset_cache()
     adapters._TITLE_FILTER = None
     match._LOCATION_RES = None
     stats._FAMILIES = None
+    render_docx._HEADER_ITEM = None

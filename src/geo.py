@@ -208,15 +208,18 @@ def home_words(home_regions: set[str]) -> list[str]:
 
 
 def locked_out_words(home_regions: set[str]) -> list[str]:
-    """Every alias, city and state name of a region that is neither home, nor contains home,
-    nor sits within home: a non-remote posting naming one of these sits somewhere else."""
+    """Every city, state and state name of a region that is neither home, nor contains home,
+    nor sits within home: a non-remote posting naming one of these clearly sits somewhere
+    else. Bare country and region words ("United States", "Asia") are NOT here: a stored
+    location string is not authoritative and such a row may still hire remotely from home,
+    which the matcher decides with the description (the old city list never locked them)."""
     t = table()
     keep = {c for h in home_regions for c in closure(h)} | {c for h in home_regions for c in contained(h)}
     words: list[str] = []
     for r, b in t.items():
         if r in keep or r.startswith("_"):
             continue
-        words += b["aliases"] + b["cities"] + b["states"] + b["state_names"]
+        words += b["cities"] + b["states"] + b["state_names"]
     return words
 
 

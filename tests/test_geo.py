@@ -103,10 +103,12 @@ def test_home_and_locked_out_words_split_the_world():
     ok = set(geo.home_words(home))
     locked = set(geo.locked_out_words(home))
     assert {"portugal", "lisbon", "eu", "europe", "emea", "remote", "anywhere"} <= ok
-    assert {"san francisco", "united states", "berlin", "india", "mexico", "california"} <= locked
+    assert {"san francisco", "berlin", "california", "bangalore", "baja california"} <= locked
     assert not ok & locked
+    # bare country and region words never lock a row out (fourth review): the string is not
+    # authoritative and the matcher reads the description
+    assert not {"united states", "india", "mexico", "germany", "asia"} & locked
     assert "berlin" in geo.locked_out_words({"portugal"})      # a sibling country's city is locked
-    assert "germany" in geo.locked_out_words({"portugal"})
 
 
 def test_every_within_points_at_a_known_region_and_the_us_carries_states():
@@ -130,3 +132,14 @@ def test_us_home_keeps_santa_fe_and_locks_out_mexican_states():
     assert geo.outside("Santa Fe, New Mexico", {"united states"}) is False
     ok = set(geo.home_words({"united states"}))
     assert "new mexico" in ok and "baja california" in set(geo.locked_out_words({"united states"}))
+
+
+def test_bare_country_rows_survive_the_prefilter_but_cities_do_not():
+    from src import match
+    class Row(dict):
+        def __getitem__(self, k): return dict.get(self, k)
+    ok, locked = match._location_res()                        # fixture home: portugal
+    plaus = lambda loc, remote=0: match._location_plausible(Row(location=loc, remote=remote))  # noqa: E731
+    assert plaus("United States") and plaus("Asia") and plaus("Germany")
+    assert not plaus("San Francisco, CA") and not plaus("Berlin") and not plaus("Memphis, Tennessee")
+    assert plaus("Berlin", remote=1) and plaus("Remote - Berlin") and plaus("Lisbon")
