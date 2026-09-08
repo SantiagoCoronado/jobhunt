@@ -10,13 +10,15 @@ from the profile. Three questions the pipeline asks:
     inside a scope that holds mexico). Unknown strings are never "outside".
   * `home(profile)` -> {"mexico"}: the home region from `header_location`, else `locations`.
 
-Rules per part, in order, each the calibrated behaviour the tests pin: a country or region
-word decides (with any city word next to it); else a US state name is the US ("Baja
-California" names Mexico first); else a bare US state code ("NY / SF / EMEA") is the US;
-else a city followed by a two-letter code is that city's country when the code is the
-country's ("Berlin, DE", "Bengaluru, Karnataka, in") and otherwise the US ("Paris, TX",
-"London, KY"); else a city word decides; else the part is unknown. Multi-location strings
-split on `;`, `|`, `/` and " or ".
+Rules per part, in order, each the calibrated behaviour the tests pin. Every name is found
+first and a name inside a longer name is dropped ("california" inside "baja california",
+"mexico" inside "new mexico"). Then: a country or region word decides (with any city word next
+to it); else a bare US state code ("NY / SF / EMEA") is the US; else a city followed by a
+two-letter code is that city's country when the code is the country's ("Berlin, DE",
+"Bengaluru, Karnataka, in") and otherwise the US ("Paris, TX", "Durango, CO"); else a state
+name decides ("Baja California" is Mexico, "Santa Fe, New Mexico" is the US); else a city
+word decides; else the part is unknown. Multi-location strings split on `;`, `|`, `/` and
+" or ".
 
     python -m src.geo "<location>" [--scope region ...]     what a string resolves to
 """
@@ -51,7 +53,7 @@ def table() -> dict:
         block = block or {}
         out[str(name).lower()] = {
             k: [str(x).lower() for x in (block.get(k) or [])]
-            for k in ("aliases", "cities", "codes", "within", "state_codes", "state_names")
+            for k in ("aliases", "cities", "codes", "within", "states", "state_codes", "state_names")
         }
     for name, block in out.items():
         for parent in block["within"]:
@@ -98,14 +100,15 @@ def contained(region: str) -> set[str]:
 def _compiled() -> dict:
     t = table()
     alias_re = {r: _word_re(b["aliases"]) for r, b in t.items()}
+    state_re = {r: _word_re(b["states"] + b["state_names"]) for r, b in t.items() if b["states"] or b["state_names"]}
     city_re = {r: _word_re(b["cities"]) for r, b in t.items() if b["cities"]}
     us = t.get(US) or {"state_codes": [], "state_names": []}
     codes = set(us["state_codes"])
     country_codes = {c for b in t.values() for c in b["codes"]}
     return {
         "alias": alias_re,
+        "state": state_re,
         "city": city_re,
-        "state_name_re": _word_re(us["state_names"]),
         "state_codes": codes,
         "state_is_also_a_country": codes & country_codes,
         "state_re": re.compile(r",\s*(" + "|".join(sorted(codes, key=len, reverse=True)) + r")"
@@ -114,18 +117,24 @@ def _compiled() -> dict:
     }
 
 
+def _names(p: str, res: dict, tier: str) -> list[tuple[int, int, str, str]]:
+    return [(m.start(), m.end(), r, tier) for r, rx in res.items() for m in rx.finditer(p)]
+
+
 def hits(part: str) -> set[str]:
     """The regions one location part names (see the module docstring for the order)."""
     c = _compiled()
     p = " ".join(str(part or "").lower().split())
     if not p:
         return set()
-    cities = {(r, m.group(0)) for r, rx in c["city"].items() for m in [rx.search(p)] if m}
-    found = {r for r, rx in c["alias"].items() if rx.search(p)}
-    if found:
-        return found | {r for r, _ in cities}     # "Europe + San Francisco" names both
-    if c["state_name_re"].search(p):
-        return {US}                                # "Memphis, Tennessee"; not "Baja California"
+    found = _names(p, c["alias"], "alias") + _names(p, c["state"], "state") + _names(p, c["city"], "city")
+    # a name inside a longer name is that longer name: "california" in "baja california"
+    kept = [m for m in found
+            if not any(o is not m and o[0] <= m[0] and m[1] <= o[1] and (o[1] - o[0]) > (m[1] - m[0]) for o in found)]
+    aliases = {r for _, _, r, tier in kept if tier == "alias"}
+    cities = {(r, p[a:b]) for a, b, r, tier in kept if tier == "city"}
+    if aliases:
+        return aliases | {r for r, _ in cities}    # "Europe + San Francisco" names both
     bare = p.strip(" ()-.,")
     if bare in c["state_codes"] and bare not in c["state_is_also_a_country"]:
         return {US}
@@ -134,7 +143,10 @@ def hits(part: str) -> set[str]:
         for _region, city in cities:
             if (city, state.group(1)) in c["city_codes"]:
                 return {c["city_codes"][(city, state.group(1))]}
-        return {US}
+        return {US}                                # "Paris, TX", "Durango, CO"
+    states = {r for _, _, r, tier in kept if tier == "state"}
+    if states:
+        return states                              # "Baja California", "Santa Fe, New Mexico"
     if cities:
         return {r for r, _ in cities}
     return set()
@@ -187,7 +199,7 @@ def home_words(home_regions: set[str]) -> list[str]:
     t = table()
     words = list(REMOTE_WORDS)
     for r in {c for h in home_regions for c in closure(h)}:
-        words += t[r]["aliases"] + t[r]["cities"]
+        words += t[r]["aliases"] + t[r]["cities"] + t[r]["states"] + t[r]["state_names"]
     return words
 
 
@@ -200,7 +212,7 @@ def locked_out_words(home_regions: set[str]) -> list[str]:
     for r, b in t.items():
         if r in keep:
             continue
-        words += b["aliases"] + b["cities"] + b["state_names"]
+        words += b["aliases"] + b["cities"] + b["states"] + b["state_names"]
     return words
 
 
@@ -213,7 +225,12 @@ def main(argv: list[str] | None = None) -> int:
         if part:
             print(f"  {part!r}: {', '.join(sorted(hits(part))) or 'unknown'}")
     if args.scope:
-        print(f"outside {sorted(args.scope)}: {outside(args.location, set(args.scope))}")
+        scope = {r.strip().lower() for r in args.scope if r.strip()}
+        unknown = sorted(scope - set(table()))
+        if unknown:
+            print(f"unknown region(s): {', '.join(unknown)} (known: {', '.join(table())})")
+            return 1
+        print(f"outside {sorted(scope)}: {outside(args.location, scope)}")
     return 0
 
 

@@ -33,6 +33,7 @@ from .answers_export import render as render_answers
 from .config import ROOT, resume_basename, user_file
 from .db import connect
 from .dream import is_dream
+from .tailor_build import outside_relocation_regions, relocation_scope
 from .reconcile import APPS_DIR, find_folder
 from .research import dossier_info
 from .tailor_state import update_state
@@ -120,6 +121,19 @@ def geometry_block(master: dict) -> str:
 
 # ------------------------------------------------------------------ sections
 
+def relocation_verdict(location: str | None) -> str:
+    """One line for a dream row: whether its location sits inside the relocation regions
+    (profile `work_authorization.relocation_regions` plus home, resolved through
+    config/geo.yaml), so the tailor never guesses what the build will check."""
+    scope = relocation_scope()
+    where = ", ".join(sorted(scope)) or "none resolved"
+    if outside_relocation_regions(location, scope):
+        return (f"relocation: OUTSIDE the relocation regions ({where}): no relocation line, no relocation "
+                "header, one plain sentence that the local work visa would be needed")
+    return (f"relocation: inside the relocation regions ({where}): relocation_line verbatim and the "
+            "relocation_header note if the posting requires presence there; neither if it hires remotely from home")
+
+
 def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, dict]:
     r = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
     if not r:
@@ -157,6 +171,7 @@ def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, di
         f"salary: {salary}",
         f"status: {job.get('status')}, match {job.get('match_score')}",
         f"dream: {'true (profile dream_rule applies)' if job['dream'] else 'false'}",
+        *([relocation_verdict(job.get("location"))] if job["dream"] else []),
         f"resume file: {resume_basename()}.yaml  (the name tailor_build expects in draft.md)",
     ]
     for k in ("recommendation", "location_ok", "visa_path", "missing_skills", "reasons"):

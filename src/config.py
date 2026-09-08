@@ -109,6 +109,9 @@ def _validate_families(raw_fams) -> list[dict]:
             entry["match"] = [m.strip() for m in match]
         if fam.get("note"):
             entry["note"] = " ".join(str(fam["note"]).split())
+        if i > 0 and not entry.get("match") and not title_words(list(entry["titles"])):
+            raise ValueError(f"config/profile.yaml: role_families[{key}] has no title word to match on "
+                             f"(titles {entry['titles']}); add a role word to a title or a `match` list")
         out.append(entry)
     return out
 

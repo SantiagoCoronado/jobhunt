@@ -348,6 +348,10 @@ def test_header_work_auth_item_comes_from_the_profile_and_is_not_duplicated():
     cv["location"] = "Somewhere, US"
     texts = [t for t, _ in _contact_items(cv, header_item="TN Visa Eligible")]
     assert "TN Visa Eligible" in texts
+    # an email or LinkedIn handle never counts as the header saying it (second review)
+    cv2 = {"email": "alex@us.example.com", "location": "Somewhere",
+           "social_networks": [{"network": "LinkedIn", "username": "us-eu"}], "sections": {}}
+    assert "US Work Authorization" in [t for t, _ in _contact_items(cv2, header_item="US Work Authorization")]
     # default: the fixture profile's header_item
     assert work_auth_header_item() == "EU Work Authorization"
     assert "EU Work Authorization" in [t for t, _ in _contact_items(cv)]

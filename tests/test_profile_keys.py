@@ -93,6 +93,7 @@ def test_relocation_regions_are_lowercased_and_extra_keys_pass_through():
     ({"work_authorization": {"relocation_regions": ["europ"]}}, "names no region in config/geo.yaml: europ"),
     ({"role_families": [{"key": "A", "titles": ["T"], "match": "front end"}]}, "match must be a list of phrases"),
     ({"role_families": [{"key": "A", "titles": ["T"], "match": [""]}]}, "match must be a list of phrases"),
+    ({"role_families": [{"key": "A", "titles": ["T"]}, {"key": "B", "titles": ["Remote Role"]}]}, "no title word to match on"),
     ({"work_authorization": {"relocation_header": 1}}, "relocation_header must be a string"),
     ({"candidate_line": ["x"]}, "candidate_line must be a string"),
     ({"header_location": 3}, "header_location must be a string"),
@@ -116,9 +117,9 @@ def test_families_text_is_the_lettered_list_with_strength_lines():
 
 def test_families_text_carries_notes_and_adjacent_line():
     prof = config.profile({"name": "X", "role_families": [
-        {"key": "A", "name": "core", "titles": ["T"], "strength": "strongest", "note": "one line"},
-        {"key": "B", "name": "side", "titles": ["U"], "strength": "adjacent"},
-        {"key": "C", "name": "side2", "titles": ["V"], "strength": "strongest"},
+        {"key": "A", "name": "core", "titles": ["Tester"], "strength": "strongest", "note": "one line"},
+        {"key": "B", "name": "side", "titles": ["Uploader"], "strength": "adjacent"},
+        {"key": "C", "name": "side2", "titles": ["Validator"], "strength": "strongest"},
     ]})
     text = config.families_text(prof)
     assert "    one line" in text.splitlines()

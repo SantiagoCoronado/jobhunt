@@ -116,6 +116,13 @@ def test_families_with_an_explicit_profile_never_poison_the_cache():
     assert title_family("Deployment Strategist") == "A"         # not FOUR's B
 
 
+def test_non_first_family_without_phrases_matches_nothing():
+    """A raw dict can carry a family with no gate words; it must not become a mid-list catch-all."""
+    fams = families({"role_families": [{"key": "A", "titles": ["Engineer"]}, {"key": "B", "titles": ["Remote Role"]}]})
+    assert [k for k, _ in fams] == ["B", "A"]
+    assert title_family("Remote Role", fams) == "A" and title_family("Anything", fams) == "A"
+
+
 def test_families_without_a_profile_bucket_everything_as_a():
     assert families({"name": "X"}) == [("A", None)]
     assert title_family("Anything", families({"name": "X"})) == "A"

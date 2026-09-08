@@ -80,9 +80,10 @@ open review comments. You never need another file.
   fails while any marker remains.
 
 ## DREAM-COMPANY ROLES (bundle section 5 says `dream: true`)
-Apply `dream_rule` and `relocation_line` from section 2 as written. Three cases, decided by
-the job's location against `work_authorization.relocation_regions` in section 2 (the build
-checks the same thing through `config/geo.yaml`):
+Apply `dream_rule` and `relocation_line` from section 2 as written. Three cases; the
+`relocation:` line in section 5 already says whether the job sits inside or outside the
+relocation regions (computed from `config/geo.yaml`, the same check the build runs), so read
+it rather than deciding from the location string:
 - The posting requires presence (on-site, hybrid, or resident-only remote) INSIDE those
   regions: the letter's closing paragraph carries `relocation_line` VERBATIM as its own plain
   sentence, and the header location becomes `<header_location> (<relocation_header>)`, both

@@ -48,10 +48,15 @@ def test_outside_a_european_scope(location, expected):
 @pytest.mark.parametrize("location,regions", [
     ("Tijuana, Baja California", {"mexico"}), ("Baja California", {"mexico"}),
     ("La Paz, Baja California Sur", {"mexico"}), ("Mexicali, Baja California", {"mexico"}),
-    ("San Francisco del Rincon, Guanajuato", {"mexico", "united states"}),
+    ("San Francisco del Rincon, Guanajuato", {"mexico"}),
     ("Memphis, Tennessee", {"united states"}), ("Washington, DC", {"united states"}),
     ("Bogota, CO", {"colombia"}), ("Arvada, CO", {"united states"}), ("Toronto, CA", {"canada"}),
     ("Ukiah, CA", {"united states"}), ("Buenos Aires, AR", {"argentina"}), ("Montevideo (Hybrid)", {"uruguay"}),
+    # the other direction (second review): an explicit US state code or a longer US state name
+    # outranks a Mexican state name
+    ("Santa Fe, New Mexico", {"united states"}), ("Durango, CO", {"united states"}),
+    ("Sonora, CA", {"united states"}), ("Hidalgo, TX", {"united states"}), ("Durango", {"mexico"}),
+    ("Colima, Mexico", {"mexico"}),
 ])
 def test_state_names_and_americas_codes(location, regions):
     """PR #22 review: a US state name decides only when no region word does ("Baja
@@ -109,7 +114,15 @@ def test_every_within_points_at_a_known_region_and_the_us_carries_states():
 
 
 def test_cli_prints_hits_and_scope_verdict(capsys):
-    assert geo.main(["London, UK; San Francisco, CA", "--scope", "europe"]) == 0
+    assert geo.main(["London, UK; San Francisco, CA", "--scope", "Europe"]) == 0   # case-insensitive
     out = capsys.readouterr().out
     assert "'london, uk': united kingdom" in out and "'san francisco, ca': united states" in out
     assert "outside ['europe']: False" in out
+    assert geo.main(["Berlin", "--scope", "Europ"]) == 1
+    assert "unknown region(s): europ" in capsys.readouterr().out
+
+
+def test_us_home_keeps_santa_fe_and_locks_out_mexican_states():
+    assert geo.outside("Santa Fe, New Mexico", {"united states"}) is False
+    ok = set(geo.home_words({"united states"}))
+    assert "new mexico" in ok and "baja california" in set(geo.locked_out_words({"united states"}))

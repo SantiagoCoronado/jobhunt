@@ -4,10 +4,13 @@
 #
 # One entry per region. `aliases` are the country or region words, `cities` the city words
 # (both matched on word boundaries, lowercase), `codes` the two-letter codes a city is written
-# with after a comma ("Berlin, DE") that collide with a US state code, `within` the regions this
-# one belongs to (mexico is within latam, north america and americas), so a posting scoped to a
-# containing region ("Remote LATAM") counts as reachable from that home. The `united states`
-# entry also carries its state codes and names, which the classifier treats as US words.
+# with after a comma ("Berlin, DE") that collide with a US state code, `states` the sub-national
+# names (Mexican states; the US ones are `state_names`, and `state_codes` the two-letter codes
+# that follow a comma), `within` the regions this one belongs to (mexico is within latam, north
+# america and americas), so a posting scoped to a containing region ("Remote LATAM") counts as
+# reachable from that home. Precedence (src/geo.py): a country or region word, then an explicit
+# US state code after a comma, then a state name, then a city; between overlapping names the
+# longest wins, so "Baja California" is Mexico and "Santa Fe, New Mexico" is the US.
 #
 # Read by src/geo.py: the tailor build and the star pick use it to tell a dream-company row
 # inside the candidate's relocation regions from one outside them, the match export's
@@ -26,7 +29,7 @@ regions:
   united states:
     aliases: [us, usa, u.s., u.s.a., united states, us remote, remote us, us-remote, remote (us)]
     cities: [san francisco, sf, nyc, new york city, brooklyn, palo alto, mountain view, san jose,
-             sunnyvale, foster city, seattle, austin, boston, chicago, denver, los angeles,
+             sunnyvale, santa clara, foster city, seattle, austin, boston, chicago, denver, los angeles,
              san diego, atlanta, miami, dallas, houston, phoenix, portland, philadelphia,
              pittsburgh, detroit, minneapolis, salt lake city, d.c., bay area, silicon valley]
     within: [north america]
@@ -46,13 +49,12 @@ regions:
     codes: [ca]
     within: [north america]
   mexico:
-    # The state names are aliases so "Baja California" is never read as California.
-    aliases: [mexico, méxico, mx, cdmx, aguascalientes, baja california, baja california sur,
-              campeche, chiapas, chihuahua, coahuila, colima, durango, guanajuato, guerrero,
-              hidalgo, jalisco, estado de mexico, estado de méxico, michoacan, michoacán, morelos,
-              nayarit, nuevo leon, nuevo león, oaxaca, puebla, queretaro, querétaro, quintana roo,
-              san luis potosi, san luis potosí, sinaloa, sonora, tabasco, tamaulipas, tlaxcala,
-              veracruz, yucatan, yucatán, zacatecas]
+    aliases: [mexico, méxico, mx, cdmx]
+    states: [aguascalientes, baja california, baja california sur, campeche, chiapas, chihuahua,
+             coahuila, colima, durango, guanajuato, guerrero, hidalgo, jalisco, estado de mexico,
+             estado de méxico, michoacan, michoacán, morelos, nayarit, nuevo leon, nuevo león,
+             oaxaca, puebla, queretaro, querétaro, quintana roo, san luis potosi, san luis potosí,
+             sinaloa, sonora, tabasco, tamaulipas, tlaxcala, veracruz, yucatan, yucatán, zacatecas]
     cities: [mexico city, ciudad de mexico, ciudad de méxico, guadalajara, monterrey, tijuana,
              mexicali, ensenada, merida, mérida, cancun, cancún, hermosillo,
              toluca, saltillo, zapopan, ciudad juarez, ciudad juárez, culiacan, culiacán, morelia,

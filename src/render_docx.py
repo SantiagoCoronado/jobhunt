@@ -302,15 +302,18 @@ def _says(text: str, header_item: str) -> bool:
 
 
 def _surfaced_in_header(entry: dict, header_item: str) -> bool:
-    """An `additional` entry about work authorization leaves the body only when the header
-    carries the profile's item AND the entry says the same thing (its details carry the
-    item's distinctive words); an entry that says more, or something else, stays."""
+    """An `additional` entry about work authorization leaves the body when the header carries
+    the profile's item AND the entry's details carry the item's distinctive words. Any extra
+    detail in that entry ("Mexican citizen, no sponsorship needed") leaves with it, as the old
+    "tn visa" rule did; an entry that does not carry the item's words stays."""
     return (bool(header_item) and bool(_AUTH_LABEL.search(str(entry.get("label") or "")))
             and _says(str(entry.get("details") or ""), header_item))
 
 
 def _header_already_says(items: list, header_item: str) -> bool:
-    return _says(" ".join(t for t, _ in items), header_item)
+    """Only the plain-text items count (location, contact extras): an email or LinkedIn
+    handle containing "us" or "eu" must not count as the header saying it."""
+    return _says(" ".join(t for t, kind in items if kind == "text"), header_item)
 
 
 def _contact_items(cv, header_item: str | None = None):

@@ -59,7 +59,9 @@ def families(prof: dict | None = None) -> list[tuple[str, re.Pattern[str] | None
     out: list[tuple[str, re.Pattern[str] | None]] = []
     for fam in fams[1:]:
         phrases = [str(m) for m in (fam.get("match") or [])] or title_words(fam.get("titles") or [])
-        out.append((fam["key"], _phrase_re(phrases)))
+        # None is the catch-all marker, reserved for the first family: a family with no
+        # phrases (config.profile() rejects one, but a raw dict may carry it) matches nothing
+        out.append((fam["key"], _phrase_re(phrases) or re.compile(r"(?!x)x")))
     out.append((fams[0]["key"] if fams else "A", None))
     if from_profile:
         _FAMILIES = out

@@ -73,7 +73,10 @@ computes `is_dream(company)` from them (never stored, so editing the list never 
 For those companies the location rule and comp floors are waived, the title gate is skipped,
 match export sorts them first with `dream: true`, ingest shortlists them at the lower cutoff,
 `/jh-hunt` reserves up to 2 of the 5 stars for them, and the tailor adds the relocation line
-when US presence is required. ITAR / US-person / citizens-only / clearance stay hard blocks.
+and the `relocation_header` note when the role requires presence inside
+`work_authorization.relocation_regions` (plus home; `config/geo.yaml` resolves the location),
+a plain visa note outside them, neither for remote-from-home. Export-control ("US person",
+ITAR), citizens-only and clearance requirements stay hard blocks.
 The hand-curated sheet (`dreamsheet` in `config/sources.local.yaml`, private Google Sheet) is read
 by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses;
 a dream company with no usable board is sheet rows and outreach only.
