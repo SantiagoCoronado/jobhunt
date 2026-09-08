@@ -293,10 +293,31 @@ def test_dream_row_outside_the_relocation_regions_rejects_the_line_and_wants_a_v
     assert not v.ok and any("outside the relocation regions (europe, portugal)" in f for f in v.failures)
     (folder / "CoverLetter.md").write_text(letter(240))
     v = tb.build(folder, job=sf, no_pdf=True)
+    # the header would still advertise the home-region work status: the build demands the lever
+    assert not v.ok and any("work_auth_item" in f for f in v.failures)
+    assert any("no visa note" in w for w in v.warnings)
+    res = small_resume()
+    res["cv"]["work_auth_item"] = ""
+    (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
+    v = tb.build(folder, job=sf, no_pdf=True)
     assert v.ok and any("no visa note" in w for w in v.warnings)
     (folder / "CoverLetter.md").write_text(letter(240, "A US work visa would be needed."))
     v = tb.build(folder, job=sf, no_pdf=True)
-    assert v.ok and not any("visa" in w for w in v.warnings)
+    assert v.ok, v.failures
+    assert not any("visa" in w for w in v.warnings)
+
+
+def test_relocation_line_without_a_relocation_header_in_the_profile_fails(folder, monkeypatch):
+    """An empty `relocation_header` must not silently disable the header check (third review)."""
+    import src.config as config
+    prof = yaml.safe_load(user_file("profile").read_text())
+    prof["work_authorization"]["relocation_header"] = ""
+    path = folder.parent / "profile.yaml"
+    path.write_text(yaml.safe_dump(prof, allow_unicode=True, sort_keys=False))
+    monkeypatch.setitem(config.USER_FILES, "profile", path)
+    (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
+    v = tb.build(folder, job={"id": 7, "company": "Example Robotics", "dream": True, "location": "Berlin, DE"}, no_pdf=True)
+    assert not v.ok and any("relocation_header" in f for f in v.failures)
 
 
 def test_dream_row_inside_the_relocation_regions_takes_the_line(folder):
@@ -366,6 +387,14 @@ def test_header_work_auth_item_comes_from_the_profile_and_is_not_duplicated():
     assert _surfaced_in_header({"label": "Languages", "details": "TN"}, "TN Visa Eligible") is False
     assert _surfaced_in_header({"label": "Work Authorization", "details": "EU citizen (Portugal)"},
                                "EU Work Authorization") is True
+    # an all-stop-word item falls back to all its words, so the dedupe is never blind (third review)
+    assert _surfaced_in_header({"label": "Work Authorization", "details": "EU citizen"}, "Work Authorization") is True
+    assert _surfaced_in_header({"label": "Languages", "details": "x"}, "Work Authorization") is False
+    # the per-resume lever: cv.work_auth_item overrides the profile ("" hides it)
+    from src.render_docx import header_item_for
+    assert header_item_for({"work_auth_item": ""}) == "" and header_item_for({}) == "EU Work Authorization"
+    assert header_item_for({"work_auth_item": "Own text"}) == "Own text"
+    assert "EU Work Authorization" not in [t for t, _ in _contact_items({"location": "X", "work_auth_item": ""})]
 
 
 def test_fill_failure_only_at_fit_level_0(folder, monkeypatch):

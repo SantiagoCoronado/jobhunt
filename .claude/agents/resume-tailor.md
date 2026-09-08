@@ -60,7 +60,9 @@ open review comments. You never need another file.
 - **The resume YAML** (its exact file name is the `resume file:` line in bundle section 5): the master with bullets reordered and reworded for this job,
   schema preserved. The header location is the profile's `header_location` (section 2) unless
   the dream rule below changes it; the header's work-status item is rendered by the build from
-  `work_authorization.header_item`, never written into the YAML by hand.
+  `work_authorization.header_item`. The one lever is `work_auth_item: ""` in the `cv:` block,
+  which hides it (a dream row outside the relocation regions, see below); never write the
+  item's text by hand.
 - **CoverLetter.md**: PLAIN TEXT. Line 1 the full name, line 2 the contact line, then a
   `Re: <role>, <company>` line, then a 220 to 280 word body (salutation and sign-off count).
   No Markdown headings, `**`, or backticks. Specific hook, never "I am writing to express".
@@ -90,7 +92,8 @@ it rather than deciding from the location string:
   from section 2.
 - Remote and hires from the candidate's home: do neither.
 - Located OUTSIDE those regions: no relocation line, no relocation header, one plain sentence
-  that the local work visa would be needed.
+  that the local work visa would be needed, and `work_auth_item: ""` in the resume `cv:` block
+  so the header does not advertise a home-region work status to that employer.
 Never write anything that reads as holding a work authorization `work_authorization.summary`
 does not claim. Export-control ("US person", ITAR), citizens-only or clearance requirements:
 say so in match_report.md as a hard block and stop; write no letter.

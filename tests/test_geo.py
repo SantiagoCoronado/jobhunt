@@ -30,6 +30,8 @@ TN = {"united states", "canada", "mexico"}
     ("LATAM remote-first", False), ("Remote LATAM", False), ("LATAM (remote)", False),
     # ... but a foreign-only multi-part string is still outside.
     ("Berlin; Munich", True), ("London; Dublin; Amsterdam", True),
+    # a bare US state code is the US unless geo.yaml lists it as meaning a country (DE, IN ...)
+    ("London / CA", False), ("Remote / CO / AR", False), ("Berlin / DE", True),
 ])
 def test_outside_the_tn_scope_matches_the_calibrated_table(location, expected):
     assert geo.outside(location, TN) is expected
@@ -71,7 +73,9 @@ def test_hits_name_the_regions_a_part_resolves_to():
     assert geo.hits("Europe + San Francisco") == {"europe", "united states"}
     assert geo.hits("Remote") == set() and geo.hits("") == set()
     assert geo.hits("NY") == {"united states"}
-    assert geo.hits("DE") == set()            # a bare code that is also a country code decides nothing
+    assert geo.hits("CA") == {"united states"} and geo.hits("CO") == {"united states"}
+    assert geo.hits("DE") == set()            # a bare code geo.yaml lists as meaning a country decides nothing
+    assert "_bare_country_codes" not in geo.regions()
 
 
 def test_empty_scope_never_marks_anything_outside():

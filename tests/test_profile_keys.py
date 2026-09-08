@@ -147,6 +147,24 @@ def test_check_command_reports_missing_and_malformed(tmp_path, monkeypatch, caps
     assert "role_families must be a list" in capsys.readouterr().out
 
 
+def test_safe_profile_degrades_with_one_warning_and_candidate_exits_1(tmp_path, monkeypatch, capsys):
+    """A malformed key must not traceback an unrelated command (third review): safe_profile()
+    warns once on stderr and hands out the derived defaults; `candidate` reports and exits 1."""
+    path = tmp_path / "profile.yaml"
+    path.write_text(OLD_PROFILE + "role_families: [{key: A, titles: [Backend Engineer], strength: primary}]\n")
+    monkeypatch.setitem(config.USER_FILES, "profile", path)
+    config._WARNED.clear()
+    prof = config.safe_profile()
+    assert prof["name"] == "Old Timer" and prof["role_families"][0]["name"] == "target roles"
+    config.safe_profile()
+    err = capsys.readouterr().err
+    assert err.count("strength must be one of") == 1 and "src.config check" in err
+    assert config.main(["candidate"]) == 1
+    assert "strength must be one of" in capsys.readouterr().out
+    monkeypatch.setitem(config.USER_FILES, "profile", tmp_path / "absent.yaml")
+    assert config.safe_profile() == {}
+
+
 # ---- init migration ----
 
 def _root(tmp_path: Path, profile_text: str | None = OLD_PROFILE) -> Path:

@@ -33,7 +33,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor, Twips
 
-from .config import profile
+from .config import safe_profile
 
 # ---------------------------------------------------------------- design spec
 
@@ -286,16 +286,25 @@ def work_auth_header_item(header_item: str | None = None) -> str:
     profile's `work_authorization.header_item` ("" = nothing; no profile = nothing)."""
     if header_item is not None:
         return header_item
-    try:
-        return str((profile().get("work_authorization") or {}).get("header_item") or "")
-    except FileNotFoundError:
-        return ""
+    return str((safe_profile().get("work_authorization") or {}).get("header_item") or "")
+
+
+def header_item_for(cv: dict, header_item: str | None = None) -> str:
+    """The item this resume's header carries: the resume's own `cv.work_auth_item` when the
+    key is present ("" hides it, the per-resume lever for a role outside the home region),
+    else the argument, else the profile's."""
+    if "work_auth_item" in cv:
+        return " ".join(str(cv.get("work_auth_item") or "").split())
+    return work_auth_header_item(header_item)
 
 
 def _says(text: str, header_item: str) -> bool:
-    """True when every distinctive word of the header item already appears in `text`
-    (a relocation header such as "(open to US relocation, TN eligible)" carries "TN")."""
-    words = [w for w in re.findall(r"[a-z0-9]+", header_item.lower()) if w not in _AUTH_STOP]
+    """True when every distinctive word of the header item already appears in `text` (a
+    relocation header such as "(open to relocation, visa sponsored)" carries "sponsored").
+    An item made only of stop words ("Work Authorization", "Visa Eligible") falls back to all
+    of its words, so the dedupe is never blind."""
+    all_words = re.findall(r"[a-z0-9]+", header_item.lower())
+    words = [w for w in all_words if w not in _AUTH_STOP] or all_words
     if not words:
         return False
     return all(re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", text.lower()) for w in words)
@@ -303,11 +312,11 @@ def _says(text: str, header_item: str) -> bool:
 
 def _surfaced_in_header(entry: dict, header_item: str) -> bool:
     """An `additional` entry about work authorization leaves the body when the header carries
-    the profile's item AND the entry's details carry the item's distinctive words. Any extra
-    detail in that entry ("Mexican citizen, no sponsorship needed") leaves with it, as the old
-    "tn visa" rule did; an entry that does not carry the item's words stays."""
+    the item AND the entry (label plus details) carries the item's distinctive words. Any
+    extra detail in that entry ("EU citizen, no sponsorship needed") leaves with it, as the
+    old rule did; an entry that does not carry the item's words stays."""
     return (bool(header_item) and bool(_AUTH_LABEL.search(str(entry.get("label") or "")))
-            and _says(str(entry.get("details") or ""), header_item))
+            and _says(f"{entry.get('label') or ''} {entry.get('details') or ''}", header_item))
 
 
 def _header_already_says(items: list, header_item: str) -> bool:
@@ -329,8 +338,9 @@ def _contact_items(cv, header_item: str | None = None):
         items.append((cv["location"], "text"))
     for extra in cv.get("contact_extras", []) or []:
         items.append((extra, "text"))
-    # the profile's work-authorization item, unless the header line already says it
-    item = work_auth_header_item(header_item)
+    # the work-authorization item (resume override, argument, else profile), unless the
+    # header line already says it
+    item = header_item_for(cv, header_item)
     if item and not _header_already_says(items, item):
         items.append((item, "text"))
     return items
@@ -461,7 +471,7 @@ def build(data: dict, level: int, lang: str = "en") -> DocumentType:
             if e.get("start_date") or e.get("end_date"):
                 details += f" ({_fmt_date(e.get('start_date'))} – {_fmt_date(e.get('end_date'))})"
             _run(p, details, FS["body"][L], DARK)
-        header_item = work_auth_header_item()
+        header_item = header_item_for(cv)
         for a in extra:
             if _surfaced_in_header(a, header_item):
                 continue  # already surfaced in the contact line
@@ -525,7 +535,7 @@ def estimate_height_pts(data: dict, level: int) -> float:
             block(_wrapped_lines(txt, FS["body"][L], avail), FS["body"][L],
                   after=SP["body_after"][L])
     edu = sections.get("education") or []
-    header_item = work_auth_header_item()
+    header_item = header_item_for(cv)
     extra = [a for a in (sections.get("additional") or [])
              if not _surfaced_in_header(a, header_item)]
     if edu or extra:

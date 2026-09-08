@@ -162,6 +162,29 @@ def profile(raw: dict | None = None) -> dict:
     return out
 
 
+_WARNED: set[str] = set()
+
+
+def safe_profile() -> dict:
+    """`profile()` for a command that only degrades without one: a missing file gives {}, a
+    malformed key prints the validation error once (stderr) and gives the derived defaults
+    for the four prompt keys, so `python -m src.stats funnel` never tracebacks on a typo in
+    `strength:`. `python -m src.config check` is where the error is meant to be read."""
+    import sys
+
+    try:
+        raw = load_profile()
+    except FileNotFoundError:
+        return {}
+    try:
+        return profile(raw)
+    except ValueError as e:
+        if str(e) not in _WARNED:
+            _WARNED.add(str(e))
+            print(f"  ! {e}; using defaults for the prompt keys (python -m src.config check)", file=sys.stderr)
+        return profile({k: v for k, v in raw.items() if k not in PROFILE_KEYS})
+
+
 def missing_profile_keys(raw: dict) -> list[str]:
     """The prompt keys an existing profile does not carry yet (what `src.init` migrates)."""
     return [k for k in PROFILE_KEYS if k not in raw]
@@ -462,7 +485,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "resume-basename":
         print(resume_basename())
     elif args.cmd == "candidate":
-        print(candidate_text())
+        try:
+            print(candidate_text())
+        except ValueError as e:
+            print(f"  ! {e}")
+            return 1
     elif args.cmd == "check":
         raw = load_profile()
         try:

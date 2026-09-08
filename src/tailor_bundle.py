@@ -129,7 +129,8 @@ def relocation_verdict(location: str | None) -> str:
     where = ", ".join(sorted(scope)) or "none resolved"
     if outside_relocation_regions(location, scope):
         return (f"relocation: OUTSIDE the relocation regions ({where}): no relocation line, no relocation "
-                "header, one plain sentence that the local work visa would be needed")
+                'header, one plain sentence that the local work visa would be needed, and `work_auth_item: ""` '
+                "in the resume cv block so the header shows no home-region work status")
     return (f"relocation: inside the relocation regions ({where}): relocation_line verbatim and the "
             "relocation_header note if the posting requires presence there; neither if it hires remotely from home")
 

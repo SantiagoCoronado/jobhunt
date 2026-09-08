@@ -47,7 +47,8 @@ def _word_re(words) -> re.Pattern[str]:
 @lru_cache(maxsize=1)
 def table() -> dict:
     """{region: {aliases, cities, codes, within, state_codes, state_names}}, every list lowercased."""
-    raw = load_yaml(GEO_FILE).get("regions") or {}
+    data = load_yaml(GEO_FILE)
+    raw = data.get("regions") or {}
     out: dict[str, dict] = {}
     for name, block in raw.items():
         block = block or {}
@@ -59,11 +60,13 @@ def table() -> dict:
         for parent in block["within"]:
             if parent not in out:
                 raise ValueError(f"config/geo.yaml: {name} is within unknown region {parent!r}")
+    out["_bare_country_codes"] = {k: [] for k in ("aliases", "cities", "codes", "within", "states", "state_codes", "state_names")}
+    out["_bare_country_codes"]["codes"] = [str(c).lower() for c in (data.get("bare_state_codes_that_mean_a_country") or [])]
     return out
 
 
 def regions() -> list[str]:
-    return list(table())
+    return [r for r in table() if not r.startswith("_")]
 
 
 def closure(region: str) -> set[str]:
@@ -90,6 +93,8 @@ def contained(region: str) -> set[str]:
     while changed:
         changed = False
         for name, block in t.items():
+            if name.startswith("_"):
+                continue
             if name not in out and any(p in out for p in block["within"]):
                 out.add(name)
                 changed = True
@@ -98,19 +103,18 @@ def contained(region: str) -> set[str]:
 
 @lru_cache(maxsize=1)
 def _compiled() -> dict:
-    t = table()
+    t = {r: b for r, b in table().items() if not r.startswith("_")}
     alias_re = {r: _word_re(b["aliases"]) for r, b in t.items()}
     state_re = {r: _word_re(b["states"] + b["state_names"]) for r, b in t.items() if b["states"] or b["state_names"]}
     city_re = {r: _word_re(b["cities"]) for r, b in t.items() if b["cities"]}
     us = t.get(US) or {"state_codes": [], "state_names": []}
     codes = set(us["state_codes"])
-    country_codes = {c for b in t.values() for c in b["codes"]}
     return {
         "alias": alias_re,
         "state": state_re,
         "city": city_re,
         "state_codes": codes,
-        "state_is_also_a_country": codes & country_codes,
+        "state_is_also_a_country": codes & set(table()["_bare_country_codes"]["codes"]),
         "state_re": re.compile(r",\s*(" + "|".join(sorted(codes, key=len, reverse=True)) + r")"
                                r"(?:\s*,|\s*$|\s+\d{5}|\s+usa?\b)") if codes else re.compile(r"(?!x)x"),
         "city_codes": {(city, code): r for r, b in t.items() for city in b["cities"] for code in b["codes"]},
@@ -210,7 +214,7 @@ def locked_out_words(home_regions: set[str]) -> list[str]:
     keep = {c for h in home_regions for c in closure(h)} | {c for h in home_regions for c in contained(h)}
     words: list[str] = []
     for r, b in t.items():
-        if r in keep:
+        if r in keep or r.startswith("_"):
             continue
         words += b["aliases"] + b["cities"] + b["states"] + b["state_names"]
     return words
@@ -226,9 +230,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {part!r}: {', '.join(sorted(hits(part))) or 'unknown'}")
     if args.scope:
         scope = {r.strip().lower() for r in args.scope if r.strip()}
-        unknown = sorted(scope - set(table()))
+        unknown = sorted(scope - set(regions()))
         if unknown:
-            print(f"unknown region(s): {', '.join(unknown)} (known: {', '.join(table())})")
+            print(f"unknown region(s): {', '.join(unknown)} (known: {', '.join(regions())})")
             return 1
         print(f"outside {sorted(scope)}: {outside(args.location, scope)}")
     return 0

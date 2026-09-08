@@ -17,6 +17,11 @@
 # `--eligible-only` prefilter uses it to drop rows clearly locked to another region, and
 # `python -m src.geo "<location>"` prints what a string resolves to.
 
+# A bare two-letter part that is a US state code names the US ("NY / SF / EMEA") unless it is
+# one of these, which as a bare token far more often means the country: a bare "DE" is Germany,
+# a bare "CA" is still California.
+bare_state_codes_that_mean_a_country: [de, in, il, it, es, pt, at, be, pl, ie, ne]
+
 regions:
   americas:
     aliases: [americas]

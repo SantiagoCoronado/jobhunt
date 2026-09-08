@@ -106,6 +106,14 @@ def test_title_family_with_match_lists_reproduces_the_four_family_calibration():
     assert title_family("Developer Experience Engineer", fams) == "D"
     assert title_family("Applied AI Engineer", fams) == "A"
     assert title_family("Guitar Builder", fams) == "A"
+    # prefix semantics the old regexes had (third review): longer forms still bucket
+    assert title_family("Software Engineer, Safeguards Foundations (Internal Tooling)", fams) == "D"
+    assert title_family("Manager, Solutions Architecture", fams) == "B"
+    assert title_family("Senior Director, Solution Architecture - North America", fams) == "B"
+    assert title_family("Manager, Web Engineering", fams) == "C"
+    assert title_family("RPA Developer (UiPath)", fams) == "A"          # "ui" takes no suffix
+    assert title_family("Forward Deploy Engineer", families(profile({"name": "X", "role_families": [
+        {"key": "A", "titles": ["Engineer"]}, {"key": "B", "titles": ["Deployment Strategist"], "match": ["forward deploy"]}]}))) == "B"
     assert title_family(None, fams) == "A"
 
 

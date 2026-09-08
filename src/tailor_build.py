@@ -33,7 +33,7 @@ import yaml
 from . import geo
 from . import render_docx as rd
 from .db import connect
-from .config import profile, resume_basename
+from .config import resume_basename, safe_profile
 from .dream import is_dream, relocation_line
 from .reconcile import folder_job_id
 from .render_cover_letter import render as render_letter
@@ -193,10 +193,7 @@ def relocation_scope(prof: dict | None = None) -> set[str]:
     no relocation). `relocation_regions: []` therefore means home only. Empty only when no
     home resolves either, and then nothing is ever outside."""
     if prof is None:
-        try:
-            prof = profile()
-        except FileNotFoundError:
-            return set()
+        prof = safe_profile()
     regions = set((prof.get("work_authorization") or {}).get("relocation_regions") or [])
     return regions | geo.home(prof)
 
@@ -356,10 +353,7 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
         raise BuildError(f"{ypath.name} needs a top-level `cv:` with `sections:`")
 
     # ---- dream checks
-    try:
-        prof = profile()
-    except FileNotFoundError:
-        prof = {}
+    prof = safe_profile()
     wa = prof.get("work_authorization") or {}
     scope = relocation_scope(prof)
     reloc_header = str(wa.get("relocation_header") or "").lower()
@@ -377,10 +371,18 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
         elif "visa" not in letter["text"].lower():
             v.warnings.append(f"dream row located outside the relocation regions ({where}): {info.get('location')}: "
                               "the letter has no visa note")
+        header_item = rd.header_item_for(data["cv"])
+        if header_item:
+            v.failures.append(f"dream row located outside the relocation regions ({where}): the resume header would "
+                              f"carry {header_item!r} (profile work_authorization.header_item), which is a home-region "
+                              'status; set `work_auth_item: ""` in the resume `cv:` block to hide it')
     elif info["dream"]:
-        if header_reloc and not letter_reloc:
+        if letter_reloc and not reloc_header:
+            v.failures.append("letter carries relocation_line but the profile declares no "
+                              "work_authorization.relocation_header, so the header cannot be checked; set it")
+        elif header_reloc and not letter_reloc:
             v.failures.append(f"header says {reloc_header!r} but the letter lacks relocation_line verbatim: {reloc!r}")
-        elif letter_reloc and not header_reloc and reloc_header:
+        elif letter_reloc and not header_reloc:
             expected = f"{prof.get('header_location') or header_loc.split('(')[0].strip()} ({wa.get('relocation_header')})"
             v.failures.append(f"letter carries relocation_line but the header is not {expected!r}")
     elif letter_reloc:

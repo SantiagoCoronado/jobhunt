@@ -16,7 +16,7 @@ import json
 
 from pathlib import Path
 
-from .config import ROOT, load_profile, profile, shortlist_threshold
+from .config import ROOT, load_profile, safe_profile, shortlist_threshold
 from . import geo
 from .db import connect
 from .dream import dream_shortlist_threshold, is_dream
@@ -68,10 +68,7 @@ def _location_res() -> tuple:
     (an old profile without header_location, or a fixture with none): nothing is locked out."""
     global _LOCATION_RES
     if _LOCATION_RES is None:
-        try:
-            prof = profile()
-        except FileNotFoundError:
-            prof = {}
+        prof = safe_profile()
         home = geo.home(prof)
         ok = geo._word_re(geo.home_words(home))
         locked = geo._word_re(geo.locked_out_words(home)) if home else None

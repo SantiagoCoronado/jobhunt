@@ -20,7 +20,7 @@ import re
 import sqlite3
 from statistics import median
 
-from .config import profile, title_words
+from .config import safe_profile, title_words
 from .db import connect
 
 RESPONDED = ("screen", "interview", "offer")
@@ -34,14 +34,28 @@ _FAMILIES: list[tuple[str, re.Pattern[str] | None]] | None = None
 
 
 def _phrase_re(phrases: list[str]) -> re.Pattern[str] | None:
+    """One regex for a family's phrases. Each word takes an optional plural ("solutions
+    architect" reads "solution architecture"), a last word of four letters or more takes any
+    suffix ("internal tool" reads "internal tooling", "web engineer" reads "web engineering";
+    "ui" never reads "UiPath"), hyphen and space are free between words, and a phrase never
+    starts inside another word."""
     alts = []
     for ph in phrases:
-        words = [re.escape(w) for w in str(ph).lower().replace("-", " ").split()]
-        if words:
-            alts.append(r"[\s-]?".join(words))
+        words = str(ph).lower().replace("-", " ").split()
+        if not words:
+            continue
+        parts = []
+        for i, w in enumerate(words):
+            base = w[:-1] if len(w) > 3 and w.endswith("s") else w
+            last = i == len(words) - 1
+            if last:
+                parts.append(re.escape(base) + (r"[a-z]*" if len(base) >= 4 else r"s?(?![a-z])"))
+            else:
+                parts.append(re.escape(base) + r"s?")
+        alts.append(r"[\s-]?".join(parts))
     if not alts:
         return None
-    return re.compile(r"(?<![a-z])(?:" + "|".join(alts) + r")(?:e?s)?(?![a-z])", re.I)
+    return re.compile(r"(?<![a-z])(?:" + "|".join(alts) + r")", re.I)
 
 
 def families(prof: dict | None = None) -> list[tuple[str, re.Pattern[str] | None]]:
@@ -51,10 +65,7 @@ def families(prof: dict | None = None) -> list[tuple[str, re.Pattern[str] | None
     if from_profile and _FAMILIES is not None:
         return _FAMILIES
     if from_profile:
-        try:
-            prof = profile()
-        except FileNotFoundError:
-            prof = {}
+        prof = safe_profile()
     fams = (prof or {}).get("role_families") or []
     out: list[tuple[str, re.Pattern[str] | None]] = []
     for fam in fams[1:]:
