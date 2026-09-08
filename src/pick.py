@@ -7,7 +7,7 @@ Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
   * the remaining slots go to the highest-match rows overall, one per company;
   * a company with a live application (applied/screen/interview/offer, or a folder under
     applications/applied or applications/pending) or a `backlog` hold is skipped, so the hunt
-    never re-tailors a live application or overrides a deliberate hold (Anthropic until Oct 2026);
+    never re-tailors a live application or overrides a deliberate hold;
   * a company with a terminal outcome (rejected/ghosted/withdrawn) is skipped for
     `--cooldown-days` (default 90) after the outcome, dated by the NEWEST of application date,
     last contact, last logged event and first sighting, then released: a company that turned

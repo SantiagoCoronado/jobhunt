@@ -75,8 +75,8 @@ match export sorts them first with `dream: true`, ingest shortlists them at the 
 `/jh-hunt` reserves up to 2 of the 5 stars for them, and the tailor adds the relocation line
 when US presence is required. ITAR / US-person / citizens-only / clearance stay hard blocks.
 The hand-curated sheet (`dreamsheet` in `config/sources.local.yaml`, private Google Sheet) is read
-by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses.
-Arga Labs and ASUS have no usable board: sheet rows and outreach only.
+by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses;
+a dream company with no usable board is sheet rows and outreach only.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
@@ -117,7 +117,7 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 - `--pdf` converts via LibreOffice (`soffice`) when installed; otherwise export from Word.
 - `--audit` flags paragraphs whose last line is <70% full (trailing white space). Fix by cutting
   or extending REAL content per the reported char counts; never pad with filler.
-- Reference look: `resume/originals/CV Santiago Coronado - English latest.docx`.
+- Reference look: the user's own original CV under `resume/originals/` (git-ignored).
 - RenderCV `engineeringresumes` is legacy, use only if explicitly asked. Known bug: setting
   `design.page.*_margin` crashes its Typst template.
 

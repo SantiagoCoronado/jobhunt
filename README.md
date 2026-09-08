@@ -72,7 +72,7 @@ The repo is portable and the `.claude/` skills travel with it. Local state (`dat
 machine that runs the hunt is the CRM.
 
 ```bash
-git clone https://github.com/SantiagoCoronado/jobhunt.git
+git clone https://github.com/<you>/jobhunt.git
 cd jobhunt
 ./setup.sh                       # venv + deps + scaffolds config/notify.yaml
 # paste your Gmail app password into config/notify.yaml (git-ignored, never committed)

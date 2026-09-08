@@ -50,6 +50,34 @@ def test_no_user_owned_file_is_tracked():
     assert bad == [], f"user-owned files in the index (add an .example or the allowlist): {bad}"
 
 
+# Always-on generic rule (PR #21 review): the product text never carries an address at a
+# personal mail provider or a phone-number-shaped string, whoever the author is. Placeholder
+# local parts (you@, me@, example@) are documentation. docs/ and tests/ are exempt because
+# their mail examples are invented, and the identity rule below covers the author's own.
+PRODUCT_TEXT_DIRS = ("src/", "scripts/", "config/", ".claude/", ".github/")
+PRODUCT_TEXT_FILES = ("CLAUDE.md", "README.md", "setup.sh", "pyproject.toml", "requirements.txt")
+_PERSONAL_MAIL = re.compile(r"\b(?!(?:you|me|example|user|name)@)[a-z0-9._%+-]+@(?:gmail|googlemail|outlook|hotmail|yahoo|icloud|proton|protonmail|live)\.[a-z.]+", re.I)
+_PHONE = re.compile(r"\+\d{1,3}[\s.-]\d{2,4}[\s.-]\d{3,4}[\s.-]\d{4}\b")
+
+
+def test_no_personal_address_or_phone_in_product_text():
+    hits = []
+    for p in tracked_files():
+        if not (p.startswith(PRODUCT_TEXT_DIRS) or p in PRODUCT_TEXT_FILES) or _is_example(p):
+            continue
+        path = ROOT / p
+        if path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            if _PERSONAL_MAIL.search(line) or _PHONE.search(line):
+                hits.append(f"{p}:{n}")
+    assert hits == [], f"personal address or phone number in product text: {hits}"
+
+
 def _identity() -> dict | None:
     if not IDENTITY_FILE.exists():
         return None
