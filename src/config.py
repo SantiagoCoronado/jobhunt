@@ -42,6 +42,197 @@ def load_profile() -> dict:
     return load_yaml(user_file("profile"))
 
 
+# ---- the profile-driven prompt keys (docs/spec-open-source.md section 4) -----------------
+#
+# `candidate_line`, `role_families`, `work_authorization` and `header_location` are the slots
+# every prompt and every location or visa constant in the code read from; nothing names a
+# person, a city or a visa outside profile.yaml. `profile()` is the validated view with
+# defaults, so a profile written before these keys existed still loads: the candidate line
+# falls back to the name, the families to one family built from `target_titles`, the work
+# authorization to empty strings (nothing rendered, nothing claimed) and the header location
+# to "" (callers fall back to the master resume's `cv.location`).
+
+PROFILE_KEYS = ("candidate_line", "role_families", "work_authorization", "header_location")
+STRENGTHS = ("strongest", "core", "adjacent")
+
+
+def default_profile_keys(raw: dict) -> dict:
+    """The derived defaults for the four keys, from the keys an older profile already has."""
+    name = str(raw.get("name") or "").strip()
+    titles = [str(t) for t in (raw.get("target_titles") or [])]
+    skills = [str(s) for s in (raw.get("must_have_skills") or [])][:8]
+    return {
+        "candidate_line": name,
+        "role_families": [{"key": "A", "name": "target roles", "titles": titles,
+                           "skills": skills, "strength": "core"}] if titles else [],
+        "work_authorization": {"summary": "", "header_item": "", "relocation_header": "",
+                               "relocation_regions": []},
+        "header_location": "",
+    }
+
+
+def _validate_families(raw_fams) -> list[dict]:
+    if not isinstance(raw_fams, list):
+        raise ValueError("config/profile.yaml: role_families must be a list of families")
+    out: list[dict] = []
+    seen: set[str] = set()
+    for i, fam in enumerate(raw_fams):
+        if not isinstance(fam, dict):
+            raise ValueError(f"config/profile.yaml: role_families[{i}] must be a mapping")
+        key = str(fam.get("key") or "").strip()
+        if not key:
+            raise ValueError(f"config/profile.yaml: role_families[{i}] needs a `key` (A, B, ...)")
+        if key in seen:
+            raise ValueError(f"config/profile.yaml: role_families key {key!r} appears twice")
+        seen.add(key)
+        strength = str(fam.get("strength") or "core").strip().lower()
+        if strength not in STRENGTHS:
+            raise ValueError(f"config/profile.yaml: role_families[{key}].strength must be one of "
+                             f"{', '.join(STRENGTHS)}, got {strength!r}")
+        titles = fam.get("titles") or []
+        if not isinstance(titles, list) or not titles:
+            raise ValueError(f"config/profile.yaml: role_families[{key}] needs a non-empty `titles` list")
+        skills = fam.get("skills") or []
+        if not isinstance(skills, list):
+            raise ValueError(f"config/profile.yaml: role_families[{key}].skills must be a list")
+        entry = {
+            "key": key,
+            "name": str(fam.get("name") or "").strip() or f"family {key}",
+            "titles": [str(t) for t in titles],
+            "skills": [str(s) for s in skills],
+            "strength": strength,
+        }
+        match = fam.get("match")
+        if match is not None:
+            if not isinstance(match, list) or not all(isinstance(m, str) and m.strip() for m in match):
+                raise ValueError(f"config/profile.yaml: role_families[{key}].match must be a list of phrases")
+            entry["match"] = [m.strip() for m in match]
+        if fam.get("note"):
+            entry["note"] = " ".join(str(fam["note"]).split())
+        if i > 0 and not entry.get("match") and not title_words(list(entry["titles"])):
+            raise ValueError(f"config/profile.yaml: role_families[{key}] has no title word to match on "
+                             f"(titles {entry['titles']}); add a role word to a title or a `match` list")
+        out.append(entry)
+    return out
+
+
+def profile(raw: dict | None = None) -> dict:
+    """The profile with the four prompt keys validated and defaulted. Every other key is
+    passed through untouched. Raises ValueError naming the key on a malformed value."""
+    if raw is None:
+        raw = load_profile()
+    out = dict(raw)
+    defaults = default_profile_keys(raw)
+    for key in ("candidate_line", "header_location"):
+        val = raw.get(key)
+        if val is None:
+            out[key] = defaults[key]
+        elif isinstance(val, str):
+            out[key] = " ".join(val.split())
+        else:
+            raise ValueError(f"config/profile.yaml: {key} must be a string")
+    fams = raw.get("role_families")
+    out["role_families"] = _validate_families(fams) if fams is not None else defaults["role_families"]
+    wa = raw.get("work_authorization")
+    if wa is None:
+        out["work_authorization"] = defaults["work_authorization"]
+    elif isinstance(wa, dict):
+        strings = ("summary", "header_item", "relocation_header")
+        for k, v in wa.items():
+            if k in strings and v is not None and not isinstance(v, str):
+                raise ValueError(f"config/profile.yaml: work_authorization.{k} must be a string")
+        regions = wa.get("relocation_regions") or []
+        if not isinstance(regions, list) or not all(isinstance(r, str) for r in regions):
+            raise ValueError("config/profile.yaml: work_authorization.relocation_regions must be a list of "
+                             "region names from config/geo.yaml")
+        from . import geo   # geo imports this module; resolved lazily
+
+        known = geo.regions()
+        unknown = [r for r in regions if r.strip().lower() not in known]
+        if unknown:
+            raise ValueError(f"config/profile.yaml: work_authorization.relocation_regions names no region in "
+                             f"config/geo.yaml: {', '.join(unknown)} (known: {', '.join(known)})")
+        out["work_authorization"] = {
+            **{k: " ".join(str(wa.get(k) or "").split()) for k in strings},
+            "relocation_regions": [r.strip().lower() for r in regions],
+            **{k: v for k, v in wa.items() if k not in strings and k != "relocation_regions"},
+        }
+    else:
+        raise ValueError("config/profile.yaml: work_authorization must be a mapping with summary and header_item")
+    return out
+
+
+_WARNED: set[str] = set()
+
+
+def safe_profile() -> dict:
+    """`profile()` for a command that only degrades without one: a missing file gives {}, a
+    malformed key prints the validation error once (stderr) and gives the derived defaults
+    for the four prompt keys, so `python -m src.stats funnel` never tracebacks on a typo in
+    `strength:`. `python -m src.config check` is where the error is meant to be read."""
+    import sys
+
+    try:
+        raw = load_profile()
+    except FileNotFoundError:
+        return {}
+    try:
+        return profile(raw)
+    except ValueError as e:
+        if str(e) not in _WARNED:
+            _WARNED.add(str(e))
+            print(f"  ! {e}; using defaults for the prompt keys (python -m src.config check)", file=sys.stderr)
+        return profile({k: v for k, v in raw.items() if k not in PROFILE_KEYS})
+
+
+def missing_profile_keys(raw: dict) -> list[str]:
+    """The prompt keys an existing profile does not carry yet (what `src.init` migrates)."""
+    return [k for k in PROFILE_KEYS if k not in raw]
+
+
+def families_text(prof: dict | None = None) -> str:
+    """`role_families` rendered as the lettered list the triage and match prompts open with:
+    one line per family, key, name, titles, skills, and a closing line naming the strongest
+    families, so a prompt never restates them by hand. Empty families give ""."""
+    if prof is None:
+        prof = profile()
+    fams = prof.get("role_families") or []
+    if not fams:
+        return ""
+    lines = [f"{len(fams)} role famil{'y' if len(fams) == 1 else 'ies'}, ALL in-scope:"]
+    for fam in fams:
+        bits = ", ".join(fam["titles"])
+        if fam.get("skills"):
+            bits += "; " + ", ".join(fam["skills"])
+        lines.append(f"({fam['key']}) {fam['name']} ({bits})")
+        if fam.get("note"):
+            lines.append(f"    {fam['note']}")
+    strongest = [f["key"] for f in fams if f["strength"] == "strongest"]
+    adjacent = [f["key"] for f in fams if f["strength"] == "adjacent"]
+    if strongest:
+        lines.append(f"{' and '.join(strongest)} {'is' if len(strongest) == 1 else 'are'} the candidate's "
+                     f"STRONGEST position{'' if len(strongest) == 1 else 's'}: bucket good ones 2-3.")
+    if adjacent:
+        lines.append(f"{' and '.join(adjacent)} {'is' if len(adjacent) == 1 else 'are'} adjacent: "
+                     "in scope, weighted below the core families.")
+    return "\n".join(lines)
+
+
+def candidate_text(prof: dict | None = None) -> str:
+    """The candidate block a prompt inlines: `Candidate: <candidate_line>`, the families,
+    and the work-authorization summary when the profile carries one."""
+    if prof is None:
+        prof = profile()
+    lines = [f"Candidate: {prof['candidate_line']}"] if prof.get("candidate_line") else []
+    fams = families_text(prof)
+    if fams:
+        lines.append(fams)
+    summary = (prof.get("work_authorization") or {}).get("summary")
+    if summary:
+        lines.append(f"Work authorization: {summary}")
+    return "\n".join(lines)
+
+
 def resume_basename(name: str | None = None) -> str:
     """`<NameParts>Resume`, the stem of every tailored deliverable (docs/spec-open-source.md
     decision 5): NFKD fold to ASCII, keep letters and digits only, join the name parts in
@@ -195,6 +386,7 @@ TARGETING_KEYS: dict[str, tuple[tuple[str, ...], ...]] = {
     "adzuna": (("countries", "country"),), "careerjet": (("locale_code",), ("location",)),
     "getonbrd": (("queries",),), "torre": (("queries",),), "findwork": (("search",),),
     "themuse": (("locations", "location", "categories"),), "softserve": (("countries",),),
+    "jobicy": (("tags",),),
 }
 
 
@@ -278,15 +470,45 @@ def get_secret(key: str, default: str | None = None) -> str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """`python -m src.config resume-basename` prints the deliverable stem for shell scripts."""
+    """`python -m src.config resume-basename` prints the deliverable stem for shell scripts;
+    `python -m src.config candidate` prints the candidate block a prompt inlines (the
+    candidate line, the lettered role families, the work-authorization summary);
+    `python -m src.config check` validates the profile's prompt keys and lists missing ones."""
     import argparse
 
     ap = argparse.ArgumentParser(description="jobhunt config helpers")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("resume-basename", help="print <NameParts>Resume from profile.name")
+    sub.add_parser("candidate", help="print the candidate block for prompts (candidate_line, role_families)")
+    sub.add_parser("check", help="validate the profile's prompt keys; exit 1 on a malformed or missing one")
     args = ap.parse_args(argv)
     if args.cmd == "resume-basename":
         print(resume_basename())
+    elif args.cmd == "candidate":
+        try:
+            print(candidate_text())
+        except FileNotFoundError:
+            print(f"  ! missing {user_file('profile')} (python -m src.init creates it)")
+            return 1
+        except ValueError as e:
+            print(f"  ! {e}")
+            return 1
+    elif args.cmd == "check":
+        try:
+            raw = load_profile()
+        except FileNotFoundError:
+            print(f"  ! missing {user_file('profile')} (python -m src.init creates it)")
+            return 1
+        try:
+            profile(raw)
+        except ValueError as e:
+            print(f"  ! {e}")
+            return 1
+        missing = missing_profile_keys(raw)
+        for k in missing:
+            print(f"  missing  {k}  (python -m src.init appends a default; edit it)")
+        print("profile keys complete" if not missing else "profile keys incomplete")
+        return 1 if missing else 0
     return 0
 
 

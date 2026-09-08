@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 
 from . import post_json
+from ..config import load_profile
 from ..models import Job, strip_html
 
 _GMT_RE = re.compile(r"^GMT([+-])(\d{2}):(\d{2})$")
@@ -29,10 +30,33 @@ def _gmt_offset_hours(tz: str) -> float | None:
     return -val if sign == "-" else val
 
 
-def timezone_band_excludes(timezones: list[str] | None, offset_hours: float = -6.0) -> bool:
-    """True when a defined timezone band does NOT cover `offset_hours` (default
-    GMT-6, Mexico City). A job with no timezone restriction (empty/None) is never
-    'excluded': absence of a band means it isn't timezone-gated."""
+_GMT_LOOSE = re.compile(r"GMT\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?", re.I)
+
+
+def home_offset_hours() -> float | None:
+    """The home GMT offset written in the profile's `timezones` ("hybrid must be Lisbon
+    (GMT+00:00)", "(GMT-6)"); None when no offset is written, and then no band excludes."""
+    try:
+        prof = load_profile()
+    except FileNotFoundError:
+        return None
+    m = _GMT_LOOSE.search(" ".join(str(t) for t in (prof.get("timezones") or [])))
+    if not m:
+        return None
+    sign, hh, mm = m.groups()
+    val = int(hh) + int(mm or 0) / 60
+    return -val if sign == "-" else val
+
+
+def timezone_band_excludes(timezones: list[str] | None, offset_hours: float | None = None) -> bool:
+    """True when a defined timezone band does NOT cover `offset_hours` (default: the home
+    offset from the profile's `timezones`; none written = never excluded). A job with no
+    timezone restriction (empty/None) is never 'excluded': absence of a band means it isn't
+    timezone-gated."""
+    if offset_hours is None:
+        offset_hours = home_offset_hours()
+    if offset_hours is None:
+        return False
     parsed = [o for o in (_gmt_offset_hours(t) for t in (timezones or [])) if o is not None]
     if not parsed:
         return False
@@ -184,7 +208,8 @@ def backfill_eligibility(pages: int = 6) -> None:
                     found[oid] = j
 
     refreshed = 0
-    gmt6_excluded: list[tuple] = []
+    home_offset = home_offset_hours()
+    excluded: list[tuple] = []
     for oid, j in found.items():
         row = wanted[oid]
         locs = [x for x in (j.get("locations") or []) if isinstance(x, str)]
@@ -199,15 +224,18 @@ def backfill_eligibility(pages: int = 6) -> None:
         conn.execute("UPDATE jobs SET description=?, location=? WHERE id=?",
                      (new_desc, new_loc, row["id"]))
         refreshed += 1
-        if timezone_band_excludes(timezones):
-            gmt6_excluded.append((row["id"], row["company"], row["title"], timezones))
+        if timezone_band_excludes(timezones, home_offset):
+            excluded.append((row["id"], row["company"], row["title"], timezones))
     conn.commit()
 
     print(f"Refreshed {refreshed}/{len(wanted)} Torre rows with a live eligibility header "
           f"({len(wanted) - refreshed} not found in a fresh search, left untouched).")
-    print(f"{len(gmt6_excluded)} refreshed row(s) have a timezone band that excludes GMT-6 "
-          "(Mexico City):")
-    for jid, company, title, tzs in gmt6_excluded:
+    if home_offset is None:
+        print("No GMT offset in profile.yaml timezones: timezone bands not checked.")
+    else:
+        print(f"{len(excluded)} refreshed row(s) have a timezone band that excludes the home offset "
+              f"GMT{home_offset:+g} (profile timezones):")
+    for jid, company, title, tzs in excluded:
         print(f"  id={jid} {company!r} - {title!r} timezones={tzs}")
 
 

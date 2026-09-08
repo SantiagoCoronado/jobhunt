@@ -34,7 +34,9 @@ def test_run_copies_once_keeps_edits_and_skips_identity(tmp_path, capsys):
         assert (root / d).is_dir(), d
     (root / "config" / "profile.yaml").write_text("name: Mine\n")
     assert init.run(root) == 0
-    assert (root / "config" / "profile.yaml").read_text() == "name: Mine\n"
+    text = (root / "config" / "profile.yaml").read_text()
+    assert text.startswith("name: Mine\n")            # the user's line is kept ...
+    assert "candidate_line: Mine" in text            # ... and the missing prompt keys are appended
     assert "kept     config/profile.yaml" in capsys.readouterr().out
 
 

@@ -142,14 +142,14 @@ workday:                           # large enterprises on Workday CxS (POST, no 
   # keeps each tenant's slice engineering-shaped.
 teamtailor:                        # per-company JSON Feed ({slug}.teamtailor.com/jobs.json), no key
   enabled: false
-  # flightstory = Steven.com / The Diary of a CEO (dream company), verified 2026-09-01,
-  # 32 rows with full descriptions and schema.org locations.
+  # `companies:` (tenant slugs, the {slug} in {slug}.teamtailor.com) live in
+  # config/sources.local.yaml. Verified 2026-09-01: full descriptions, schema.org locations.
 pinpoint:                          # Pinpoint ATS, {subdomain}.pinpointhq.com/postings.json, no key
   enabled: false
 rippling:                          # Rippling ATS public board API, no key
   enabled: false
 secretlab:                         # Secretlab's in-house openings API (single company), no key
-  enabled: false                    # dream company, verified 2026-09-01 (19 rows, all Singapore)
+  enabled: false                    # single-company adapter, verified 2026-09-01 (19 rows)
 
 # The hand-curated dream-company sheet (Google Sheets, private: its CSV export 401s).
 # `/jh-discover` reads it through the Drive tool and saves the markdown table to `path`;
@@ -186,7 +186,7 @@ workatastartup:                    # YC WaaS; job API needs a browser session (4
 title_filter:
   enabled: true
   # Dream companies (profile.yaml dream_companies) skip the gate entirely: their boards
-  # are small (xAI 251, Riot 164) and the titles worth chasing there ("Member of Technical
+  # are small (a few hundred rows) and the titles worth chasing there ("Member of Technical
   # Staff", "Head of Data Intelligence") are exactly the ones a keyword gate drops.
   skip_dream_companies: true
   include:

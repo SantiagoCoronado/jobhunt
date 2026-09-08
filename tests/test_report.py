@@ -93,7 +93,7 @@ def test_funnel_data_shape(conn):
     assert d["total"] == 3 and d["responded"] == 2
     assert d["by_stage"]["screen"] == 1 and d["by_stage"]["waiting"] == 1
     assert ("90+", 1, 1) in d["segments"]["score band"]
-    assert ("C", 1, 0) in d["segments"]["title family"]
+    assert ("B", 1, 0) in d["segments"]["title family"]   # fixture family B = frontend
 
 
 def test_calibration_and_latency_and_comp_data(conn):

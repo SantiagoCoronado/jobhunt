@@ -71,7 +71,7 @@ directly; you never read the files behind it.
    Evidence is HEADERS ONLY on both paths; never copy snippet text into the file, the DB,
    or your report.
 
-6. **Dry run, then apply** (auto-apply, Santiago's standing decision of 2026-09-04: the
+6. **Dry run, then apply** (auto-apply, the standing decision of 2026-09-04: the
    applier's guardrails are the gate, not a chat approval). Run
    `python -m src.gmail_pull data/gmail_pull.json` with Bash and read its output; if it
    printed nothing surprising (no `Skipped` line you cannot explain, no stamp error),

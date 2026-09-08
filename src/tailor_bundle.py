@@ -4,7 +4,8 @@
 
 Writes `data/tailor/<id>/inputs.md` with, in this fixed order:
   1. voice rules (docs/writing-voice.md, verbatim)
-  2. profile (config/profile.yaml, verbatim: dream_rule, relocation_line, location_rule, comp ...)
+  2. profile (config/profile.yaml, verbatim: dream_rule, relocation_line, location_rule, comp,
+     header_location, work_authorization ...)
   3. master resume (resume/master_resume.yaml, verbatim, the single source of truth)
   4. page geometry (generated from src/render_docx constants, so it can never go stale)
   5. the job (DB row, dream flag, the dream sheet's Curated block, full description)
@@ -32,6 +33,7 @@ from .answers_export import render as render_answers
 from .config import ROOT, resume_basename, user_file
 from .db import connect
 from .dream import is_dream
+from .tailor_build import outside_relocation_regions, relocation_scope
 from .reconcile import APPS_DIR, find_folder
 from .research import dossier_info
 from .tailor_state import update_state
@@ -41,7 +43,7 @@ VOICE = ROOT / "docs" / "writing-voice.md"
 
 SECTION_PURPOSE = {
     1: "Voice rules. Every sentence you write obeys these.",
-    2: "Profile. dream_rule, relocation_line, location_rule and comp are quoted here verbatim; apply them as written.",
+    2: "Profile. dream_rule, relocation_line, location_rule, comp, header_location and work_authorization are quoted here verbatim; apply them as written.",
     3: "Master resume. The single source of truth: reorder, reframe, rephrase; never add a fact that is not here.",
     4: "Page geometry. Write to this grid on the FIRST draft so the build passes without a fit loop.",
     5: "The job.",
@@ -119,6 +121,20 @@ def geometry_block(master: dict) -> str:
 
 # ------------------------------------------------------------------ sections
 
+def relocation_verdict(location: str | None) -> str:
+    """One line for a dream row: whether its location sits inside the relocation regions
+    (profile `work_authorization.relocation_regions` plus home, resolved through
+    config/geo.yaml), so the tailor never guesses what the build will check."""
+    scope = relocation_scope()
+    where = ", ".join(sorted(scope)) or "none resolved"
+    if outside_relocation_regions(location, scope):
+        return (f"relocation: OUTSIDE the relocation regions ({where}): no relocation line, no relocation "
+                'header, one plain sentence that the local work visa would be needed, and `work_auth_item: ""` '
+                "in the resume cv block so the header shows no home-region work status")
+    return (f"relocation: inside the relocation regions ({where}): relocation_line verbatim and the "
+            "relocation_header note if the posting requires presence there; neither if it hires remotely from home")
+
+
 def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, dict]:
     r = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
     if not r:
@@ -156,6 +172,7 @@ def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, di
         f"salary: {salary}",
         f"status: {job.get('status')}, match {job.get('match_score')}",
         f"dream: {'true (profile dream_rule applies)' if job['dream'] else 'false'}",
+        *([relocation_verdict(job.get("location"))] if job["dream"] else []),
         f"resume file: {resume_basename()}.yaml  (the name tailor_build expects in draft.md)",
     ]
     for k in ("recommendation", "location_ok", "visa_path", "missing_skills", "reasons"):

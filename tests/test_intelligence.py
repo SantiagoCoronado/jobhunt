@@ -4,7 +4,8 @@ import json
 import pytest
 
 from src.db import connect, log_event, set_status, touch_contact
-from src.stats import _band, _outcome, calibration, comp, funnel, latency, title_family
+from src.config import profile
+from src.stats import _band, _outcome, calibration, comp, families, funnel, latency, title_family
 
 
 @pytest.fixture
@@ -66,15 +67,73 @@ def test_log_event_generic(conn):
 
 # ---- stats primitives ----
 
-def test_title_family_classification():
-    assert title_family("Forward Deployed Engineer") == "B"
-    assert title_family("Deployment Strategist Lead - Mexico") == "B"
-    assert title_family("Senior Frontend Engineer") == "C"
-    assert title_family("React Engineer, AI tools") == "C"
-    assert title_family("Internal Tools Engineer") == "D"
-    assert title_family("Developer Experience Engineer") == "D"
-    assert title_family("Applied AI Engineer") == "A"
+def test_title_family_from_the_fixture_profile():
+    """Fixture families: A full-stack (first = catch-all), B frontend; B's phrases come from
+    its titles (Frontend Engineer, UI Engineer) since it declares no `match` list."""
+    assert [k for k, _ in families()] == ["B", "A"]
+    assert title_family("Senior Frontend Engineer") == "B"
+    assert title_family("UI Engineer (design systems)") == "B"
+    assert title_family("Software Engineer") == "A"
+    assert title_family("Backend Engineer") == "A"
     assert title_family(None) == "A"
+
+
+FOUR = profile({"name": "X", "role_families": [
+    {"key": "A", "name": "hands-on AI / full-stack", "titles": ["Applied AI Engineer"]},
+    {"key": "B", "name": "AI deployment", "titles": ["Deployment Strategist"],
+     "match": ["deployment", "solutions architect", "solutions engineer", "enablement", "strategist",
+               "forward deployed", "field engineer", "gtm", "technical program", "adoption"]},
+    {"key": "C", "name": "frontend", "titles": ["Frontend Engineer"],
+     "match": ["front-end", "frontend", "ui", "react", "web engineer"]},
+    {"key": "D", "name": "internal tooling", "titles": ["Internal Tools Engineer"],
+     "match": ["internal tool", "internal platform", "internal application", "developer experience",
+               "developer productivity", "business systems", "workflow automation", "devex"]},
+]})
+
+
+def test_title_family_with_match_lists_reproduces_the_four_family_calibration():
+    """The regexes stats.py used to hardcode, expressed as `match` phrases: same buckets."""
+    fams = families(FOUR)
+    assert [k for k, _ in fams] == ["B", "C", "D", "A"]
+    assert title_family("Forward Deployed Engineer", fams) == "B"
+    assert title_family("Forward-Deployed Engineer", fams) == "B"
+    assert title_family("Deployment Strategist Lead - Mexico", fams) == "B"
+    assert title_family("Solutions Engineer", fams) == "B"
+    assert title_family("Senior Frontend Engineer", fams) == "C"
+    assert title_family("Front End Developer", fams) == "C"
+    assert title_family("React Engineer, AI tools", fams) == "C"
+    assert title_family("Internal Tools Engineer", fams) == "D"
+    assert title_family("Developer Experience Engineer", fams) == "D"
+    assert title_family("Applied AI Engineer", fams) == "A"
+    assert title_family("Guitar Builder", fams) == "A"
+    # prefix semantics the old regexes had (third review): longer forms still bucket
+    assert title_family("Software Engineer, Safeguards Foundations (Internal Tooling)", fams) == "D"
+    assert title_family("Manager, Solutions Architecture", fams) == "B"
+    assert title_family("Senior Director, Solution Architecture - North America", fams) == "B"
+    assert title_family("Manager, Web Engineering", fams) == "C"
+    assert title_family("RPA Developer (UiPath)", fams) == "A"          # "ui" takes no suffix
+    assert title_family("Forward Deploy Engineer", families(profile({"name": "X", "role_families": [
+        {"key": "A", "titles": ["Engineer"]}, {"key": "B", "titles": ["Deployment Strategist"], "match": ["forward deploy"]}]}))) == "B"
+    assert title_family(None, fams) == "A"
+
+
+def test_families_with_an_explicit_profile_never_poison_the_cache():
+    """PR #22 review: only the profile-less call populates the module cache."""
+    assert [k for k, _ in families(FOUR)] == ["B", "C", "D", "A"]
+    assert [k for k, _ in families()] == ["B", "A"]            # still the fixture profile
+    assert title_family("Deployment Strategist") == "A"         # not FOUR's B
+
+
+def test_non_first_family_without_phrases_matches_nothing():
+    """A raw dict can carry a family with no gate words; it must not become a mid-list catch-all."""
+    fams = families({"role_families": [{"key": "A", "titles": ["Engineer"]}, {"key": "B", "titles": ["Remote Role"]}]})
+    assert [k for k, _ in fams] == ["B", "A"]
+    assert title_family("Remote Role", fams) == "A" and title_family("Anything", fams) == "A"
+
+
+def test_families_without_a_profile_bucket_everything_as_a():
+    assert families({"name": "X"}) == [("A", None)]
+    assert title_family("Anything", families({"name": "X"})) == "A"
 
 
 def test_band_and_outcome():

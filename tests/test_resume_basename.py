@@ -10,7 +10,7 @@ from src import config, reconcile, tailor_bundle
 @pytest.mark.parametrize("name,stem", [
     ("Alex Example", "AlexExampleResume"),
     ("Zoë O'Brien-Smith", "ZoeOBrienSmithResume"),
-    ("Santiago Daniel Coronado Sroka", "SantiagoDanielCoronadoSrokaResume"),
+    ("Maria Fernanda Lopez Garcia", "MariaFernandaLopezGarciaResume"),
     ("Cher", "CherResume"),
     ("José María Álvarez-Núñez", "JoseMariaAlvarezNunezResume"),
     ("", "Resume"),
@@ -30,8 +30,8 @@ def test_resume_basename_defaults_to_the_profile_name_and_survives_no_profile(tm
 def test_profile_override_wins_and_is_normalized(tmp_path, monkeypatch):
     prof = tmp_path / "profile.yaml"
     monkeypatch.setitem(config.USER_FILES, "profile", prof)
-    prof.write_text('name: "Santiago Daniel Coronado Sroka"\nresume_basename: "Santiago Coronado"\n')
-    assert config.resume_basename() == "SantiagoCoronadoResume"
+    prof.write_text('name: "Maria Fernanda Lopez Garcia"\nresume_basename: "Maria Lopez"\n')
+    assert config.resume_basename() == "MariaLopezResume"
     prof.write_text('name: "Alex Example"\nresume_basename: "Zoë-Resume"\n')
     assert config.resume_basename() == "ZoeResume"
     prof.write_text('name: "Alex Example"\nresume_basename: ""\n')

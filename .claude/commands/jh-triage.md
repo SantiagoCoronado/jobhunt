@@ -21,22 +21,19 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
    in the script (passing it via `args` has been unreliable).
 
    RUBRIC (keep-on-doubt: this is a junk cut, NOT the final judge; when in any doubt, KEEP):
-   Candidate: Santiago, founder-engineer, Mexico City, bilingual ES/EN, TN-visa eligible for US work.
-   Four role families, ALL in-scope: (A) hands-on AI / full-stack engineering (Applied AI / AI /
-   Forward-Deployed / Founding / Full-Stack / Software Engineer; Python, JS/TS, React, Node, LLMs,
-   RAG, AI agents, AWS, SQL); (B) AI deployment / enablement / strategy (Deployment Strategist,
-   Solutions Architect/Engineer, AI Enablement/Transformation/Adoption Lead/Director/Manager, Applied
-   AI Strategist, GTM engineer, technical PM/PgM for AI); (C) frontend engineering (Frontend / UI /
-   React / Web Engineer; React, TypeScript, Electron); (D) internal tooling / internal platforms
-   (Internal Tools, Developer Experience/Productivity, Business Systems, Workflow Automation
-   Engineer). C and D are his two STRONGEST positions, bucket good ones 2-3.
+   Open the rubric with the candidate block: run `python -m src.config candidate` ONCE with Bash
+   before spawning and paste its output verbatim here (it renders `candidate_line`, the lettered
+   `role_families` with their titles and skills, the strongest families, and the
+   `work_authorization` summary from `config/profile.yaml`; never restate them by hand).
+   Every listed family is IN scope; bucket good fits in the families it marks STRONGEST 2-3.
    Director/Lead/Manager/Strategist titles are IN scope.
    DROP (keep=false) ONLY if clearly one of: (1) OFF-FIELD (not software/AI/data/ML/frontend/internal
    -tools engineering AND not an AI deployment/solutions/enablement/strategy or technical
    product/program role): nurse,
    accountant, non-technical sales/account executive, customer success, recruiter/HR, marketing,
    finance, legal, admin, mechanical/civil/chemical/electrical/manufacturing engineering, retail;
-   (2) requires an active security clearance OR US-citizens-only; (3) base salary EXPLICITLY listed
+   (2) requires an active security clearance OR citizenship of a specific country the candidate
+   block does not claim; (3) base salary EXPLICITLY listed
    and, ONCE ANNUALIZED, clearly below `comp.min_usd_latam_scope` in `config/profile.yaml`.
    Annualize first: a USD figure under 20,000 is a MONTHLY rate, multiply by 12 (a "5,000-7,000
    USD" getonbrd row is 60k-84k/yr, not 5k-7k/yr). Never drop a monthly rate as if it were annual.
@@ -45,7 +42,8 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
    DREAM COMPANIES: a row carrying `"dream": true` is at one of `dream_companies` in
    `config/profile.yaml` (its `dream_rule` is the authority). For those rows rule (3) (pay) does
    NOT apply and location never did; rules (1) off-field and (2) clearance / citizens-only /
-   ITAR / "US person" still drop. When in doubt on a dream row, keep it and bucket honestly.
+   export-control ("US person", ITAR) still drop. When in doubt on a dream row, keep it and
+   bucket honestly.
 
 3. Verify every chunk has a complete out file (ids match its chunk), re-running any that fell short.
 

@@ -1,7 +1,7 @@
 # Token efficiency of `/jh-hunt`
 
 Audit of 2026-09-02. Tool: `scripts/token_audit.py` (reads the Claude Code session JSONL under
-`~/.claude/projects/-Users-santiagocoronado-jobhunt/`, plus each in-process subagent transcript
+`~/.claude/projects/<project memory dir>/`, plus each in-process subagent transcript
 under `<session>/subagents/`, dedupes the repeated usage blocks, and reports per agent, per
 tool, per phase). Run `python scripts/token_audit.py --latest` after any hunt; `--all` prints one
 row per session.

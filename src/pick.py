@@ -7,7 +7,7 @@ Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
   * the remaining slots go to the highest-match rows overall, one per company;
   * a company with a live application (applied/screen/interview/offer, or a folder under
     applications/applied or applications/pending) or a `backlog` hold is skipped, so the hunt
-    never re-tailors a live application or overrides a deliberate hold (Anthropic until Oct 2026);
+    never re-tailors a live application or overrides a deliberate hold;
   * a company with a terminal outcome (rejected/ghosted/withdrawn) is skipped for
     `--cooldown-days` (default 90) after the outcome, dated by the NEWEST of application date,
     last contact, last logged event and first sighting, then released: a company that turned
@@ -15,9 +15,10 @@ Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
     released, not held forever;
   * hand-shortlisted rows with no match score are listed under skipped ("not scored yet"), never
     picked blind and never silently dropped;
-  * a dream row located outside the TN countries (Berlin, London, Singapore ...) is listed under
-    skipped: the dream waiver is US-on-TN only (Santiago, 2026-09-02), so that ROW never takes a
-    slot; the company's US rows stay eligible;
+  * a dream row located outside the profile's relocation regions
+    (`work_authorization.relocation_regions`, resolved through config/geo.yaml) is listed under
+    skipped: the dream waiver covers relocation to those regions only (set 2026-09-02), so that
+    ROW never takes a slot; the company's rows inside them stay eligible;
   * aggregator rows (Jobgether, HN "Who is Hiring") are listed but flagged, since the real
     employer needs a look before research.
 Ties keep the newer posting. Two spares follow the picks so a flagged aggregator row can be
@@ -35,7 +36,7 @@ from datetime import date, timedelta
 from .config import ROOT
 from .db import connect
 from .dream import is_dream
-from .tailor_build import outside_tn_countries
+from .tailor_build import outside_relocation_regions, relocation_scope
 
 LIVE = ("applied", "screen", "interview", "offer")
 HOLD = ("backlog",)
@@ -83,6 +84,7 @@ def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None 
 def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
          today: date | None = None, spares: int = SPARES) -> tuple[list[dict], list[dict], list[dict]]:
     """(picks, skipped, spares). Spares are the next candidates after the n picks."""
+    scope = relocation_scope()            # once, not once per dream row
     conn = connect()
     busy = busy_companies(conn, cooldown_days, today)
 
@@ -120,9 +122,9 @@ def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
             skipped.append(rec)
             taken.add(key)
             return False
-        if dream and outside_tn_countries(r["location"]):
-            # Row-level skip: the London req loses the slot, the company's US reqs stay eligible.
-            rec["why"] = "dream row outside the TN countries (no EU/UK/APAC relocation)"
+        if dream and outside_relocation_regions(r["location"], scope):
+            # Row-level skip: that req loses the slot, the company's reqs inside the regions stay eligible.
+            rec["why"] = "dream row outside the relocation regions (work_authorization.relocation_regions)"
             skipped.append(rec)
             return False
         if any(a in key for a in AGGREGATORS):

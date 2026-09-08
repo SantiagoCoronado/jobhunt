@@ -55,6 +55,7 @@ def test_sections_in_fixed_order_and_meta(conn, apps):
     assert "dream_rule" in text and "relocation_line" in text          # profile verbatim
     assert "A full bullet line holds about" in text                     # geometry generated
     assert "company: Acme" in text and "dream: false" in text
+    assert "relocation:" not in text                                     # only dream rows carry the verdict
     assert "matcher recommendation: Yes" in text
     assert "No dossier for this company" in text
     assert "## Why do you want to work at Acme?" in text and "<!-- TAILOR" in text
@@ -67,6 +68,7 @@ def test_dream_row_gets_flag_curated_block_and_empty_description_pointer(conn, a
     text, meta = tbd.build_bundle(conn, 2, apps_dir=apps)
     assert meta["dream"] is True and meta["curated"] is True
     assert "dream: true" in text
+    assert "relocation: OUTSIDE the relocation regions (europe, portugal)" in text   # Santa Clara, fixture scope
     assert "Priority: Apply this week" in text
     assert "Description: EMPTY in the DB" in text
     assert "matcher visa_path: TN, employer files" in text

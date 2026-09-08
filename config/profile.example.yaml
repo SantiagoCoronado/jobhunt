@@ -24,6 +24,51 @@ target_titles:
 
 seniority: "mid to senior"    # free text; the matcher reads it when judging seniority fit
 
+# The four prompt keys (docs/spec-open-source.md section 4). No prompt, agent file or line
+# of code names a person, a city or a visa: they read these. `python -m src.config candidate`
+# prints the block the triage and match prompts open with; `python -m src.config check`
+# validates them.
+
+# One sentence: who you are, where you are, your work status. Third person, no pronouns.
+candidate_line: >-
+  Alex, full-stack engineer, Lisbon, bilingual PT/EN, EU work authorization.
+
+# Ordered role families. The prompts render them as a lettered list and weight by `strength`
+# (strongest | core | adjacent); `titles` feed the discovery title gate like target_titles;
+# `skills` are the family's signals; an optional `match` list adds phrases `python -m
+# src.stats` uses to bucket a title into the family on top of its title words; an optional
+# `note` is one line the prompts carry with the family. The FIRST family is the catch-all:
+# a title that matches no other family is counted there.
+role_families:
+  - key: A
+    name: hands-on full-stack engineering
+    titles: [Full-Stack Engineer, Software Engineer, Product Engineer]
+    skills: [TypeScript, React, Node, Postgres]
+    strength: core
+  - key: B
+    name: frontend engineering
+    titles: [Frontend Engineer, UI Engineer]
+    skills: [React, TypeScript, Vite]
+    strength: strongest
+
+# Told to the prompts (summary) and rendered in the resume header (header_item; "" renders
+# nothing). Never claim more than is true: the tailor copies these, it never rewrites them.
+work_authorization:
+  summary: EU citizen, no sponsorship needed in the EU
+  header_item: EU Work Authorization
+  # Where `relocation_line` (below) applies, as region names from config/geo.yaml. A dream
+  # company role that requires presence in one of these gets the relocation line and the
+  # header note; one outside them gets a plain visa sentence instead. The home region
+  # (header_location) always counts; [] = home only.
+  relocation_regions: [europe]
+  # The note the tailored header carries for such a role: "<header_location> (<this>)".
+  relocation_header: open to relocation within Europe
+
+# What the tailored resume header must say; the build checks it. "" = the master resume's
+# cv.location. A dream-company role that requires presence elsewhere appends the relocation
+# note to it (see dream_rule and relocation_line below).
+header_location: Lisbon, Portugal
+
 # Skills you can defend in an interview. Drive the keyword prescore and the honest gap
 # analysis (`python -m src.gaps`). Lowercase, one per line.
 must_have_skills:
@@ -55,7 +100,7 @@ locations:
   - Lisbon
   - Portugal
 timezones:
-  - "Any if fully remote; hybrid must be Lisbon (WET/WEST)"
+  - "Any if fully remote; hybrid must be Lisbon (GMT+00:00)"   # the GMT offset is read by the Torre adapter
 
 # THE shortlist cutoff: `match ingest` and the notify digest read this. 0 to 100.
 shortlist_threshold: 70
@@ -113,7 +158,7 @@ dream_rule: >
 
 # The one relocation sentence application text may use for a dream-company role that
 # requires presence elsewhere. Plain voice; the tailor copies it, never rewrites it.
-relocation_line: "I am based in Lisbon and open to relocating for this role with employer-sponsored visa support."
+relocation_line: "I am based in Lisbon and open to relocating within Europe for this role, with employer visa support where one is needed."
 
 # Shortlist cutoff for dream-company rows. Lower on purpose.
 dream_shortlist_threshold: 60

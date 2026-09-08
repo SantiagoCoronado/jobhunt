@@ -1,4 +1,4 @@
-"""Adzuna aggregator API (Mexico + 12 countries). Free app_id + app_key.
+"""Adzuna aggregator API (13 country sites). Free app_id + app_key.
 GET https://api.adzuna.com/v1/api/jobs/{country}/search/{page}
 Docs: https://developer.adzuna.com  (keys go in .env, see .env.example)
 """
@@ -18,8 +18,8 @@ def fetch(cfg: dict) -> list[Job]:
         print("  ! adzuna: set ADZUNA_APP_ID and ADZUNA_APP_KEY in .env (see .env.example)")
         return []
 
-    # `countries:` (a list) supersedes the older single `country:`; Mexico for
-    # local roles, US for USD-priced remote roles that hire from Mexico. Adzuna
+    # `countries:` (a list) supersedes the older single `country:`; the home country for
+    # local roles, the US site for USD-priced remote roles that hire abroad. Adzuna
     # allows ~250 calls/day, so keep countries x queries x pages under that.
     countries = cfg.get("countries") or ([cfg["country"]] if cfg.get("country") else [])
     if not countries:

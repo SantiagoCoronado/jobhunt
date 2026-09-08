@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 
 from pathlib import Path
 
-from .config import load_profile, shortlist_threshold, ROOT
+from .config import ROOT, load_profile, safe_profile, shortlist_threshold
+from . import geo
 from .db import connect
 from .dream import dream_shortlist_threshold, is_dream
 from .models import normalize_text, now_iso
@@ -57,35 +57,43 @@ def _score_bucket(score: int | None) -> int:
     return 3 if score >= 85 else 2 if score >= 75 else 1 if score >= 65 else 0
 
 
-# Locations that clearly REQUIRE sitting somewhere he will not move to. Applied only when the
-# posting is not flagged remote; see profile.yaml location_rule (the authority).
-_LOCKED_OUT = re.compile(
-    r"san francisco|new york|nyc|seattle|palo alto|foster city|boston|austin|chicago|denver|"
-    r"atlanta|los angeles|san jose|sunnyvale|mountain view|london|berlin|paris|amsterdam|dublin|"
-    r"munich|zurich|stockholm|lisbon|madrid|barcelona|warsaw|tel aviv|bengaluru|bangalore|"
-    r"singapore|tokyo|sydney|toronto|vancouver|montreal|sao paulo|são paulo|buenos aires|"
-    r"bogotá|bogota|santiago|lima|brazil|brasil|argentina|colombia|chile|peru|uruguay",
-    re.I,
-)
-_MX_OK = re.compile(r"méxico|mexico|cdmx|latam|latin america|americas|anywhere|remote", re.I)
+# Locations that clearly REQUIRE sitting somewhere outside the candidate's home region
+# (profile `header_location`, resolved through config/geo.yaml). Applied only when the posting
+# is not flagged remote; see profile.yaml location_rule (the authority).
+_LOCATION_RES: tuple | None = None
+
+
+def _location_res() -> tuple:
+    """(ok_re, locked_out_re) for the home region, built once per process. No resolvable home
+    (an old profile without header_location, or a fixture with none): nothing is locked out."""
+    global _LOCATION_RES
+    if _LOCATION_RES is None:
+        prof = safe_profile()
+        home = geo.home(prof)
+        ok = geo._word_re(geo.home_words(home))
+        locked = geo._word_re(geo.locked_out_words(home)) if home else None
+        _LOCATION_RES = (ok, locked)
+    return _LOCATION_RES
 
 
 def _location_plausible(row) -> bool:
     """Cheap prefilter for the tightened location rule: drop only the clearly locked-out.
 
-    Keeps anything flagged remote (a US-headquartered remote req may still hire from Mexico,
-    the matcher and a live check decide), anything naming Mexico/LATAM/anywhere, and blanks.
-    The stored `location` string is NOT authoritative, so this only removes on-site rows that
-    name a city or country he will not relocate to.
+    Keeps anything flagged remote (a remote req headquartered elsewhere may still hire from
+    home; the matcher and a live check decide), anything naming the home region or a region
+    containing it, or a remote word, and blanks. The stored `location` string is NOT
+    authoritative, so this only removes on-site rows that name a city, state or country the
+    candidate will not relocate to.
     """
-    loc = (row["location"] or "").strip()
+    loc = (row["location"] or "").strip().lower()
     if not loc:
         return True
-    if _MX_OK.search(loc):
+    ok, locked = _location_res()
+    if ok.search(loc):
         return True
     if row["remote"]:
         return True
-    return not _LOCKED_OUT.search(loc)
+    return locked is None or not locked.search(loc)
 
 
 def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
@@ -100,7 +108,7 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
     `rescore` also pulls ALREADY scored `shortlisted` rows back into the queue, for when a
     scoring input changed (e.g. profile.yaml location_rule) and old scores are stale. Their
     priority bucket is derived from the existing match_score. `eligible_only` drops rows whose
-    location clearly requires relocating outside Mexico (see `_location_plausible`).
+    location clearly requires relocating outside the home region (see `_location_plausible`).
 
     Dream-company rows (profile.yaml dream_companies) always survive `eligible_only`, sort
     ahead of everything else, carry `dream: true`, and, when the hand-curated sheet has a row
@@ -271,7 +279,7 @@ if __name__ == "__main__":
                    help="also re-queue already-scored 'shortlisted' rows (use when a scoring "
                         "input changed, e.g. profile.yaml location_rule)")
     e.add_argument("--eligible-only", action="store_true", dest="eligible_only",
-                   help="drop rows whose location clearly requires relocating outside Mexico")
+                   help="drop rows whose location clearly requires relocating outside the home region")
     i = sub.add_parser("ingest")
     i.add_argument("--threshold", type=int, default=None,
                    help="override profile.yaml shortlist_threshold (default 70)")

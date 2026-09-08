@@ -4,7 +4,7 @@ Status: draft for review, 2026-09-02. Follows the audit in `docs/token-efficienc
 One PR per phase (A, B, C). Nothing here changes what the tailor is allowed to write:
 Fable still writes every word, only reframes master-resume facts, obeys
 `docs/writing-voice.md`, zero em-dashes, and the deliverable names stay
-`SantiagoCoronadoResume.{yaml,docx,pdf}`, `CoverLetter.{md,docx,pdf}`, `match_report.md`,
+`<FirstLast>Resume.{yaml,docx,pdf}`, `CoverLetter.{md,docx,pdf}`, `match_report.md`,
 `answers.md`.
 
 ## Problem
@@ -99,7 +99,7 @@ never has to guess what a block is:
 7. `# 7. answers.md (pre-rendered)` : the exact text `src.answers_export` would write,
    with its TAILOR block. The agent copies it into `draft.md` with the why-company block
    replaced; nothing else in it may change.
-8. `# 8. Existing draft` : when `applications/*/<company>-<id>/SantiagoCoronadoResume.yaml`
+8. `# 8. Existing draft` : when `applications/*/<company>-<id>/<FirstLast>Resume.yaml`
    already exists, include it verbatim so a refresh edits instead of restarting.
 9. `# 9. Review comments` : when `<folder>/review.json` exists (written by a reviewer
    agent, schema below), its unresolved items rendered as a numbered list with file,
@@ -116,9 +116,9 @@ One command, in this order, stopping at the first hard failure:
 
 1. **Split.** If `<folder>/draft.md` exists, split it on lines matching
    `=== FILE: <name> ===` into the named files (allowed names only:
-   `SantiagoCoronadoResume.yaml`, `CoverLetter.md`, `match_report.md`, `answers.md`).
+   `<FirstLast>Resume.yaml`, `CoverLetter.md`, `match_report.md`, `answers.md`).
    Overwrite the targets, delete `draft.md` unless `--keep-draft`. A missing required
-   file (`SantiagoCoronadoResume.yaml`, `CoverLetter.md`, `match_report.md`) is a hard
+   file (`<FirstLast>Resume.yaml`, `CoverLetter.md`, `match_report.md`) is a hard
    failure naming the file.
 2. **Text checks** over every `.md` and `.yaml` in the folder: em-dash count (any is a
    failure, with file:line), `<!-- TAILOR` marker left in `answers.md` (failure),
@@ -150,17 +150,18 @@ AUDIT   1 block: [projects/1/2] 2 lines, last 44% full: cut ~30 chars or extend 
 LETTER  273 words, plain text, relocation line present   OK
 ANSWERS 7 approved, why-company filled              OK
 EMDASH  0                                            OK
-FILES   SantiagoCoronadoResume.{yaml,docx,pdf} CoverLetter.{md,docx,pdf} match_report.md answers.md
+FILES   <FirstLast>Resume.{yaml,docx,pdf} CoverLetter.{md,docx,pdf} match_report.md answers.md
 RESULT  OK with 1 warning (exit 0)
 ```
 
 Exit codes: 0 green or warnings only, 1 the agent must fix (each FAIL line says what,
 including a resume YAML that does not parse), 2 environment problem (LibreOffice missing).
-The "outside the US" test in step 3 is a keyword heuristic on the job's location string
-(`OUTSIDE_COUNTRIES` / `OUTSIDE_CITIES` in `tailor_build.py`, weighed per location part against
-the US/MX/CA markers in `TN_COUNTRY_MARKERS`, which win); a location it
-does not recognise is treated as TN territory, and a missing pypdf downgrades the page count
-to a printed warning rather than a silent pass. `--json` prints the same as
+The "outside the relocation regions" test in step 3 is `geo.outside()` on the job's location
+string against the tracked region table `config/geo.yaml` and the profile's
+`work_authorization.relocation_regions` plus home (since 2026-09-08; it used to be hardcoded
+TN-country tables in `tailor_build.py`): each location part resolves to regions, a part inside
+the scope keeps the row inside, and a location it does not recognise is never "outside". A
+missing pypdf downgrades the page count to a printed warning rather than a silent pass. `--json` prints the same as
 one object for tests and for `/jh-hunt`'s report.
 
 Two more things the build always does, for other agents rather than for the tailor:
@@ -342,7 +343,7 @@ Rules that make this pluggable:
 ```json
 {"reviewer": "cv-reviewer", "at": "2026-09-03T15:02:00Z",
  "items": [
-   {"id": 1, "file": "SantiagoCoronadoResume.yaml", "anchor": "experience/0/highlights/2",
+   {"id": 1, "file": "<FirstLast>Resume.yaml", "anchor": "experience/0/highlights/2",
     "severity": "must" , "comment": "Claims a metric not in the master resume; drop or reword.",
     "resolved": false},
    {"id": 2, "file": "CoverLetter.md", "anchor": "paragraph 2",
@@ -379,7 +380,7 @@ from in-session orchestration to a Workflow is a script change, not an agent cha
 ## Phase D (later): `cv-reviewer` agent
 
 Reads the bundle (sections 1 to 3 give it the voice rules and the master resume, the
-truth source) plus the built `SantiagoCoronadoResume.yaml`, `CoverLetter.md` and
+truth source) plus the built `<FirstLast>Resume.yaml`, `CoverLetter.md` and
 `build.json`. Checks: every resume claim traces to the master resume; voice rules; the
 hook is one company fact, not a paragraph of them; the honest gaps in `match_report.md`
 match what the resume actually shows; ATS terms present where the JD demands them.
