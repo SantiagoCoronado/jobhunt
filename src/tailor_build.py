@@ -188,17 +188,22 @@ def _norm(s: str) -> str:
 
 
 def relocation_scope(prof: dict | None = None) -> set[str]:
-    """The regions the profile's relocation line covers; empty = none declared."""
+    """The regions a dream row may sit in without a visa note: the profile's
+    `work_authorization.relocation_regions` plus the home region (a dream row at home needs
+    no relocation). `relocation_regions: []` therefore means home only. Empty only when no
+    home resolves either, and then nothing is ever outside."""
     if prof is None:
         try:
             prof = profile()
         except FileNotFoundError:
             return set()
-    return set((prof.get("work_authorization") or {}).get("relocation_regions") or [])
+    regions = set((prof.get("work_authorization") or {}).get("relocation_regions") or [])
+    return regions | geo.home(prof)
 
 
 def outside_relocation_regions(location: str | None, scope: set[str] | None = None) -> bool:
-    """True when the posting sits somewhere the relocation line does not cover."""
+    """True when the posting sits somewhere the relocation line does not cover. Pass the
+    scope from `relocation_scope()` when calling per row; None reads the profile once."""
     return geo.outside(location, relocation_scope() if scope is None else scope)
 
 
@@ -356,7 +361,7 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
     except FileNotFoundError:
         prof = {}
     wa = prof.get("work_authorization") or {}
-    scope = set(wa.get("relocation_regions") or [])
+    scope = relocation_scope(prof)
     reloc_header = str(wa.get("relocation_header") or "").lower()
     header_loc = str(data["cv"].get("location") or "")
     header_reloc = bool(reloc_header) and reloc_header in header_loc.lower()

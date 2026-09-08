@@ -45,6 +45,21 @@ def test_outside_a_european_scope(location, expected):
     assert geo.outside(location, {"europe"}) is expected
 
 
+@pytest.mark.parametrize("location,regions", [
+    ("Tijuana, Baja California", {"mexico"}), ("Baja California", {"mexico"}),
+    ("La Paz, Baja California Sur", {"mexico"}), ("Mexicali, Baja California", {"mexico"}),
+    ("San Francisco del Rincon, Guanajuato", {"mexico", "united states"}),
+    ("Memphis, Tennessee", {"united states"}), ("Washington, DC", {"united states"}),
+    ("Bogota, CO", {"colombia"}), ("Arvada, CO", {"united states"}), ("Toronto, CA", {"canada"}),
+    ("Ukiah, CA", {"united states"}), ("Buenos Aires, AR", {"argentina"}), ("Montevideo (Hybrid)", {"uruguay"}),
+])
+def test_state_names_and_americas_codes(location, regions):
+    """PR #22 review: a US state name decides only when no region word does ("Baja
+    California" is Mexico), and the Americas carry country codes like Europe does."""
+    assert geo.hits(location) == regions
+    assert geo.outside(location, TN) is (regions == {"colombia"} or regions == {"argentina"} or regions == {"uruguay"})
+
+
 def test_hits_name_the_regions_a_part_resolves_to():
     assert geo.hits("Bengaluru, Karnataka, in") == {"india"}
     assert geo.hits("Paris, TX") == {"united states"}

@@ -109,6 +109,13 @@ def test_title_family_with_match_lists_reproduces_the_four_family_calibration():
     assert title_family(None, fams) == "A"
 
 
+def test_families_with_an_explicit_profile_never_poison_the_cache():
+    """PR #22 review: only the profile-less call populates the module cache."""
+    assert [k for k, _ in families(FOUR)] == ["B", "C", "D", "A"]
+    assert [k for k, _ in families()] == ["B", "A"]            # still the fixture profile
+    assert title_family("Deployment Strategist") == "A"         # not FOUR's B
+
+
 def test_families_without_a_profile_bucket_everything_as_a():
     assert families({"name": "X"}) == [("A", None)]
     assert title_family("Anything", families({"name": "X"})) == "A"

@@ -42,35 +42,52 @@ regions:
                   virginia, washington, west virginia, wisconsin, wyoming]
   canada:
     aliases: [canada]
-    cities: [toronto, vancouver, montreal]
+    cities: [toronto, vancouver, montreal, ottawa, calgary]
+    codes: [ca]
     within: [north america]
   mexico:
-    aliases: [mexico, méxico, mx, cdmx]
-    cities: [mexico city, ciudad de mexico, ciudad de méxico, guadalajara, monterrey]
+    # The state names are aliases so "Baja California" is never read as California.
+    aliases: [mexico, méxico, mx, cdmx, aguascalientes, baja california, baja california sur,
+              campeche, chiapas, chihuahua, coahuila, colima, durango, guanajuato, guerrero,
+              hidalgo, jalisco, estado de mexico, estado de méxico, michoacan, michoacán, morelos,
+              nayarit, nuevo leon, nuevo león, oaxaca, puebla, queretaro, querétaro, quintana roo,
+              san luis potosi, san luis potosí, sinaloa, sonora, tabasco, tamaulipas, tlaxcala,
+              veracruz, yucatan, yucatán, zacatecas]
+    cities: [mexico city, ciudad de mexico, ciudad de méxico, guadalajara, monterrey, tijuana,
+             mexicali, ensenada, merida, mérida, cancun, cancún, hermosillo,
+             toluca, saltillo, zapopan, ciudad juarez, ciudad juárez, culiacan, culiacán, morelia,
+             torreon, torreón]
+    codes: [mx]
     within: [latam, north america]
   brazil:
     aliases: [brazil, brasil]
     cities: [sao paulo, são paulo, rio de janeiro]
+    codes: [br]
     within: [latam]
   argentina:
     aliases: [argentina]
     cities: [buenos aires]
+    codes: [ar]
     within: [latam]
   colombia:
     aliases: [colombia]
     cities: [bogota, bogotá, medellin, medellín]
+    codes: [co]
     within: [latam]
   chile:
     aliases: [chile]
     cities: [santiago]
+    codes: [cl]
     within: [latam]
   peru:
     aliases: [peru, perú]
     cities: [lima]
+    codes: [pe]
     within: [latam]
   uruguay:
     aliases: [uruguay]
     cities: [montevideo]
+    codes: [uy]
     within: [latam]
 
   emea:

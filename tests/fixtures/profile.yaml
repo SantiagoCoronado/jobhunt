@@ -58,7 +58,8 @@ work_authorization:
   header_item: EU Work Authorization
   # Where `relocation_line` (below) applies, as region names from config/geo.yaml. A dream
   # company role that requires presence in one of these gets the relocation line and the
-  # header note; one outside them gets a plain visa sentence instead. [] = nowhere.
+  # header note; one outside them gets a plain visa sentence instead. The home region
+  # (header_location) always counts; [] = home only.
   relocation_regions: [europe]
   # The note the tailored header carries for such a role: "<header_location> (<this>)".
   relocation_header: open to relocation within Europe

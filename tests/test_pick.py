@@ -56,7 +56,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(pk, "is_dream", lambda co: co in ("Steven.com", "Riot Games", "Cursor", "Nvidia"))
     # this test's candidate relocates to the TN countries (the fixture profile's scope is Europe)
     monkeypatch.setattr(pk, "outside_relocation_regions",
-                        lambda loc: geo.outside(loc, {"united states", "canada", "mexico"}))
+                        lambda loc, scope=None: geo.outside(loc, {"united states", "canada", "mexico"}))
     return c
 
 

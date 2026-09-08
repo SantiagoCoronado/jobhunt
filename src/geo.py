@@ -11,7 +11,8 @@ from the profile. Three questions the pipeline asks:
   * `home(profile)` -> {"mexico"}: the home region from `header_location`, else `locations`.
 
 Rules per part, in order, each the calibrated behaviour the tests pin: a country or region
-word (or a US state name) decides; else a bare US state code ("NY / SF / EMEA") is the US;
+word decides (with any city word next to it); else a US state name is the US ("Baja
+California" names Mexico first); else a bare US state code ("NY / SF / EMEA") is the US;
 else a city followed by a two-letter code is that city's country when the code is the
 country's ("Berlin, DE", "Bengaluru, Karnataka, in") and otherwise the US ("Paris, TX",
 "London, KY"); else a city word decides; else the part is unknown. Multi-location strings
@@ -96,7 +97,7 @@ def contained(region: str) -> set[str]:
 @lru_cache(maxsize=1)
 def _compiled() -> dict:
     t = table()
-    alias_re = {r: _word_re(b["aliases"] + b["state_names"]) for r, b in t.items()}
+    alias_re = {r: _word_re(b["aliases"]) for r, b in t.items()}
     city_re = {r: _word_re(b["cities"]) for r, b in t.items() if b["cities"]}
     us = t.get(US) or {"state_codes": [], "state_names": []}
     codes = set(us["state_codes"])
@@ -104,6 +105,7 @@ def _compiled() -> dict:
     return {
         "alias": alias_re,
         "city": city_re,
+        "state_name_re": _word_re(us["state_names"]),
         "state_codes": codes,
         "state_is_also_a_country": codes & country_codes,
         "state_re": re.compile(r",\s*(" + "|".join(sorted(codes, key=len, reverse=True)) + r")"
@@ -122,6 +124,8 @@ def hits(part: str) -> set[str]:
     found = {r for r, rx in c["alias"].items() if rx.search(p)}
     if found:
         return found | {r for r, _ in cities}     # "Europe + San Francisco" names both
+    if c["state_name_re"].search(p):
+        return {US}                                # "Memphis, Tennessee"; not "Baja California"
     bare = p.strip(" ()-.,")
     if bare in c["state_codes"] and bare not in c["state_is_also_a_country"]:
         return {US}
@@ -149,7 +153,8 @@ def reachable(found: set[str], scope: set[str]) -> bool:
 
 def outside(location: str | None, scope: set[str] | list[str] | tuple[str, ...]) -> bool:
     """True when the string names somewhere and none of it is reachable from `scope`.
-    Empty scope: nothing is ever outside (no relocation regions declared)."""
+    Empty scope: nothing is ever outside; callers pass the home region in the scope
+    (`tailor_build.relocation_scope`), so an empty scope means no region resolved at all."""
     scope = set(scope or ())
     loc = str(location or "").strip()
     if not loc or not scope:

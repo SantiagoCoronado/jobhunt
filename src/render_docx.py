@@ -292,20 +292,25 @@ def work_auth_header_item(header_item: str | None = None) -> str:
         return ""
 
 
-def _surfaced_in_header(entry: dict, header_item: str) -> bool:
-    """An `additional` entry about work authorization leaves the body when the header
-    carries the profile's item for it (it would say the same thing twice)."""
-    return bool(header_item) and bool(_AUTH_LABEL.search(str(entry.get("label") or "")))
-
-
-def _header_already_says(items: list, header_item: str) -> bool:
-    """True when every distinctive word of the item already appears in the header line
+def _says(text: str, header_item: str) -> bool:
+    """True when every distinctive word of the header item already appears in `text`
     (a relocation header such as "(open to US relocation, TN eligible)" carries "TN")."""
     words = [w for w in re.findall(r"[a-z0-9]+", header_item.lower()) if w not in _AUTH_STOP]
     if not words:
         return False
-    text = " ".join(t.lower() for t, _ in items)
-    return all(re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", text) for w in words)
+    return all(re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", text.lower()) for w in words)
+
+
+def _surfaced_in_header(entry: dict, header_item: str) -> bool:
+    """An `additional` entry about work authorization leaves the body only when the header
+    carries the profile's item AND the entry says the same thing (its details carry the
+    item's distinctive words); an entry that says more, or something else, stays."""
+    return (bool(header_item) and bool(_AUTH_LABEL.search(str(entry.get("label") or "")))
+            and _says(str(entry.get("details") or ""), header_item))
+
+
+def _header_already_says(items: list, header_item: str) -> bool:
+    return _says(" ".join(t for t, _ in items), header_item)
 
 
 def _contact_items(cv, header_item: str | None = None):
@@ -453,8 +458,9 @@ def build(data: dict, level: int, lang: str = "en") -> DocumentType:
             if e.get("start_date") or e.get("end_date"):
                 details += f" ({_fmt_date(e.get('start_date'))} – {_fmt_date(e.get('end_date'))})"
             _run(p, details, FS["body"][L], DARK)
+        header_item = work_auth_header_item()
         for a in extra:
-            if _surfaced_in_header(a, work_auth_header_item()):
+            if _surfaced_in_header(a, header_item):
                 continue  # already surfaced in the contact line
             p = para()
             _spacing(p, after=SP["body_after"][L])
@@ -516,8 +522,9 @@ def estimate_height_pts(data: dict, level: int) -> float:
             block(_wrapped_lines(txt, FS["body"][L], avail), FS["body"][L],
                   after=SP["body_after"][L])
     edu = sections.get("education") or []
+    header_item = work_auth_header_item()
     extra = [a for a in (sections.get("additional") or [])
-             if not _surfaced_in_header(a, work_auth_header_item())]
+             if not _surfaced_in_header(a, header_item)]
     if edu or extra:
         header()
         for _ in edu:

@@ -102,9 +102,13 @@ def _validate_families(raw_fams) -> list[dict]:
             "skills": [str(s) for s in skills],
             "strength": strength,
         }
-        for extra in ("match", "note"):
-            if fam.get(extra):
-                entry[extra] = fam[extra]
+        match = fam.get("match")
+        if match is not None:
+            if not isinstance(match, list) or not all(isinstance(m, str) and m.strip() for m in match):
+                raise ValueError(f"config/profile.yaml: role_families[{key}].match must be a list of phrases")
+            entry["match"] = [m.strip() for m in match]
+        if fam.get("note"):
+            entry["note"] = " ".join(str(fam["note"]).split())
         out.append(entry)
     return out
 
@@ -138,6 +142,13 @@ def profile(raw: dict | None = None) -> dict:
         if not isinstance(regions, list) or not all(isinstance(r, str) for r in regions):
             raise ValueError("config/profile.yaml: work_authorization.relocation_regions must be a list of "
                              "region names from config/geo.yaml")
+        from . import geo   # geo imports this module; resolved lazily
+
+        known = geo.regions()
+        unknown = [r for r in regions if r.strip().lower() not in known]
+        if unknown:
+            raise ValueError(f"config/profile.yaml: work_authorization.relocation_regions names no region in "
+                             f"config/geo.yaml: {', '.join(unknown)} (known: {', '.join(known)})")
         out["work_authorization"] = {
             **{k: " ".join(str(wa.get(k) or "").split()) for k in strings},
             "relocation_regions": [r.strip().lower() for r in regions],

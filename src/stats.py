@@ -47,20 +47,21 @@ def _phrase_re(phrases: list[str]) -> re.Pattern[str] | None:
 def families(prof: dict | None = None) -> list[tuple[str, re.Pattern[str] | None]]:
     """[(key, regex)] in check order: every family but the first, then the first with None."""
     global _FAMILIES
-    if prof is None and _FAMILIES is not None:
+    from_profile = prof is None
+    if from_profile and _FAMILIES is not None:
         return _FAMILIES
-    if prof is None:
+    if from_profile:
         try:
             prof = profile()
         except FileNotFoundError:
             prof = {}
-    fams = prof.get("role_families") or []
+    fams = (prof or {}).get("role_families") or []
     out: list[tuple[str, re.Pattern[str] | None]] = []
     for fam in fams[1:]:
         phrases = [str(m) for m in (fam.get("match") or [])] or title_words(fam.get("titles") or [])
         out.append((fam["key"], _phrase_re(phrases)))
     out.append((fams[0]["key"] if fams else "A", None))
-    if prof is not None and _FAMILIES is None:
+    if from_profile:
         _FAMILIES = out
     return out
 

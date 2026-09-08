@@ -36,7 +36,7 @@ from datetime import date, timedelta
 from .config import ROOT
 from .db import connect
 from .dream import is_dream
-from .tailor_build import outside_relocation_regions
+from .tailor_build import outside_relocation_regions, relocation_scope
 
 LIVE = ("applied", "screen", "interview", "offer")
 HOLD = ("backlog",)
@@ -84,6 +84,7 @@ def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None 
 def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
          today: date | None = None, spares: int = SPARES) -> tuple[list[dict], list[dict], list[dict]]:
     """(picks, skipped, spares). Spares are the next candidates after the n picks."""
+    scope = relocation_scope()            # once, not once per dream row
     conn = connect()
     busy = busy_companies(conn, cooldown_days, today)
 
@@ -121,7 +122,7 @@ def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
             skipped.append(rec)
             taken.add(key)
             return False
-        if dream and outside_relocation_regions(r["location"]):
+        if dream and outside_relocation_regions(r["location"], scope):
             # Row-level skip: that req loses the slot, the company's reqs inside the regions stay eligible.
             rec["why"] = "dream row outside the relocation regions (work_authorization.relocation_regions)"
             skipped.append(rec)

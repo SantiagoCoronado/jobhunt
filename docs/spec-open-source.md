@@ -112,7 +112,7 @@ role_families:                         # ordered, the letters are what the promp
 work_authorization:                    # rendered in the resume header and told to the prompts
   summary: EU citizen, no sponsorship needed in the EU
   header_item: EU Work Authorization   # empty string = nothing in the header
-  relocation_regions: [europe]         # config/geo.yaml region names relocation_line covers ([] = none)
+  relocation_regions: [europe]         # config/geo.yaml region names relocation_line covers ([] = home only)
   relocation_header: open to relocation within Europe   # "<header_location> (<this>)" on such a row
 header_location: Lisbon, Portugal      # what the tailored resume header must say
 ```

@@ -290,7 +290,7 @@ def test_dream_row_outside_the_relocation_regions_rejects_the_line_and_wants_a_v
     sf = {"id": 7, "company": "Example Robotics", "dream": True, "location": "San Francisco, CA"}
     (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
     v = tb.build(folder, job=sf, no_pdf=True)
-    assert not v.ok and any("outside the relocation regions (europe)" in f for f in v.failures)
+    assert not v.ok and any("outside the relocation regions (europe, portugal)" in f for f in v.failures)
     (folder / "CoverLetter.md").write_text(letter(240))
     v = tb.build(folder, job=sf, no_pdf=True)
     assert v.ok and any("no visa note" in w for w in v.warnings)
@@ -309,7 +309,14 @@ def test_dream_row_inside_the_relocation_regions_takes_the_line(folder):
 
 
 def test_relocation_scope_and_outside_read_the_profile():
-    assert tb.relocation_scope() == {"europe"}
+    assert tb.relocation_scope() == {"europe", "portugal"}       # relocation regions plus home
+    # relocation_regions: [] means home only, never "everywhere" (PR #22 review)
+    home_only = {"header_location": "Lisbon, Portugal", "work_authorization": {"relocation_regions": []}}
+    assert tb.relocation_scope(home_only) == {"portugal"}
+    assert tb.outside_relocation_regions("Berlin", tb.relocation_scope(home_only)) is True
+    assert tb.outside_relocation_regions("Lisbon", tb.relocation_scope(home_only)) is False
+    assert tb.outside_relocation_regions("Remote", tb.relocation_scope(home_only)) is False
+    assert tb.relocation_scope({"name": "nowhere"}) == set()
     assert tb.outside_relocation_regions("San Francisco, CA") is True
     assert tb.outside_relocation_regions("Berlin") is False
     assert tb.outside_relocation_regions("Berlin", {"united states"}) is True
@@ -346,10 +353,15 @@ def test_header_work_auth_item_comes_from_the_profile_and_is_not_duplicated():
     assert "EU Work Authorization" in [t for t, _ in _contact_items(cv)]
     assert "EU Work Authorization" not in [t for t, _ in _contact_items(cv, header_item="")]
     # the body entry about work authorization leaves the body only when the header carries the item
-    entry = cv["sections"]["additional"][0]
-    assert _surfaced_in_header(entry, "EU Work Authorization") is True
+    # the body entry leaves only when the header item is set AND the entry says the same thing
+    entry = cv["sections"]["additional"][0]                       # details: "... TN eligible"
+    assert _surfaced_in_header(entry, "TN Visa Eligible") is True
+    assert _surfaced_in_header(entry, "EU Work Authorization") is False   # says something else: stays
     assert _surfaced_in_header(entry, "") is False
-    assert _surfaced_in_header({"label": "Languages", "details": "x"}, "EU Work Authorization") is False
+    assert _surfaced_in_header({"label": "Work preferences", "details": "Remote-first"}, "TN Visa Eligible") is False
+    assert _surfaced_in_header({"label": "Languages", "details": "TN"}, "TN Visa Eligible") is False
+    assert _surfaced_in_header({"label": "Work Authorization", "details": "EU citizen (Portugal)"},
+                               "EU Work Authorization") is True
 
 
 def test_fill_failure_only_at_fit_level_0(folder, monkeypatch):

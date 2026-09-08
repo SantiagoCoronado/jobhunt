@@ -75,6 +75,9 @@ def test_relocation_regions_are_lowercased_and_extra_keys_pass_through():
     wa = prof["work_authorization"]
     assert wa["relocation_regions"] == ["united states", "canada"]
     assert wa["relocation_header"] == "open to" and wa["note"] == "kept"
+    fam = config.profile({"name": "X", "role_families": [{"key": "A", "titles": ["T"], "match": [" ui ", "react"],
+                                                          "note": "one\n line"}]})["role_families"][0]
+    assert fam["match"] == ["ui", "react"] and fam["note"] == "one line"
 
 
 @pytest.mark.parametrize("bad, needle", [
@@ -87,6 +90,9 @@ def test_relocation_regions_are_lowercased_and_extra_keys_pass_through():
     ({"work_authorization": "TN"}, "work_authorization must be a mapping"),
     ({"work_authorization": {"summary": ["x"]}}, "work_authorization.summary must be a string"),
     ({"work_authorization": {"relocation_regions": "europe"}}, "relocation_regions must be a list"),
+    ({"work_authorization": {"relocation_regions": ["europ"]}}, "names no region in config/geo.yaml: europ"),
+    ({"role_families": [{"key": "A", "titles": ["T"], "match": "front end"}]}, "match must be a list of phrases"),
+    ({"role_families": [{"key": "A", "titles": ["T"], "match": [""]}]}, "match must be a list of phrases"),
     ({"work_authorization": {"relocation_header": 1}}, "relocation_header must be a string"),
     ({"candidate_line": ["x"]}, "candidate_line must be a string"),
     ({"header_location": 3}, "header_location must be a string"),

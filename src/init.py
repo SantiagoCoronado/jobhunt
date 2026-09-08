@@ -52,7 +52,9 @@ PROFILE = "config/profile.yaml"
 KEY_HELP = {
     "candidate_line": "one sentence the triage and match prompts open with (who you are, where, work status)",
     "role_families": "ordered families the prompts use; strength: strongest | core | adjacent",
-    "work_authorization": "summary told to the prompts; header_item rendered in the resume header (\"\" = nothing)",
+    "work_authorization": ("summary told to the prompts; header_item rendered in the resume header (\"\" = nothing, "
+                           "so set it or the header shows no work status); relocation_regions = config/geo.yaml "
+                           "regions relocation_line covers ([] = home only); relocation_header = the header note then"),
     "header_location": "what the tailored resume header must say; \"\" = the master resume's cv.location",
 }
 
