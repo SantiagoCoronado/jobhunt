@@ -102,6 +102,8 @@ def test_missing_targeting_accepts_the_aliases_the_adapters_read():
     assert config.missing_targeting("themuse", {"categories": ["Engineering"]}) == ()
     assert config.missing_targeting("themuse", {"location": "Mexico"}) == ()
     assert config.missing_targeting("themuse", {}) == ("locations|location|categories",)
+    assert config.missing_targeting("jobicy", {"enabled": True}) == ("tags",)      # PR #21 review
+    assert config.missing_targeting("jobicy", {"tags": ["react"]}) == ()
     # careerjet.fetch raises without both, so both stay required and are named separately
     assert config.missing_targeting("careerjet", {}) == ("locale_code", "location")
 
