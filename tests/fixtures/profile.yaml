@@ -56,6 +56,12 @@ role_families:
 work_authorization:
   summary: EU citizen, no sponsorship needed in the EU
   header_item: EU Work Authorization
+  # Where `relocation_line` (below) applies, as region names from config/geo.yaml. A dream
+  # company role that requires presence in one of these gets the relocation line and the
+  # header note; one outside them gets a plain visa sentence instead. [] = nowhere.
+  relocation_regions: [europe]
+  # The note the tailored header carries for such a role: "<header_location> (<this>)".
+  relocation_header: open to relocation within Europe
 
 # What the tailored resume header must say; the build checks it. "" = the master resume's
 # cv.location. A dream-company role that requires presence elsewhere appends the relocation
@@ -93,7 +99,7 @@ locations:
   - Lisbon
   - Portugal
 timezones:
-  - "Any if fully remote; hybrid must be Lisbon (WET/WEST)"
+  - "Any if fully remote; hybrid must be Lisbon (GMT+00:00)"   # the GMT offset is read by the Torre adapter
 
 # THE shortlist cutoff: `match ingest` and the notify digest read this. 0 to 100.
 shortlist_threshold: 70
@@ -151,7 +157,7 @@ dream_rule: >
 
 # The one relocation sentence application text may use for a dream-company role that
 # requires presence elsewhere. Plain voice; the tailor copies it, never rewrites it.
-relocation_line: "I am based in Lisbon and open to relocating for this role with employer-sponsored visa support."
+relocation_line: "I am based in Lisbon and open to relocating within Europe for this role, with employer visa support where one is needed."
 
 # Shortlist cutoff for dream-company rows. Lower on purpose.
 dream_shortlist_threshold: 60

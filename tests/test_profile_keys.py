@@ -30,7 +30,9 @@ def test_fixture_profile_carries_all_four_keys_validated():
     assert keys == ["A", "B"]
     assert prof["role_families"][1]["strength"] == "strongest"
     assert prof["work_authorization"] == {"summary": "EU citizen, no sponsorship needed in the EU",
-                                          "header_item": "EU Work Authorization"}
+                                          "header_item": "EU Work Authorization",
+                                          "relocation_regions": ["europe"],
+                                          "relocation_header": "open to relocation within Europe"}
     assert prof["header_location"] == "Lisbon, Portugal"
     assert prof["name"] == "Alex Example"           # other keys pass through
 
@@ -43,7 +45,8 @@ def test_old_profile_gets_derived_defaults():
     assert prof["role_families"] == [{"key": "A", "name": "target roles",
                                       "titles": ["Backend Engineer", "Platform Engineer"],
                                       "skills": ["go", "kubernetes", "postgres"], "strength": "core"}]
-    assert prof["work_authorization"] == {"summary": "", "header_item": ""}
+    assert prof["work_authorization"] == {"summary": "", "header_item": "", "relocation_header": "",
+                                          "relocation_regions": []}
     assert prof["header_location"] == ""
 
 
@@ -61,7 +64,17 @@ def test_strength_defaults_to_core_and_whitespace_is_folded():
     assert prof["candidate_line"] == "two lines"
     assert prof["role_families"][0]["strength"] == "core"
     assert prof["role_families"][0]["skills"] == []
-    assert prof["work_authorization"] == {"summary": "a b", "header_item": ""}
+    assert prof["work_authorization"] == {"summary": "a b", "header_item": "", "relocation_header": "",
+                                          "relocation_regions": []}
+
+
+def test_relocation_regions_are_lowercased_and_extra_keys_pass_through():
+    prof = config.profile({"name": "X", "work_authorization": {
+        "summary": "s", "relocation_regions": [" United States ", "Canada"], "relocation_header": " open  to ",
+        "note": "kept"}})
+    wa = prof["work_authorization"]
+    assert wa["relocation_regions"] == ["united states", "canada"]
+    assert wa["relocation_header"] == "open to" and wa["note"] == "kept"
 
 
 @pytest.mark.parametrize("bad, needle", [
@@ -73,6 +86,8 @@ def test_strength_defaults_to_core_and_whitespace_is_folded():
     ({"role_families": [{"key": "A", "titles": ["T"], "skills": "python"}]}, "skills must be a list"),
     ({"work_authorization": "TN"}, "work_authorization must be a mapping"),
     ({"work_authorization": {"summary": ["x"]}}, "work_authorization.summary must be a string"),
+    ({"work_authorization": {"relocation_regions": "europe"}}, "relocation_regions must be a list"),
+    ({"work_authorization": {"relocation_header": 1}}, "relocation_header must be a string"),
     ({"candidate_line": ["x"]}, "candidate_line must be a string"),
     ({"header_location": 3}, "header_location must be a string"),
 ])
@@ -184,6 +199,7 @@ def test_migration_block_is_valid_yaml_with_dated_comment():
     assert "on 2026-09-07:" in block
     parsed = yaml.safe_load(block)
     assert list(parsed) == list(config.PROFILE_KEYS)
-    assert parsed["work_authorization"] == {"summary": "", "header_item": ""}
+    assert parsed["work_authorization"] == {"summary": "", "header_item": "", "relocation_header": "",
+                                            "relocation_regions": []}
     for key in config.PROFILE_KEYS:
         assert f"# {key}: " in block

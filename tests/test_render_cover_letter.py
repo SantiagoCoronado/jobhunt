@@ -13,29 +13,29 @@ def _paragraphs(docx_path):
 def test_heading_marker_stripped_from_name(tmp_path):
     md = tmp_path / "CoverLetter.md"
     md.write_text(
-        "# Santiago Daniel Coronado Sroka\n\n"
-        "Mexico City, Mexico | s.coronado.sroka@gmail.com\n\n"
+        "# Alex Example\n\n"
+        "Lisbon, Portugal | alex@example.com\n\n"
         "Dear team,\n\n"
         "Body text here.\n\n"
-        "Sincerely,\nSantiago\n",
+        "Sincerely,\nAlex\n",
         encoding="utf-8",
     )
     out = render(md)
     paras = _paragraphs(out)
     name_para = paras[0]
-    assert name_para.text == "Santiago Daniel Coronado Sroka"
+    assert name_para.text == "Alex Example"
     assert "#" not in name_para.text
 
 
 def test_bold_re_line_becomes_bold_run_no_asterisks(tmp_path):
     md = tmp_path / "CoverLetter.md"
     md.write_text(
-        "Santiago Daniel Coronado Sroka\n\n"
-        "Mexico City, Mexico | s.coronado.sroka@gmail.com\n\n"
+        "Alex Example\n\n"
+        "Lisbon, Portugal | alex@example.com\n\n"
         "**Re: Senior Frontend Engineer (Contract), Roofr**\n\n"
         "Dear Roofr team,\n\n"
         "Body text here.\n\n"
-        "Sincerely,\nSantiago\n",
+        "Sincerely,\nAlex\n",
         encoding="utf-8",
     )
     out = render(md)
@@ -50,11 +50,11 @@ def test_bold_re_line_becomes_bold_run_no_asterisks(tmp_path):
 def test_mixed_inline_bold_in_body_paragraph(tmp_path):
     md = tmp_path / "CoverLetter.md"
     md.write_text(
-        "Santiago Daniel Coronado Sroka\n\n"
-        "Mexico City, Mexico | s.coronado.sroka@gmail.com\n\n"
+        "Alex Example\n\n"
+        "Lisbon, Portugal | alex@example.com\n\n"
         "Dear team,\n\n"
         "I built a **pricing dashboard** and an *inventory admin* for the team.\n\n"
-        "Sincerely,\nSantiago\n",
+        "Sincerely,\nAlex\n",
         encoding="utf-8",
     )
     out = render(md)
@@ -71,29 +71,29 @@ def test_mixed_inline_bold_in_body_paragraph(tmp_path):
 def test_plain_text_letter_unchanged(tmp_path):
     md = tmp_path / "CoverLetter.md"
     md.write_text(
-        "Santiago Daniel Coronado Sroka\n"
-        "Mexico City, Mexico\n"
-        "s.coronado.sroka@gmail.com | +52-55-1627-3510\n\n"
+        "Alex Example\n"
+        "Lisbon, Portugal\n"
+        "alex@example.com | +351-900-000-000\n\n"
         "Dear team,\n\n"
         "This is a plain paragraph with no markup at all.\n\n"
-        "Sincerely,\nSantiago Daniel Coronado Sroka\n",
+        "Sincerely,\nAlex Example\n",
         encoding="utf-8",
     )
     out = render(md)
     paras = _paragraphs(out)
     texts = [p.text for p in paras if p.text]
-    assert texts[0] == "Santiago Daniel Coronado Sroka"
-    assert "Mexico City, Mexico  |  s.coronado.sroka@gmail.com | +52-55-1627-3510" in texts
+    assert texts[0] == "Alex Example"
+    assert "Lisbon, Portugal  |  alex@example.com | +351-900-000-000" in texts
     assert "Dear team," in texts
     assert "This is a plain paragraph with no markup at all." in texts
-    assert "Sincerely, Santiago Daniel Coronado Sroka" in texts
+    assert "Sincerely, Alex Example" in texts
 
 
 def test_horizontal_rule_block_skipped(tmp_path):
     md = tmp_path / "CoverLetter.md"
     md.write_text(
-        "Santiago Daniel Coronado Sroka\n\n"
-        "Mexico City, Mexico\n\n"
+        "Alex Example\n\n"
+        "Lisbon, Portugal\n\n"
         "---\n\n"
         "Dear team,\n\n"
         "Body.\n",

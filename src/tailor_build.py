@@ -7,7 +7,8 @@ Steps, stopping at the first hard failure:
   1. split <folder>/draft.md on `=== FILE: <name> ===` lines into the deliverables
   2. text checks: em-dashes, TAILOR marker left in answers.md, CoverLetter.md shape and
      body word count (220-280), resume YAML parses
-  3. dream checks: relocation line in the letter <-> "open to US relocation" in the header
+  3. dream checks: relocation line in the letter <-> the relocation header (profile
+     `work_authorization.relocation_header`) in the resume header
   4. resume render with fit auto (over one page at level 3 is a failure)
   5. line-fill audit (more than 3 findings is a failure, 1-3 are warnings)
   6. PDF export + page count (pypdf); two pages is a failure
@@ -29,9 +30,10 @@ from pathlib import Path
 
 import yaml
 
+from . import geo
 from . import render_docx as rd
 from .db import connect
-from .config import resume_basename
+from .config import profile, resume_basename
 from .dream import is_dream, relocation_line
 from .reconcile import folder_job_id
 from .render_cover_letter import render as render_letter
@@ -69,11 +71,10 @@ SPLIT_RE = re.compile(r"^=== FILE: ([A-Za-z0-9_.-]+) ===\s*$")
 EMDASH = "\u2014"  # the em-dash, written as an escape so this file itself stays free of it
 LETTER_MIN, LETTER_MAX = 220, 280
 AUDIT_FAIL_AT = 4
-# Deliberately above the honest target: the estimator runs conservative (Santiago's read of the
-# 2026-09-02 drafts showed visible white space at an estimated 92%), so 95 here prints as a full
-# page. Do not "fix" it back to 90.
+# Deliberately above the honest target: the estimator runs conservative (the author's read of
+# the 2026-09-02 drafts showed visible white space at an estimated 92%), so 95 here prints as a
+# full page. Do not "fix" it back to 90.
 FILL_WARN_BELOW = 95
-RELOC_HEADER = "open to us relocation"
 
 
 class BuildError(Exception):
@@ -181,99 +182,24 @@ def _norm(s: str) -> str:
     return " ".join(s.split()).lower()
 
 
-# Where is a posting located, relative to the TN countries (US, Mexico, Canada)? A dream row
-# outside them must NOT carry the TN relocation line; the letter needs a visa note instead.
-# Country and region words win over everything except an explicit TN-country word. City words
-# lose to a US state code ("Paris, TX", "London, KY") unless the pair is a known foreign
-# city + country code that collides with a state ("Berlin, DE", "Bengaluru, Karnataka, in").
-# A multi-location string ("London, UK; San Francisco, CA") is TN territory when any part is.
-OUTSIDE_COUNTRIES = (
-    "germany", "united kingdom", "uk", "gb", "england", "scotland", "ireland", "france", "netherlands",
-    "spain", "portugal", "switzerland", "sweden", "denmark", "norway", "finland", "poland", "austria",
-    "belgium", "italy", "czech", "europe", "eu", "emea", "singapore", "japan", "australia", "new zealand",
-    "india", "taiwan", "korea", "china", "hong kong", "uae", "israel", "apac", "asia", "brazil", "argentina",
-    "colombia", "chile",
-)
-OUTSIDE_CITIES = (
-    "berlin", "munich", "hamburg", "london", "manchester", "dublin", "paris", "amsterdam", "madrid",
-    "barcelona", "lisbon", "zurich", "stockholm", "copenhagen", "oslo", "helsinki", "warsaw", "vienna",
-    "brussels", "milan", "prague", "tokyo", "sydney", "melbourne", "bangalore", "bengaluru", "mumbai",
-    "hyderabad", "pune", "chennai", "delhi", "gurgaon", "noida", "taipei", "seoul", "dubai", "tel aviv",
-    "shanghai", "beijing", "sao paulo", "bogota", "buenos aires", "santiago",
-)
-# (city, two-letter code) pairs where the code is a country code that collides with a US state
-FOREIGN_CITY_CODES = {
-    ("berlin", "de"), ("munich", "de"), ("hamburg", "de"), ("bangalore", "in"), ("bengaluru", "in"),
-    ("mumbai", "in"), ("hyderabad", "in"), ("pune", "in"), ("chennai", "in"), ("delhi", "in"),
-    ("gurgaon", "in"), ("noida", "in"), ("tel aviv", "il"), ("milan", "it"), ("madrid", "es"),
-    ("barcelona", "es"), ("paris", "fr"), ("amsterdam", "nl"), ("lisbon", "pt"), ("vienna", "at"),
-    ("brussels", "be"), ("prague", "cz"), ("warsaw", "pl"), ("dublin", "ie"), ("london", "gb"),
-}
-US_STATES = ("al", "ak", "az", "ar", "ca", "co", "ct", "de", "fl", "ga", "hi", "id", "il", "in", "ia", "ks",
-             "ky", "la", "me", "md", "ma", "mi", "mn", "ms", "mo", "mt", "ne", "nv", "nh", "nj", "nm", "ny",
-             "nc", "nd", "oh", "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv",
-             "wi", "wy", "dc")
-# State codes that are also ISO country codes: a bare one of these is not a US signal.
-STATE_CODE_IS_ALSO_A_COUNTRY = frozenset({"de", "in", "il", "it", "es", "pt", "at", "be", "pl", "ie", "ne"})
-US_STATE_NAMES = (
-    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware",
-    "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
-    "louisiana", "maine", "maryland", "massachusetts", "michigan", "minnesota", "mississippi", "missouri",
-    "montana", "nebraska", "nevada", "new hampshire", "new jersey", "new mexico", "new york", "north carolina",
-    "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina",
-    "south dakota", "tennessee", "texas", "utah", "vermont", "virginia", "washington", "west virginia",
-    "wisconsin", "wyoming",
-)
-US_CITIES = ("san francisco", "sf", "nyc", "brooklyn", "palo alto", "mountain view", "san jose", "seattle",
-             "austin", "boston", "chicago", "denver", "los angeles", "san diego", "atlanta", "miami",
-             "dallas", "houston", "phoenix", "portland", "philadelphia", "pittsburgh", "detroit",
-             "minneapolis", "salt lake city", "d.c.", "bay area", "silicon valley", "toronto", "vancouver",
-             "montreal", "guadalajara", "monterrey", "cdmx", "mexico city")
-TN_COUNTRY_MARKERS = ("us", "usa", "u.s.", "u.s.a.", "united states", "us remote", "remote us", "us-remote",
-                      "remote (us)", "canada", "mexico", "m\u00e9xico", "cdmx", "mx", "latam",
-                      *US_STATE_NAMES, *US_CITIES)
+# Where is a posting located, relative to the candidate's relocation regions
+# (profile `work_authorization.relocation_regions`, resolved through config/geo.yaml)? A dream
+# row outside them must NOT carry the relocation line; the letter needs a visa note instead.
 
 
-def _word_re(words) -> re.Pattern[str]:
-    return re.compile(r"(?<![a-z])(?:" + "|".join(re.escape(w) for w in words) + r")(?![a-z])")
+def relocation_scope(prof: dict | None = None) -> set[str]:
+    """The regions the profile's relocation line covers; empty = none declared."""
+    if prof is None:
+        try:
+            prof = profile()
+        except FileNotFoundError:
+            return set()
+    return set((prof.get("work_authorization") or {}).get("relocation_regions") or [])
 
 
-_COUNTRY_RE = _word_re(OUTSIDE_COUNTRIES)
-_CITY_RE = _word_re(OUTSIDE_CITIES)
-_TN_RE = _word_re(TN_COUNTRY_MARKERS)
-_STATE_RE = re.compile(r",\s*(" + "|".join(US_STATES) + r")(?:\s*,|\s*$|\s+\d{5}|\s+usa?\b)")
-_PART_SPLIT = re.compile(r"\s*(?:;|\||/| or )\s*")
-
-
-def _part_is_outside(part: str) -> bool | None:
-    """True outside, False TN territory, None unknown, for one location string."""
-    if _TN_RE.search(part):
-        return False
-    bare = part.strip(" ()-.,")
-    if bare in US_STATES and bare not in STATE_CODE_IS_ALSO_A_COUNTRY:
-        return False                                 # "NY / SF / EMEA", "Remote - CA"
-    country = _COUNTRY_RE.search(part)
-    city = _CITY_RE.search(part)
-    state = _STATE_RE.search(part)
-    if country:
-        return True                                  # "Bangalore, India", "Berlin, Germany", "Remote, EU"
-    if city and state and (city.group(0), state.group(1)) in FOREIGN_CITY_CODES:
-        return True                                  # "Berlin, DE", "Bengaluru, Karnataka, in"
-    if state:
-        return False                                 # "Paris, TX", "London, KY", "Indianapolis, IN"
-    if city:
-        return True                                  # "Berlin", "London", "Singapore"
-    return None
-
-
-def outside_tn_countries(location: str | None) -> bool:
-    loc = (location or "").lower().strip()
-    if not loc:
-        return False
-    verdicts = [_part_is_outside(part) for part in _PART_SPLIT.split(loc) if part]
-    if any(v is False for v in verdicts):
-        return False                                 # a US / Mexico / Canada option exists
-    return any(v is True for v in verdicts)
+def outside_relocation_regions(location: str | None, scope: set[str] | None = None) -> bool:
+    """True when the posting sits somewhere the relocation line does not cover."""
+    return geo.outside(location, relocation_scope() if scope is None else scope)
 
 
 def resolve_job(folder: Path, job: dict | None) -> dict:
@@ -425,23 +351,33 @@ def _build(folder: Path, info: dict, v: Verdict, no_pdf: bool, keep_draft: bool,
         raise BuildError(f"{ypath.name} needs a top-level `cv:` with `sections:`")
 
     # ---- dream checks
+    try:
+        prof = profile()
+    except FileNotFoundError:
+        prof = {}
+    wa = prof.get("work_authorization") or {}
+    scope = set(wa.get("relocation_regions") or [])
+    reloc_header = str(wa.get("relocation_header") or "").lower()
     header_loc = str(data["cv"].get("location") or "")
-    header_reloc = RELOC_HEADER in header_loc.lower()
+    header_reloc = bool(reloc_header) and reloc_header in header_loc.lower()
     reloc = relocation_line()
     letter_reloc = bool(reloc) and _norm(reloc) in _norm(letter["text"])
     v.metrics["relocation_line"] = letter_reloc
-    if info["dream"] and outside_tn_countries(info.get("location")):
+    where = ", ".join(sorted(scope)) or "none declared"
+    if info["dream"] and geo.outside(info.get("location"), scope):
         if letter_reloc or header_reloc:
-            v.failures.append(f"dream row located outside the TN countries ({info.get('location')}): drop the TN "
-                              "relocation line and the relocation header; the letter needs a plain visa note instead")
+            v.failures.append(f"dream row located outside the relocation regions ({where}): {info.get('location')}: "
+                              "drop the relocation line and the relocation header; the letter needs a plain "
+                              "visa note instead")
         elif "visa" not in letter["text"].lower():
-            v.warnings.append(f"dream row located outside the TN countries ({info.get('location')}) and the letter "
-                              "has no visa note")
+            v.warnings.append(f"dream row located outside the relocation regions ({where}): {info.get('location')}: "
+                              "the letter has no visa note")
     elif info["dream"]:
         if header_reloc and not letter_reloc:
-            v.failures.append(f"header says open to US relocation but the letter lacks relocation_line verbatim: {reloc!r}")
-        elif letter_reloc and not header_reloc:
-            v.failures.append('letter carries relocation_line but the header is not "Mexico City, Mexico (open to US relocation, TN eligible)"')
+            v.failures.append(f"header says {reloc_header!r} but the letter lacks relocation_line verbatim: {reloc!r}")
+        elif letter_reloc and not header_reloc and reloc_header:
+            expected = f"{prof.get('header_location') or header_loc.split('(')[0].strip()} ({wa.get('relocation_header')})"
+            v.failures.append(f"letter carries relocation_line but the header is not {expected!r}")
     elif letter_reloc:
         v.warnings.append("relocation line present on a non-dream row; profile waives location only for dream companies")
 

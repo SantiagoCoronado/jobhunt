@@ -34,11 +34,11 @@ def answers_path() -> Path:
 # TAILOR marker so the build's marker check refuses a folder that still carries it verbatim.
 TEMPLATE_IDS = {
     "why-company": ("replace this block with a 3-sentence answer grounded in the company "
-                    "dossier (one concrete company fact, one line tying it to the founder / "
-                    "AI-deployment background, one line on what to ship first)."),
+                    "dossier (one concrete company fact, one line tying it to the candidate's "
+                    "background (profile candidate_line and notes), one line on what to ship first)."),
     "what-do-you-know-about-us": ("replace this block with three specific dossier facts said "
                                   "flat (at least one not on the homepage) and one line on what "
-                                  "maps to Santiago's own work; never mention how much was "
+                                  "maps to the candidate's own work; never mention how much was "
                                   "prepared."),
 }
 

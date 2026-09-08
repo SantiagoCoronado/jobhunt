@@ -321,7 +321,23 @@ def test_torre_fetch_captures_country_list_when_present(monkeypatch):
 def test_torre_timezone_band_excludes_gmt6(timezones, excludes):
     import src.adapters.torre as torre
 
-    assert torre.timezone_band_excludes(timezones) is excludes
+    assert torre.timezone_band_excludes(timezones, offset_hours=-6.0) is excludes
+
+
+def test_torre_home_offset_comes_from_the_profile_timezones(monkeypatch, tmp_path):
+    import src.adapters.torre as torre
+    from src import config
+
+    assert torre.home_offset_hours() == 0.0                      # fixture: "Lisbon (GMT+00:00)"
+    assert torre.timezone_band_excludes(["GMT-08:00", "GMT-05:00"]) is True
+    assert torre.timezone_band_excludes(["GMT-01:00", "GMT+03:00"]) is False
+    prof = tmp_path / "profile.yaml"
+    prof.write_text('name: X\ntimezones: ["hybrid must be Mexico City (GMT-6)"]\n')
+    monkeypatch.setitem(config.USER_FILES, "profile", prof)
+    assert torre.home_offset_hours() == -6.0
+    prof.write_text('name: X\ntimezones: ["Any"]\n')
+    assert torre.home_offset_hours() is None
+    assert torre.timezone_band_excludes(["GMT+00:00", "GMT+03:00"]) is False   # no offset: never excluded
 
 
 def test_torre_eligibility_header_strip_is_idempotent():

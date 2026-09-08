@@ -200,8 +200,8 @@ def _comp_section(conn: sqlite3.Connection, min_score: int = 70) -> str:
         f"<td class='num'>{s['max']:,}</td></tr>" for s in d["segments"])
     return (f"<p>Salary data on {d['n_rows']} deduped roles scoring 70+ "
             "(value = max of range, else min).</p>"
-            "<p class='note'>NOTE: units are as-posted; several LatAm boards post "
-            "MONTHLY figures, so a '5,000 USD' cluster is monthly rate, not annual. "
+            "<p class='note'>NOTE: units are as-posted; some boards post "
+            "MONTHLY figures, so a '5,000 USD' cluster is a monthly rate, not annual. "
             "Sanity-check before negotiating.</p>"
             "<table><thead><tr><th>ccy</th><th>family</th><th>remote</th>"
             "<th class='num'>n</th><th class='num'>median</th><th class='num'>min</th>"

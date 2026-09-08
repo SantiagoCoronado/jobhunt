@@ -147,14 +147,14 @@ def test_letter_without_re_line_fails(folder):
 
 
 def test_dream_header_without_relocation_line_fails(folder):
-    res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
+    res = small_resume("Lisbon, Portugal (open to relocation within Europe)")
     (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
     assert not v.ok and any(relocation_line() in f for f in v.failures)
 
 
 def test_dream_relocation_line_matches_header(folder):
-    res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
+    res = small_resume("Lisbon, Portugal (open to relocation within Europe)")
     (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
@@ -256,7 +256,7 @@ def test_failures_and_warnings_print_in_verdict_lines(folder):
     (folder / "match_report.md").write_text("line one\nbad \u2014 dash\n")
     v = tb.build(folder, job=JOB, no_pdf=True)
     assert any(ln.startswith("FAIL") and "match_report.md:2" in ln for ln in v.lines)
-    res = small_resume("Mexico City, Mexico (open to US relocation, TN eligible)")
+    res = small_resume("Lisbon, Portugal (open to relocation within Europe)")
     (folder / "match_report.md").write_text("clean\n")
     (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     v = tb.build(folder, job={"id": 7, "company": "NVIDIA", "dream": True}, no_pdf=True)
@@ -284,17 +284,36 @@ def test_split_strips_code_fences(folder):
     assert not (folder / RESUME).read_text().startswith("```")
 
 
-def test_non_us_dream_row_rejects_tn_line_and_wants_visa_note(folder):
-    berlin = {"id": 7, "company": "Peec", "dream": True, "location": "Berlin"}
+def test_dream_row_outside_the_relocation_regions_rejects_the_line_and_wants_a_visa_note(folder):
+    """The fixture candidate relocates within Europe (work_authorization.relocation_regions);
+    a dream row in San Francisco is outside that scope."""
+    sf = {"id": 7, "company": "Example Robotics", "dream": True, "location": "San Francisco, CA"}
+    (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
+    v = tb.build(folder, job=sf, no_pdf=True)
+    assert not v.ok and any("outside the relocation regions (europe)" in f for f in v.failures)
+    (folder / "CoverLetter.md").write_text(letter(240))
+    v = tb.build(folder, job=sf, no_pdf=True)
+    assert v.ok and any("no visa note" in w for w in v.warnings)
+    (folder / "CoverLetter.md").write_text(letter(240, "A US work visa would be needed."))
+    v = tb.build(folder, job=sf, no_pdf=True)
+    assert v.ok and not any("visa" in w for w in v.warnings)
+
+
+def test_dream_row_inside_the_relocation_regions_takes_the_line(folder):
+    berlin = {"id": 7, "company": "Example Robotics", "dream": True, "location": "Berlin, DE"}
+    res = small_resume("Lisbon, Portugal (open to relocation within Europe)")
+    (folder / RESUME).write_text(yaml.safe_dump(res, allow_unicode=True, sort_keys=False))
     (folder / "CoverLetter.md").write_text(letter(240, relocation_line()))
     v = tb.build(folder, job=berlin, no_pdf=True)
-    assert not v.ok and any("outside the TN countries" in f for f in v.failures)
-    (folder / "CoverLetter.md").write_text(letter(240))
-    v = tb.build(folder, job=berlin, no_pdf=True)
-    assert v.ok and any("no visa note" in w for w in v.warnings)
-    (folder / "CoverLetter.md").write_text(letter(240, "A German or EU work visa would be needed."))
-    v = tb.build(folder, job=berlin, no_pdf=True)
-    assert v.ok and not any("visa" in w for w in v.warnings)
+    assert v.ok, v.failures
+
+
+def test_relocation_scope_and_outside_read_the_profile():
+    assert tb.relocation_scope() == {"europe"}
+    assert tb.outside_relocation_regions("San Francisco, CA") is True
+    assert tb.outside_relocation_regions("Berlin") is False
+    assert tb.outside_relocation_regions("Berlin", {"united states"}) is True
+    assert tb.relocation_scope({"work_authorization": {}}) == set()
 
 
 def test_missing_pypdf_is_a_printed_warning_not_a_silent_pass(folder, monkeypatch):
@@ -313,37 +332,24 @@ def test_cap_keeps_fail_and_result_lines():
     assert "FILES f" not in out
 
 
-def test_header_tn_item_not_duplicated_with_relocation_header():
-    from src.render_docx import _contact_items
-    cv = {"phone": "+52", "email": "a@b.c", "location": "Mexico City, Mexico (open to US relocation, TN eligible)",
-          "sections": {"additional": [{"label": "Work authorization", "details": "Mexico (citizen) · TN Visa eligible"}]}}
-    texts = [t for t, _ in _contact_items(cv)]
-    assert sum("tn" in t.lower() for t in texts) == 1
-    cv["location"] = "Mexico City, Mexico"
-    texts = [t for t, _ in _contact_items(cv)]
+def test_header_work_auth_item_comes_from_the_profile_and_is_not_duplicated():
+    from src.render_docx import _contact_items, _surfaced_in_header, work_auth_header_item
+    cv = {"phone": "+1", "email": "a@b.c", "location": "Somewhere, US (open to US relocation, TN eligible)",
+          "sections": {"additional": [{"label": "Work authorization", "details": "citizen elsewhere, TN eligible"}]}}
+    texts = [t for t, _ in _contact_items(cv, header_item="TN Visa Eligible")]
+    assert sum("tn" in t.lower() for t in texts) == 1          # the header line already says TN
+    cv["location"] = "Somewhere, US"
+    texts = [t for t, _ in _contact_items(cv, header_item="TN Visa Eligible")]
     assert "TN Visa Eligible" in texts
-
-
-@pytest.mark.parametrize("location,expected", [
-    ("Berlin", True), ("London, GB", True), ("Singapore", True), ("Remote, EU", True), ("Bangalore, India", True),
-    ("Bengaluru, Karnataka, in", True), ("Berlin, DE", True), ("Tel Aviv, IL", True), ("Berlin, Germany", True),
-    ("Indianapolis, IN, USA", False), ("Ukiah, CA", False), ("Paris, TX", False), ("New Madrid, MO", False),
-    ("London, KY", False), ("London, UK; San Francisco, CA", False), ("Remote (US) or London", False),
-    ("Santa Clara, CA", False), ("Mexico City", False), ("Toronto, Canada", False), ("Remote", False), ("", False),
-    (None, False), ("US remote", False),
-    # A US option anywhere in a multi-region string keeps the row TN-eligible, including the
-    # spelled-out state names and the bare "US" the marker list used not to recognise.
-    ("Austin, Texas; London, England, United Kingdom; New York, New York", False),
-    ("NY / SF / EMEA", False), ("Remote (US/EU)", False), ("Remote - US or Europe", False),
-    ("Remote, APAC; Remote, EMEA; Remote, US", False), ("US, UK, Singapore, Remote", False),
-    ("Europe + San Francisco", False), ("Hybrid - San Francisco, New York City, London", False),
-    # LATAM includes Mexico, so it is TN territory, not "outside".
-    ("LATAM remote-first", False), ("Remote LATAM", False), ("LATAM (remote)", False),
-    # ... but a foreign-only multi-part string is still outside.
-    ("Berlin; Munich", True), ("London; Dublin; Amsterdam", True),
-])
-def test_outside_tn_countries_word_boundaries_and_us_override(location, expected):
-    assert tb.outside_tn_countries(location) is expected
+    # default: the fixture profile's header_item
+    assert work_auth_header_item() == "EU Work Authorization"
+    assert "EU Work Authorization" in [t for t, _ in _contact_items(cv)]
+    assert "EU Work Authorization" not in [t for t, _ in _contact_items(cv, header_item="")]
+    # the body entry about work authorization leaves the body only when the header carries the item
+    entry = cv["sections"]["additional"][0]
+    assert _surfaced_in_header(entry, "EU Work Authorization") is True
+    assert _surfaced_in_header(entry, "") is False
+    assert _surfaced_in_header({"label": "Languages", "details": "x"}, "EU Work Authorization") is False
 
 
 def test_fill_failure_only_at_fit_level_0(folder, monkeypatch):

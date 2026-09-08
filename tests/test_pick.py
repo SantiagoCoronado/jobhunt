@@ -6,6 +6,7 @@ from datetime import date
 
 import pytest
 
+from src import geo
 from src import pick as pk
 from src.db import connect, log_event
 
@@ -53,6 +54,9 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(pk, "connect", lambda: c)
     monkeypatch.setattr(pk, "ROOT", tmp_path)
     monkeypatch.setattr(pk, "is_dream", lambda co: co in ("Steven.com", "Riot Games", "Cursor", "Nvidia"))
+    # this test's candidate relocates to the TN countries (the fixture profile's scope is Europe)
+    monkeypatch.setattr(pk, "outside_relocation_regions",
+                        lambda loc: geo.outside(loc, {"united states", "canada", "mexico"}))
     return c
 
 
@@ -70,9 +74,9 @@ def test_star_rule(env):
     # then highest overall, one per company, Busy Co skipped (applied row), Acme once
     assert 8 in ids and 4 in ids and 5 not in ids and 6 not in ids
     why = {s["id"]: s["why"] for s in skipped}
-    assert "outside the TN countries" in why[1]
+    assert "outside the relocation regions" in why[1]
     assert "live application" in why[6]
-    assert "outside the TN countries" in why[24]
+    assert "outside the relocation regions" in why[24]
     # the outcome date is the newest date: applied in January, rejected today -> still held
     assert 22 not in ids and "rejected on" in why[22] and "cooldown" in why[22]
     # terminal outcomes: released after the cooldown (Old Reject, Feb, folder only under other/), blocked inside it
@@ -95,7 +99,7 @@ def test_star_rule(env):
 def test_cli_prints_picks_and_skips(env, capsys):
     assert pk.main(["--n", "3"]) == 0
     out = capsys.readouterr().out
-    assert "picks (3)" in out and "spares (2)" in out and "skipped" in out and "outside the TN countries" in out
+    assert "picks (3)" in out and "spares (2)" in out and "skipped" in out and "outside the relocation regions" in out
     assert "held by the 90-day cooldown" in out          # counted over every held company, not only rows reached
     assert out.count("Steven.com #1") == 1               # a row is evaluated once, whichever loop reaches it first
     assert pk.main(["--n", "12"]) == 0               # includes the NULL-title row without a traceback

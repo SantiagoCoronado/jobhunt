@@ -65,7 +65,8 @@ def default_profile_keys(raw: dict) -> dict:
         "candidate_line": name,
         "role_families": [{"key": "A", "name": "target roles", "titles": titles,
                            "skills": skills, "strength": "core"}] if titles else [],
-        "work_authorization": {"summary": "", "header_item": ""},
+        "work_authorization": {"summary": "", "header_item": "", "relocation_header": "",
+                               "relocation_regions": []},
         "header_location": "",
     }
 
@@ -129,13 +130,18 @@ def profile(raw: dict | None = None) -> dict:
     if wa is None:
         out["work_authorization"] = defaults["work_authorization"]
     elif isinstance(wa, dict):
+        strings = ("summary", "header_item", "relocation_header")
         for k, v in wa.items():
-            if k in ("summary", "header_item") and v is not None and not isinstance(v, str):
+            if k in strings and v is not None and not isinstance(v, str):
                 raise ValueError(f"config/profile.yaml: work_authorization.{k} must be a string")
+        regions = wa.get("relocation_regions") or []
+        if not isinstance(regions, list) or not all(isinstance(r, str) for r in regions):
+            raise ValueError("config/profile.yaml: work_authorization.relocation_regions must be a list of "
+                             "region names from config/geo.yaml")
         out["work_authorization"] = {
-            "summary": " ".join(str(wa.get("summary") or "").split()),
-            "header_item": " ".join(str(wa.get("header_item") or "").split()),
-            **{k: v for k, v in wa.items() if k not in ("summary", "header_item")},
+            **{k: " ".join(str(wa.get(k) or "").split()) for k in strings},
+            "relocation_regions": [r.strip().lower() for r in regions],
+            **{k: v for k, v in wa.items() if k not in strings and k != "relocation_regions"},
         }
     else:
         raise ValueError("config/profile.yaml: work_authorization must be a mapping with summary and header_item")

@@ -1,0 +1,228 @@
+# Product data: where in the world a posting's location string points (docs/spec-open-source.md
+# decision 7). Nothing here is about one user; WHICH region is home comes from
+# config/profile.yaml (`header_location`, `work_authorization.relocation_regions`).
+#
+# One entry per region. `aliases` are the country or region words, `cities` the city words
+# (both matched on word boundaries, lowercase), `codes` the two-letter codes a city is written
+# with after a comma ("Berlin, DE") that collide with a US state code, `within` the regions this
+# one belongs to (mexico is within latam, north america and americas), so a posting scoped to a
+# containing region ("Remote LATAM") counts as reachable from that home. The `united states`
+# entry also carries its state codes and names, which the classifier treats as US words.
+#
+# Read by src/geo.py: the tailor build and the star pick use it to tell a dream-company row
+# inside the candidate's relocation regions from one outside them, the match export's
+# `--eligible-only` prefilter uses it to drop rows clearly locked to another region, and
+# `python -m src.geo "<location>"` prints what a string resolves to.
+
+regions:
+  americas:
+    aliases: [americas]
+  north america:
+    aliases: [north america]
+    within: [americas]
+  latam:
+    aliases: [latam, latin america, latinoamerica, latinoamérica]
+    within: [americas]
+  united states:
+    aliases: [us, usa, u.s., u.s.a., united states, us remote, remote us, us-remote, remote (us)]
+    cities: [san francisco, sf, nyc, new york city, brooklyn, palo alto, mountain view, san jose,
+             sunnyvale, foster city, seattle, austin, boston, chicago, denver, los angeles,
+             san diego, atlanta, miami, dallas, houston, phoenix, portland, philadelphia,
+             pittsburgh, detroit, minneapolis, salt lake city, d.c., bay area, silicon valley]
+    within: [north america]
+    state_codes: [al, ak, az, ar, ca, co, ct, de, fl, ga, hi, id, il, in, ia, ks, ky, la, me, md,
+                  ma, mi, mn, ms, mo, mt, ne, nv, nh, nj, nm, ny, nc, nd, oh, ok, or, pa, ri, sc,
+                  sd, tn, tx, ut, vt, va, wa, wv, wi, wy, dc]
+    state_names: [alabama, alaska, arizona, arkansas, california, colorado, connecticut, delaware,
+                  florida, georgia, hawaii, idaho, illinois, indiana, iowa, kansas, kentucky,
+                  louisiana, maine, maryland, massachusetts, michigan, minnesota, mississippi,
+                  missouri, montana, nebraska, nevada, new hampshire, new jersey, new mexico,
+                  new york, north carolina, north dakota, ohio, oklahoma, oregon, pennsylvania,
+                  rhode island, south carolina, south dakota, tennessee, texas, utah, vermont,
+                  virginia, washington, west virginia, wisconsin, wyoming]
+  canada:
+    aliases: [canada]
+    cities: [toronto, vancouver, montreal]
+    within: [north america]
+  mexico:
+    aliases: [mexico, méxico, mx, cdmx]
+    cities: [mexico city, ciudad de mexico, ciudad de méxico, guadalajara, monterrey]
+    within: [latam, north america]
+  brazil:
+    aliases: [brazil, brasil]
+    cities: [sao paulo, são paulo, rio de janeiro]
+    within: [latam]
+  argentina:
+    aliases: [argentina]
+    cities: [buenos aires]
+    within: [latam]
+  colombia:
+    aliases: [colombia]
+    cities: [bogota, bogotá, medellin, medellín]
+    within: [latam]
+  chile:
+    aliases: [chile]
+    cities: [santiago]
+    within: [latam]
+  peru:
+    aliases: [peru, perú]
+    cities: [lima]
+    within: [latam]
+  uruguay:
+    aliases: [uruguay]
+    cities: [montevideo]
+    within: [latam]
+
+  emea:
+    aliases: [emea]
+  europe:
+    aliases: [europe]
+    within: [emea]
+  eu:
+    aliases: [eu, european union]
+    within: [europe]
+  united kingdom:
+    aliases: [united kingdom, uk, gb, great britain, britain, england, scotland, wales]
+    cities: [london, manchester, edinburgh]
+    codes: [gb, uk]
+    within: [europe]
+  ireland:
+    aliases: [ireland]
+    cities: [dublin]
+    codes: [ie]
+    within: [eu]
+  germany:
+    aliases: [germany, deutschland]
+    cities: [berlin, munich, münchen, hamburg, frankfurt]
+    codes: [de]
+    within: [eu]
+  france:
+    aliases: [france]
+    cities: [paris]
+    codes: [fr]
+    within: [eu]
+  netherlands:
+    aliases: [netherlands, the netherlands, holland]
+    cities: [amsterdam]
+    codes: [nl]
+    within: [eu]
+  spain:
+    aliases: [spain, españa]
+    cities: [madrid, barcelona]
+    codes: [es]
+    within: [eu]
+  portugal:
+    aliases: [portugal]
+    cities: [lisbon, lisboa, porto]
+    codes: [pt]
+    within: [eu]
+  switzerland:
+    aliases: [switzerland]
+    cities: [zurich, zürich, geneva]
+    codes: [ch]
+    within: [europe]
+  sweden:
+    aliases: [sweden]
+    cities: [stockholm]
+    codes: [se]
+    within: [eu]
+  denmark:
+    aliases: [denmark]
+    cities: [copenhagen]
+    codes: [dk]
+    within: [eu]
+  norway:
+    aliases: [norway]
+    cities: [oslo]
+    codes: [no]
+    within: [europe]
+  finland:
+    aliases: [finland]
+    cities: [helsinki]
+    codes: [fi]
+    within: [eu]
+  poland:
+    aliases: [poland]
+    cities: [warsaw, krakow, kraków]
+    codes: [pl]
+    within: [eu]
+  austria:
+    aliases: [austria]
+    cities: [vienna]
+    codes: [at]
+    within: [eu]
+  belgium:
+    aliases: [belgium]
+    cities: [brussels]
+    codes: [be]
+    within: [eu]
+  italy:
+    aliases: [italy]
+    cities: [milan, rome]
+    codes: [it]
+    within: [eu]
+  czechia:
+    aliases: [czech, czechia, czech republic]
+    cities: [prague]
+    codes: [cz]
+    within: [eu]
+  israel:
+    aliases: [israel]
+    cities: [tel aviv]
+    codes: [il]
+    within: [emea]
+  uae:
+    aliases: [uae, united arab emirates]
+    cities: [dubai, abu dhabi]
+    codes: [ae]
+    within: [emea]
+
+  apac:
+    aliases: [apac, asia pacific, asia-pacific]
+  asia:
+    aliases: [asia]
+    within: [apac]
+  singapore:
+    aliases: [singapore]
+    codes: [sg]
+    within: [asia]
+  japan:
+    aliases: [japan]
+    cities: [tokyo]
+    codes: [jp]
+    within: [asia]
+  australia:
+    aliases: [australia]
+    cities: [sydney, melbourne]
+    codes: [au]
+    within: [apac]
+  new zealand:
+    aliases: [new zealand]
+    cities: [auckland]
+    codes: [nz]
+    within: [apac]
+  india:
+    aliases: [india]
+    cities: [bangalore, bengaluru, mumbai, hyderabad, pune, chennai, delhi, new delhi, gurgaon,
+             gurugram, noida]
+    codes: [in]
+    within: [asia]
+  taiwan:
+    aliases: [taiwan]
+    cities: [taipei]
+    codes: [tw]
+    within: [asia]
+  korea:
+    aliases: [korea, south korea]
+    cities: [seoul]
+    codes: [kr]
+    within: [asia]
+  china:
+    aliases: [china]
+    cities: [shanghai, beijing, shenzhen]
+    codes: [cn]
+    within: [asia]
+  hong kong:
+    aliases: [hong kong]
+    codes: [hk]
+    within: [asia]

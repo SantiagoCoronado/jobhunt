@@ -20,27 +20,55 @@ import re
 import sqlite3
 from statistics import median
 
+from .config import profile, title_words
 from .db import connect
 
 RESPONDED = ("screen", "interview", "offer")
 
-# Title families per config/profile.yaml. Order matters: B's strategist/architect
-# titles often contain "AI", so B is checked before A; C/D before A for the same
-# reason ("React Engineer, AI tools" is a C).
-FAMILIES = [
-    ("B", re.compile(r"deployment|solutions? (architect|engineer)|enablement|strategist|"
-                     r"forward.?deploy|field engineer|gtm|technical program|adoption", re.I)),
-    ("C", re.compile(r"front.?end|\bui\b|react|web engineer|frontend", re.I)),
-    ("D", re.compile(r"internal (tool|platform|application)|developer (experience|productivity)|"
-                     r"business systems|workflow automation|devex", re.I)),
-    ("A", re.compile(r".", re.I)),  # everything else: hands-on AI / full-stack
-]
+# Title families from profile.yaml `role_families`. The FIRST family is the catch-all (a title
+# matching no other family counts there); the rest are checked in profile order with the
+# phrases of their `match` list, else the words of their `titles` (config.title_words), each
+# on word boundaries with an optional plural and a free hyphen or space between words, so
+# "forward deployed", "forward-deployed" and "internal tools" all match.
+_FAMILIES: list[tuple[str, re.Pattern[str] | None]] | None = None
 
 
-def title_family(title: str | None) -> str:
-    for fam, rx in FAMILIES:
-        if rx.search(title or ""):
-            return fam
+def _phrase_re(phrases: list[str]) -> re.Pattern[str] | None:
+    alts = []
+    for ph in phrases:
+        words = [re.escape(w) for w in str(ph).lower().replace("-", " ").split()]
+        if words:
+            alts.append(r"[\s-]?".join(words))
+    if not alts:
+        return None
+    return re.compile(r"(?<![a-z])(?:" + "|".join(alts) + r")(?:e?s)?(?![a-z])", re.I)
+
+
+def families(prof: dict | None = None) -> list[tuple[str, re.Pattern[str] | None]]:
+    """[(key, regex)] in check order: every family but the first, then the first with None."""
+    global _FAMILIES
+    if prof is None and _FAMILIES is not None:
+        return _FAMILIES
+    if prof is None:
+        try:
+            prof = profile()
+        except FileNotFoundError:
+            prof = {}
+    fams = prof.get("role_families") or []
+    out: list[tuple[str, re.Pattern[str] | None]] = []
+    for fam in fams[1:]:
+        phrases = [str(m) for m in (fam.get("match") or [])] or title_words(fam.get("titles") or [])
+        out.append((fam["key"], _phrase_re(phrases)))
+    out.append((fams[0]["key"] if fams else "A", None))
+    if prof is not None and _FAMILIES is None:
+        _FAMILIES = out
+    return out
+
+
+def title_family(title: str | None, fams: list[tuple[str, re.Pattern[str] | None]] | None = None) -> str:
+    for key, rx in fams if fams is not None else families():
+        if rx is None or rx.search(title or ""):
+            return key
     return "A"
 
 
@@ -175,8 +203,8 @@ def comp(conn: sqlite3.Connection, min_score: int = 0) -> None:
         print("No salary data at that score floor.")
         return
     print(f"Salary data on {d['n_rows']} deduped roles (value = max of range, else min).")
-    print("NOTE: units are as-posted; several LatAm boards post MONTHLY figures, so a")
-    print("'5,000 USD' cluster is monthly rate, not annual. Sanity-check before negotiating.")
+    print("NOTE: units are as-posted; some boards post MONTHLY figures, so a '5,000 USD'")
+    print("cluster is a monthly rate, not annual. Sanity-check before negotiating.")
     print(f"  {'ccy':4s} {'fam':3s} {'remote':6s} {'n':>4s} {'median':>10s} {'min':>10s} {'max':>10s}")
     for s in d["segments"]:
         print(f"  {s['currency']:4s} {s['family']:3s} {str(s['remote']):6s} {s['n']:4d} "
