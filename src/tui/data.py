@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .. import db, dream, reconcile, research
+from .. import config, db, dream, reconcile, research
 from .presets import ALL, COLD, HOT, NEVER, PRESETS
 
 ALL_CAP = 500        # the `all` view holds ~15k discovered rows; search narrows it, never scroll
@@ -266,3 +266,28 @@ def detail(job_id: int) -> JobDetail | None:
         dossier=dossier if dossier and dossier.exists() else None,
         bucket=found[0] if found else None, folder=found[1] if found else None,
     )
+
+
+# Writes. Each one goes through the same db function `python -m src.query` uses, so the events
+# table and the folder moves cannot drift between the two front ends.
+
+PIPELINE = ("applied", "screen", "interview", "offer")   # leaving one of these asks for a `y`
+
+
+def needs_confirm(old: str, new: str) -> bool:
+    return old in PIPELINE and new != old
+
+
+def set_status(job_id: int, status: str, note: str | None = None,
+               followup: str | None = None) -> str:
+    """Status change + folder move, as `query set-status` does them. Returns one line for the
+    toast; raises ValueError on a bad status, date or id."""
+    if status not in HOT:
+        raise ValueError(f"{status!r} is not a status the TUI sets")
+    with _conn() as conn:
+        changed = db.set_status(conn, job_id, status, note=note, next_followup=followup,
+                                followup_days=config.followup_days())
+        conn.commit()
+    moved = reconcile.sync_folder(job_id, status, reconcile.APPS_DIR)
+    line = f"#{job_id} {changed['company']}: {changed['old_status']} -> {status}"
+    return f"{line} · {moved}" if moved else line

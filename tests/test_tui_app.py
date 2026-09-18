@@ -296,3 +296,103 @@ def test_presets_filter_sort_and_style_overdue_followups_red():
             stale = app.screen.query_one(JobsTable).get_row(str(app.screen.query_one(JobsTable).job_ids[0]))[5]
             assert stale == "2026-09-01"          # a closed row's old date is not something to chase
     _run(scenario())
+
+
+def _events(job_id: int) -> list[tuple[str, str]]:
+    conn = db.connect(db.DB_PATH)
+    got = [(r["kind"], r["payload"]) for r in conn.execute(
+        "SELECT kind, payload FROM events WHERE job_id=? ORDER BY id", (job_id,))]
+    conn.close()
+    return got
+
+
+def _status(job_id: int) -> str:
+    conn = db.connect(db.DB_PATH)
+    got = conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()[0]
+    conn.close()
+    return got
+
+
+def test_status_picker_filters_applies_writes_the_event_and_moves_the_folder(tmp_db):
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import StatusPicker
+
+    first = _add(match_score=90, company="Acme")
+    second = _add(match_score=80, company="Beta")
+    third = _add(match_score=70, company="Gamma")
+    folder = tmp_db / "applications" / "pending" / f"acme-{first}"
+    folder.mkdir(parents=True)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            await pilot.press("s")
+            await pilot.pause()
+            assert isinstance(app.screen, StatusPicker)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert _status(first) == "shortlisted" and _events(first) == []
+
+            await pilot.press("s", "a", "p")
+            await pilot.pause()
+            assert [o.id for o in app.screen.query_one("#picker-list").options] == ["applied"]
+            await pilot.press("enter")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert _status(first) == "applied"
+            assert _events(first) == [("status_change", '{"from": "shortlisted", "to": "applied"}')]
+            assert not folder.exists()
+            assert (tmp_db / "applications" / "applied" / f"acme-{first}").is_dir()
+            # The row left the filter; the cursor stays on its line, now the next job.
+            assert table.job_ids == [second, third] and table.current_id == second
+            counts = {o.id: o.prompt.plain.split()[-1] for o in app.screen.query_one(StatusList).options}
+            assert counts["shortlisted"] == "2" and counts["applied"] == "1"
+    _run(scenario())
+
+
+def test_picker_matches_prefix_first_then_substring():
+    from src.tui.widgets.modals import StatusPicker
+
+    assert StatusPicker.matches("") == list(HOT)
+    assert StatusPicker.matches("re") == ["rejected", "screen"]
+    assert StatusPicker.matches("zz") == []
+
+
+def test_b_backlogs_directly_and_leaving_applied_needs_y():
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import Confirm
+
+    fresh = _add(match_score=90)
+    live = _add(status="applied", match_score=80, applied_at="2026-09-01")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            await pilot.press("b")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert _status(fresh) == "backlog"
+
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            app.screen.query_one(JobsTable).focus()
+            await pilot.press("b")
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)
+            await pilot.press("n")
+            await _settle(app, pilot)
+            assert _status(live) == "applied" and _events(live) == []
+
+            await pilot.press("s", "r", "e", "j", "enter")
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)
+            await pilot.press("y")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert _status(live) == "rejected"
+            assert _events(live) == [("status_change", '{"from": "applied", "to": "rejected"}')]
+    _run(scenario())

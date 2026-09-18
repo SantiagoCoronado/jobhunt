@@ -220,3 +220,30 @@ def test_concurrent_first_reads_on_a_fresh_db_do_not_lock(env):
         with ThreadPoolExecutor(8) as pool:
             got = list(pool.map(lambda _: data.counts()["all"], range(16)))
         assert got == [0] * 16
+
+
+def test_set_status_writes_the_event_schedules_the_followup_and_moves_the_folder(env):
+    jid = env(company="Acme", status="shortlisted")
+    folder = env.tmp / "applications" / "pending" / f"acme-{jid}"
+    folder.mkdir(parents=True)
+
+    line = data.set_status(jid, "applied")
+    assert line.startswith(f"#{jid} Acme: shortlisted -> applied") and "pending/ -> applied/" in line
+    d = data.detail(jid)
+    assert d is not None and d.row.status == "applied" and d.row.applied_at and d.row.followup
+    assert d.bucket == "applied"
+    assert [(e.kind, e.payload) for e in d.events] == [
+        ("status_change", {"from": "shortlisted", "to": "applied"})]
+
+    for bad in ("irrelevant", "expired", "discovered", "declined"):
+        with pytest.raises(ValueError):
+            data.set_status(jid, bad)
+    with pytest.raises(ValueError):
+        data.set_status(999, "applied")
+
+
+def test_confirm_only_when_leaving_the_pipeline_statuses():
+    assert data.needs_confirm("applied", "rejected") and data.needs_confirm("offer", "backlog")
+    assert data.needs_confirm("screen", "interview")
+    assert not data.needs_confirm("shortlisted", "applied")
+    assert not data.needs_confirm("rejected", "applied") and not data.needs_confirm("applied", "applied")

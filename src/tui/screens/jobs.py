@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from textual import events, work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.worker import get_current_worker
 
@@ -10,7 +11,7 @@ from .. import data
 from ..presets import PRESETS
 from ..widgets.detail import DetailPane
 from ..widgets.jobs_table import JobsTable
-from ..widgets.modals import DetailOverlay
+from ..widgets.modals import Confirm, DetailOverlay, StatusPicker
 from ..widgets.status_list import StatusList
 from .base import SectionScreen
 
@@ -22,6 +23,11 @@ class JobsScreen(SectionScreen):
     DEFAULT_CSS = """
     JobsScreen #panes { height: 1fr; }
     """
+
+    BINDINGS = [
+        Binding("s", "status", "status"),
+        Binding("b", "backlog", "backlog"),
+    ]
 
     def __init__(self, preset: str) -> None:
         super().__init__(preset)
@@ -54,13 +60,14 @@ class JobsScreen(SectionScreen):
         self.app.call_from_thread(self.query_one(StatusList).set_counts, counts)
 
     @work(thread=True, group="rows", exclusive=True)
-    def load_rows(self) -> None:
+    def load_rows(self, keep: bool = False) -> None:
         """SQLite off the UI thread. A thread cannot be interrupted, so a load that was
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
         rows = data.rows(self.preset, self.status_filter, self.query_text)
         if not worker.is_cancelled:
-            self.app.call_from_thread(self.query_one(JobsTable).load, rows, self.app.today)  # type: ignore[attr-defined]
+            today = self.app.today  # type: ignore[attr-defined]
+            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep)
 
     def on_status_list_picked(self, event: StatusList.Picked) -> None:
         # The head entry carries the preset's name and means "no pick": the preset's statuses.
@@ -88,3 +95,52 @@ class JobsScreen(SectionScreen):
                 self.app.call_from_thread(self.app.push_screen, DetailOverlay(detail))
         else:
             self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
+
+    # Status changes. One row: the table cursor. (Bulk verbs over a selection arrive in PR 4.)
+
+    def current_row(self) -> data.JobRow | None:
+        return self.query_one(JobsTable).current_row
+
+    def action_status(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+
+        def picked(status: str | None) -> None:
+            if status:
+                self.request_status(row, status)
+
+        self.app.push_screen(StatusPicker(f"#{row.id} {row.company}", row.status), picked)
+
+    def action_backlog(self) -> None:
+        row = self.current_row()
+        if row is not None:
+            self.request_status(row, "backlog")
+
+    def request_status(self, row: data.JobRow, status: str) -> None:
+        if status == row.status:
+            return
+        if not data.needs_confirm(row.status, status):
+            self.write_status(row.id, status)
+            return
+
+        def answered(yes: bool | None) -> None:
+            if yes:
+                self.write_status(row.id, status)
+
+        self.app.push_screen(Confirm(f"#{row.id} {row.company}: leave {row.status} for {status}?"), answered)
+
+    @work(thread=True, group="write")
+    def write_status(self, job_id: int, status: str) -> None:
+        try:
+            line = data.set_status(job_id, status)
+        except ValueError as e:
+            self.app.call_from_thread(self.app.notify, str(e), severity="error")
+            return
+        bad = "CONFLICT" in line or "ERROR" in line
+        self.app.call_from_thread(self.app.notify, line, severity="warning" if bad else "information")
+        self.app.call_from_thread(self.reload)
+
+    def reload(self) -> None:
+        self.load_counts()
+        self.load_rows(keep=True)
