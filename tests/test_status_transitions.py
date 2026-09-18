@@ -63,7 +63,7 @@ def test_explicit_followup_wins_over_auto(conn):
 
 
 def test_empty_followup_from_form_still_autoschedules_on_apply(conn):
-    # The viewer posts "" when the field is blank; flipping to applied must
+    # A front end passes "" when the field is blank; flipping to applied must
     # still schedule the follow-up.
     set_status(conn, 1, "applied", next_followup="", followup_days=7)
     assert _row(conn)["next_followup_at"] == (date.today() + timedelta(days=7)).isoformat()

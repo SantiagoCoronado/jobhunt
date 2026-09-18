@@ -31,7 +31,11 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
-6. **Track** (`src/crm/viewer.py` local UI, being replaced by a Textual TUI: `docs/spec-tui.md`).
+6. **Track** (`python -m src.tui`, a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
+   2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
+   detail); `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
+   `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
+   Pilot tests patch `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR` and `commands.launch`.
    Notion is gone since 2026-09-04 (pull script and command deleted; its MCP push had cost
    25M to 65M context tokens per hunt, `docs/token-efficiency.md`). The hunt picks its 5 targets with
    `python -m src.pick` (star rule, dream slots, skips companies already in play).

@@ -211,12 +211,12 @@ def set_status(
     applied_at: str | None = None,
     followup_days: int = 7,
 ) -> dict:
-    """Single write path for status transitions (CLI + viewer both route here).
+    """Single write path for status transitions (CLI + TUI both route here).
 
     - Validates status against STATUSES and dates against YYYY-MM-DD.
     - First flip to 'applied' stamps applied_at (today unless given) and, when no
       explicit follow-up is supplied, schedules next_followup_at = applied_at + followup_days.
-    - `note` appends to existing notes; `notes` replaces them (viewer semantics).
+    - `note` appends to existing notes; `notes` replaces them (the TUI's notes editor).
     - Terminal statuses clear next_followup_at so closed roles drop out of /jh-followups.
 
     Returns a summary dict of what changed. Raises ValueError on bad input;
