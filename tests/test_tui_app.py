@@ -4,6 +4,7 @@ import asyncio
 import pytest
 
 from src import db, reconcile, research
+from src.tui import commands
 from src.tui.app import SECTIONS, JobhuntApp
 from src.tui.presets import HOT
 from src.tui.widgets.status_list import StatusList
@@ -16,7 +17,12 @@ def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "jobs.db")
     monkeypatch.setattr(reconcile, "APPS_DIR", tmp_path / "applications")
     monkeypatch.setattr(research, "COMPANIES_DIR", tmp_path / "companies")
+    OPENED.clear()
+    monkeypatch.setattr(commands, "launch", OPENED.append)   # no test opens a browser or Finder
     return tmp_path
+
+
+OPENED: list[str] = []
 
 
 def _add(**cols) -> int:
@@ -460,3 +466,52 @@ def test_n_edits_notes_f_sets_the_followup_t_and_T_touch(tmp_db):
             await _settle(app, pilot)
             assert data.detail(jid).row.followup == (date.today() + timedelta(days=7)).isoformat()
     _run(scenario())
+
+
+def test_o_opens_the_posting_O_the_folder_or_the_dossier(tmp_db):
+    with_folder = _seed_detail(tmp_db)
+    conn = db.connect(db.DB_PATH)
+    conn.execute("UPDATE jobs SET url='https://jobs.example.com/p/1' WHERE id=?", (with_folder,))
+    conn.commit()
+    conn.close()
+    dossier_only = _add(status="applied", match_score=50, company="Dossier Co", url="file:///etc/passwd")
+    (tmp_db / "companies" / "dossier-co.md").write_text("researched: 2026-09-01\n")
+    bare = _add(status="applied", match_score=10, company="Bare", url="")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            app.screen.query_one("#jobs-table").focus()
+
+            await pilot.press("o", "O")
+            await _settle(app, pilot)
+            assert OPENED == ["https://jobs.example.com/p/1",
+                              str(tmp_db / "applications" / "applied" / f"easyaudit-ai-{with_folder}")]
+
+            OPENED.clear()
+            await pilot.press("j", "o", "O")
+            await _settle(app, pilot)
+            assert app.screen.query_one("#jobs-table").current_id == dossier_only
+            assert OPENED == [str(tmp_db / "companies" / "dossier-co.md")]   # file: URL refused
+
+            OPENED.clear()
+            await pilot.press("j", "o", "O")
+            await _settle(app, pilot)
+            assert app.screen.query_one("#jobs-table").current_id == bare and OPENED == []
+    _run(scenario())
+
+
+def test_open_posting_only_hands_http_urls_to_the_desktop(tmp_db):
+    assert commands.open_posting(" https://x.example/a?b=1 ") == "opened x.example"
+    assert OPENED == ["https://x.example/a?b=1"]
+    for bad in ("", "file:///etc/passwd", "javascript:alert(1)", "/Applications/Calculator.app",
+                "https://", "-a Calculator"):
+        with pytest.raises(ValueError):
+            commands.open_posting(bad)
+    with pytest.raises(ValueError):
+        commands.open_path(tmp_db / "nope")
+    assert len(OPENED) == 1

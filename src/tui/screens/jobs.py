@@ -9,7 +9,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.worker import get_current_worker
 
-from .. import data
+from .. import commands, data
 from ..presets import PRESETS
 from ..widgets.detail import DetailPane
 from ..widgets.jobs_table import JobsTable
@@ -29,6 +29,8 @@ class JobsScreen(SectionScreen):
     BINDINGS = [
         Binding("s", "status", "status"),
         Binding("b", "backlog", "backlog"),
+        Binding("o", "open(False)", "open posting"),
+        Binding("O", "open(True)", "open folder"),
         Binding("n", "notes", "note"),
         Binding("f", "followup", "follow-up"),
         Binding("t", "touch(False)", "touch"),
@@ -192,3 +194,28 @@ class JobsScreen(SectionScreen):
         row = self.current_row()
         if row is not None:
             self.write(lambda: data.touch(row.id, bump))
+
+    # Open: `o` the posting, `O` the application folder, or the dossier when there is no folder.
+
+    def action_open(self, folder: bool) -> None:
+        row = self.current_row()
+        if row is not None:
+            self.open_job(row.id, folder)
+
+    @work(thread=True, group="open")
+    def open_job(self, job_id: int, folder: bool) -> None:
+        d = data.detail(job_id)
+        try:
+            if d is None:
+                raise ValueError(f"#{job_id} is gone")
+            target = d.folder or d.dossier
+            if not folder:
+                line = commands.open_posting(d.url)
+            elif target is not None:
+                line = commands.open_path(target)
+            else:
+                raise ValueError(f"#{job_id} has no application folder and no dossier yet")
+        except (ValueError, OSError) as e:
+            self.app.call_from_thread(self.app.notify, str(e), severity="warning")
+            return
+        self.app.call_from_thread(self.app.notify, line)
