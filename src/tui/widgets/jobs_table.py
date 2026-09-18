@@ -37,6 +37,7 @@ class JobsTable(DataTable):
         Binding("k", "cursor_up", "up", show=False),
         Binding("g", "top", "top", show=False),
         Binding("G", "bottom", "bottom", show=False),
+        Binding("enter", "select_cursor", "detail: focus the pane, or the overlay when narrow", show=False),
     ]
 
     def __init__(self, id: str | None = None) -> None:

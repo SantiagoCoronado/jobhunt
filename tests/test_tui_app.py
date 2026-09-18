@@ -634,3 +634,87 @@ def test_r_forces_a_reload(monkeypatch):
             await _settle(app, pilot)
             assert table.job_ids == [first, second]
     _run(scenario())
+
+
+def test_help_overlay_lists_every_binding_by_group_and_footer_reads_the_same_tables():
+    from textual.widgets import Footer
+
+    from src.tui.screens.jobs import JobsScreen
+    from src.tui.widgets.modals import HelpOverlay, help_text, key_name
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(180, 50)) as pilot:
+            await _settle(app, pilot)
+            jobs = app.screen
+            await pilot.press("question_mark")
+            await pilot.pause()
+            assert isinstance(app.screen, HelpOverlay)
+            text = app.screen.query_one("#help-text").content.plain
+            groups = app.help_groups()
+            assert text == help_text(groups).plain
+            titles = [t for t, _ in groups]
+            assert titles[:3] == ["everywhere", "sections 1 to 3", "jobs table"]
+            lines = text.splitlines()
+            assert [ln for ln in lines if ln and not ln.startswith(" ")] == titles
+            for _title, bindings in groups:
+                for b in bindings:
+                    assert f"{key_name(b):<8}{b.description}" in text, b
+            for want in ("/       search", "?       help", "esc     home", "1       board",
+                         "7       settings", "s       status", "T       touch and bump"):
+                assert want in text, want
+            assert "—" not in text
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.screen is jobs
+
+            shown = {(k.key, k.description) for k in jobs.query_one(Footer).query("FooterKey")}
+            table = {(b.key, b.description) for b in (*JobsScreen.BINDINGS, *JobhuntApp.BINDINGS) if b.show}
+            assert table <= shown and ("question_mark", "help") in shown
+            assert not any(key in ("j", "k", "escape") for key, _ in shown)
+    _run(scenario())
+
+
+def test_esc_is_home_from_every_pane_and_modal():
+    from src.tui.widgets.detail import DetailPane
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import HelpOverlay
+
+    _add(match_score=90, status="applied", applied_at="2026-09-01")
+    _add(match_score=80)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            jobs = app.screen
+            table = jobs.query_one(JobsTable)
+
+            for pane in (jobs.query_one(StatusList), jobs.query_one("#detail", DetailPane)):
+                pane.focus()
+                await pilot.pause()
+                await pilot.press("escape")
+                await pilot.pause()
+                assert app.focused is table
+
+            await pilot.press("tab")
+            await pilot.pause()
+            assert app.focused is not table
+            await pilot.press("escape")
+
+            for opener in ("s", "f", "n", "question_mark"):
+                await pilot.press(opener)
+                await _settle(app, pilot)
+                assert app.screen is not jobs, opener
+                await pilot.press("escape")
+                await _settle(app, pilot)
+                assert app.screen is jobs and app.focused is table, opener
+
+            await pilot.press("question_mark", "question_mark")      # `?` toggles
+            await pilot.pause()
+            assert not isinstance(app.screen, HelpOverlay)
+
+            await pilot.press("5", "escape")                         # a section with no home
+            await pilot.pause()
+            assert app.current_mode == "stats"
+    _run(scenario())

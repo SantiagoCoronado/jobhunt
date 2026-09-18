@@ -35,7 +35,8 @@ class JobsScreen(SectionScreen):
     BINDINGS = [
         Binding("r", "refresh", "refresh"),
         Binding("slash", "search", "search"),
-        Binding("escape", "home", "home", show=False),
+        Binding("escape", "home", "home: back to the table, search cleared", show=False),
+        Binding("tab", "app.focus_next", "next pane: status list, table, detail", show=False),
         Binding("s", "status", "status"),
         Binding("b", "backlog", "backlog"),
         Binding("o", "open(False)", "open posting"),
@@ -43,7 +44,7 @@ class JobsScreen(SectionScreen):
         Binding("n", "notes", "note"),
         Binding("f", "followup", "follow-up"),
         Binding("t", "touch(False)", "touch"),
-        Binding("T", "touch(True)", "touch+bump", show=False),
+        Binding("T", "touch(True)", "touch and bump the follow-up", show=False),
     ]
 
     def __init__(self, preset: str) -> None:

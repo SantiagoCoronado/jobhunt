@@ -1,14 +1,14 @@
 """Modal screens. Every one closes on `esc` (spec: esc is home)."""
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, OptionList, TextArea
+from textual.widgets import Input, Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
 from ..data import JobDetail
@@ -188,3 +188,45 @@ class Prompt(ModalScreen[str | None]):
             self.dismiss(self.parse(event.value))
         except ValueError as e:
             self.query_one("#prompt-error", Label).update(str(e))
+
+
+KEY_NAMES = {"slash": "/", "question_mark": "?", "escape": "esc", "space": "space", "comma": ","}
+HelpGroup = tuple[str, Sequence[Binding]]
+
+
+def key_name(binding: Binding) -> str:
+    return binding.key_display or KEY_NAMES.get(binding.key, binding.key)
+
+
+def help_text(groups: Sequence[HelpGroup]) -> Text:
+    """One block per group, one line per binding, straight from the BINDINGS tables the app
+    runs on: the footer reads the same tables, so neither can describe a key that is not bound."""
+    t = Text()
+    for title, bindings in groups:
+        t.append(f"{title}\n", style="bold")
+        for b in bindings:
+            t.append(f"  {key_name(b):<8}", style="bold cyan")
+            t.append(f"{b.description}\n")
+        t.append("\n")
+    t.rstrip()
+    return t
+
+
+class HelpOverlay(ModalScreen[None]):
+    DEFAULT_CSS = """
+    HelpOverlay { align: center middle; }
+    HelpOverlay #help-box { width: 60; max-height: 90%; border: round $primary; background: $surface; padding: 0 2; }
+    """
+    BINDINGS = [
+        Binding("escape", "dismiss", "close"),
+        Binding("question_mark", "dismiss", "close", show=False),
+        Binding("q", "dismiss", "close", show=False),
+    ]
+
+    def __init__(self, groups: Sequence[HelpGroup]) -> None:
+        super().__init__()
+        self.groups = groups
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="help-box"):
+            yield Static(help_text(self.groups), id="help-text")
