@@ -89,7 +89,7 @@ class ClaudeHarness:
         if not isinstance(data, dict):
             tail = (stderr.strip() or text_out)[-300:]
             return Result(Usage(), f"exit {rc}, no JSON envelope: {tail or 'empty output'}",
-                          bool(_RATE_LIMIT.search(tail)), None)
+                          bool(_RATE_LIMIT.search(tail)), None, envelope=False)
         u: dict[str, Any] = data.get("usage") or {}
         usage = Usage(input=u.get("input_tokens"), output=u.get("output_tokens"),
                       cache_read=u.get("cache_read_input_tokens"), cache_create=u.get("cache_creation_input_tokens"),

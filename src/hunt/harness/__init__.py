@@ -56,6 +56,7 @@ class Result:
     error: str | None
     rate_limited: bool
     text: str | None
+    envelope: bool = True              # False: the process died without printing one
 
 
 class Harness(Protocol):

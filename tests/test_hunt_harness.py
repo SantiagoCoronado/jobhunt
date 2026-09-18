@@ -87,6 +87,7 @@ def test_parse_rate_limit_signals_and_garbage():
     assert r.error == "exit 1, no JSON envelope: Error: Overloaded, please retry" and r.rate_limited is True
     r = h.parse("not json at all", "", 0)
     assert r.error == "exit 0, no JSON envelope: not json at all" and r.rate_limited is False and r.usage == Usage()
+    assert r.envelope is False
     ok = json.loads((FIX / "claude_envelope_success.json").read_text())
     r = h.parse(json.dumps(ok), "", 1)                       # a clean envelope but a non-zero exit
     assert r.error == "completed (exit 1)" and r.rate_limited is False

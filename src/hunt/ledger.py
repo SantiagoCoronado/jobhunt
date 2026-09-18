@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
@@ -209,6 +210,15 @@ def add_usage(total: dict[str, Any] | None, usage: dict[str, Any] | None) -> dic
     return out
 
 
+def _locked(method):
+    def wrapper(self, *args, **kwargs):
+        with self.lock:
+            return method(self, *args, **kwargs)
+    wrapper.__name__ = method.__name__
+    wrapper.__doc__ = method.__doc__
+    return wrapper
+
+
 class Ledger:
     """One run folder. Every mutating method saves state.json atomically and appends the
     event, so the folder is always readable and always replayable."""
@@ -217,6 +227,7 @@ class Ledger:
         self.run_dir = run_dir
         self.state = state
         self.clock = clock
+        self.lock = threading.RLock()        # pool threads move units concurrently
 
     # -- lifecycle
     @classmethod
@@ -263,6 +274,7 @@ class Ledger:
         return [s["name"] for s in self.state["stages"]]
 
     # -- transitions
+    @_locked
     def move_stage(self, name: str, to: str, note: str | None = None) -> None:
         s = self.stage(name)
         frm = s["state"]
@@ -279,6 +291,7 @@ class Ledger:
         self._save()
         self._event(name, None, frm, to, note)
 
+    @_locked
     def add_units(self, stage: str, units: Iterable[dict[str, Any]]) -> None:
         """Plan units for a stage: each needs `id`, `input`, `output`; `harness` and `model`
         record what will run it; `log` is derived. Ids are unique within the stage."""
@@ -306,6 +319,7 @@ class Ledger:
         for uid in added:
             self._event(stage, uid, None, "pending", None)
 
+    @_locked
     def move_unit(self, stage: str, unit_id: str, to: str, verdict: str | None = None,
                   usage: dict[str, Any] | None = None, note: str | None = None) -> None:
         u = self.unit(stage, unit_id)
@@ -322,10 +336,12 @@ class Ledger:
         self._save()
         self._event(stage, unit_id, frm, to, note if note is not None else verdict)
 
+    @_locked
     def set_summary(self, stage: str, **fields: Any) -> None:
         self.stage(stage)["summary"].update(fields)
         self._save()
 
+    @_locked
     def finish(self) -> str:
         """Stamp the end of the run; returns the derived run state."""
         self.state["ended"] = self.clock()
