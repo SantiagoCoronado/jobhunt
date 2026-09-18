@@ -87,6 +87,7 @@ def metrics(folder: Path) -> dict[str, Any]:
     out: dict[str, Any] = {"ok": bool(doc.get("ok")), "folder": doc.get("folder"),
                            "pages": doc["metrics"].get("pages"), "letter_words": doc["metrics"].get("letter_words"),
                            "warnings": len(doc.get("warnings") or []),
+                           "relocation_line": bool(doc["metrics"].get("relocation_line")),
                            "lines": [ln for ln in lines if ln.startswith(("RESUME", "LETTER", "FAIL"))]}
     m = next((m for m in map(_FILL.search, lines) if m), None)
     if m:

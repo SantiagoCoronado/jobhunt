@@ -72,13 +72,28 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-# commands this build does not carry yet and where they land (docs/spec-hunt-orchestrator.md section 12)
-_LANDS_IN = {"report": "PR 3, feat/hunt-fanout story 6"}
+def _open(run: str) -> tuple[ledger.Ledger | None, int]:
+    path = ledger.resolve(run, ledger.HUNT_DIR)
+    if path is None:
+        what = "no runs yet" if run in ("latest", "") else f"no run '{run}'"
+        print(f"{what} under {ledger.HUNT_DIR}")
+        return None, 1
+    try:
+        return ledger.Ledger.open(path), 0
+    except (FileNotFoundError, ValueError) as e:
+        print(f"{path.name}: unreadable ledger ({e})")
+        return None, 2
 
 
-def _not_yet(cmd: str) -> int:
-    print(f"hunt {cmd}: lands in {_LANDS_IN[cmd]} (docs/spec-hunt-orchestrator.md section 12)", file=sys.stderr)
-    return 2
+def cmd_report(run: str) -> int:
+    """Write report.md from the ledger as it stands now and print it."""
+    from .stages import report as report_stage
+    led, rc = _open(run)
+    if led is None:
+        return rc
+    md = report_stage.write_markdown(led)
+    print(md.read_text(encoding="utf-8"), end="")
+    return 0
 
 
 def cmd_runs() -> int:
@@ -194,7 +209,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_doctor(args.harness)
     if args.cmd == "sync-agents":
         return cmd_sync_agents(args.check)
-    return _not_yet(args.cmd)
+    return cmd_report(args.run)
 
 
 if __name__ == "__main__":
