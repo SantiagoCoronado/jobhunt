@@ -136,7 +136,8 @@ def test_no_picks_skips_to_the_report_and_exits_3(env, monkeypatch):
 def test_fanned_stages_resume_and_the_lock_are_refused_cleanly(env, capsys):
     assert cli.main(["run"]) == 2
     err = capsys.readouterr().out
-    assert "triage, match, inbox, research, tailor not in this build yet" in err and "select from discover, pick, report" in err
+    missing = [n for n, s in REGISTRY.items() if not s.implemented]
+    assert missing and f"{', '.join(missing)} not in this build yet" in err and "select from discover, " in err
     assert cli.main(["run", "--only", "pick", "--resume", "latest"]) == 2
     assert "--resume lands in PR 3" in capsys.readouterr().out
     (env / "hunt" / ".lock").mkdir(parents=True)

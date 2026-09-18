@@ -1,8 +1,8 @@
 """The state machine behind `hunt run` (spec sections 4, 7, 8).
 
 One run = one ledger folder. Stages run in registry order; a Python stage is one unit that
-runs in-process and passes or fails on its own check; a fanned stage plans units for the pool
-(PR 3). The first failed stage stops the run (later stages stay pending for `--resume`, PR 3
+runs in-process and passes or fails on its own check; a fanned stage plans its own units,
+runs them through the pool and may skip itself (nothing to do). The first failed stage stops the run (later stages stay pending for `--resume`, PR 3
 story 7). A pick stage that finds nothing marks the rest skipped, still writes the report
 and exits 3. A mkdir lock under data/hunt/ refuses a second concurrent run.
 
@@ -20,10 +20,11 @@ from ..config import ROOT
 from . import ledger as ledger_mod
 from .config import HuntConfig
 from .doctor import validate_models
+from .harness import Harness
 from .ledger import Ledger, new_run_id
 from .stages import REGISTRY, Context, StageResult
 
-NOT_IN_BUILD = "not in this build yet (fanned stages land in PR 3, feat/hunt-fanout)"
+NOT_IN_BUILD = "not in this build yet (docs/spec-hunt-orchestrator.md section 12)"
 
 
 class LockHeld(RuntimeError):
@@ -46,14 +47,15 @@ def release_lock(lock: Path) -> None:
         pass
 
 
-def _summary_line(res: StageResult) -> str:
-    parts = [f"{k}={v}" for k, v in res.summary.items() if isinstance(v, (int, float, str)) and not isinstance(v, bool)]
+def _summary_line(summary: dict[str, Any]) -> str:
+    parts = [f"{k}={v}" for k, v in summary.items() if isinstance(v, (int, float, str)) and not isinstance(v, bool)]
     return " ".join(parts)
 
 
 def run(cfg: HuntConfig, stages: Sequence[str], harness: str, *, hunt_dir: Path | None = None,
         cwd: Path = ROOT, emit: Callable[[str], None] | None = None, run_id: str | None = None,
-        resume: str | None = None, clock: Callable[[], str] | None = None) -> int:
+        resume: str | None = None, clock: Callable[[], str] | None = None,
+        get_harness: Callable[[str], Harness] | None = None, pool_options: dict[str, Any] | None = None) -> int:
     say = emit or (lambda line: print(line, flush=True))
     if resume:
         say("hunt run: --resume lands in PR 3 (feat/hunt-fanout story 7)")
@@ -79,13 +81,15 @@ def run(cfg: HuntConfig, stages: Sequence[str], harness: str, *, hunt_dir: Path 
         say(f"hunt run: {e}")
         return 2
     try:
-        return _run_locked(cfg, list(stages), harness, hunt_dir, cwd, say, run_id, clock)
+        return _run_locked(cfg, list(stages), harness, hunt_dir, cwd, say, run_id, clock, get_harness,
+                           pool_options or {})
     finally:
         release_lock(lock)
 
 
 def _run_locked(cfg: HuntConfig, stages: list[str], harness: str, hunt_dir: Path, cwd: Path,
-                say: Callable[[str], None], run_id: str | None, clock: Callable[[], str] | None) -> int:
+                say: Callable[[str], None], run_id: str | None, clock: Callable[[], str] | None,
+                get_harness: Callable[[str], Harness] | None, pool_options: dict[str, Any]) -> int:
     kwargs: dict[str, Any] = {"clock": clock} if clock else {}
     try:
         led = Ledger.create(run_id or new_run_id(), harness, cfg.snapshot(), stages, hunt_dir, **kwargs)
@@ -93,7 +97,9 @@ def _run_locked(cfg: HuntConfig, stages: list[str], harness: str, hunt_dir: Path
         say(f"hunt run: {e} (a run started this minute; wait for the next one)")
         return 2
     say(f"run {led.run_id} started: {', '.join(stages)} on {harness} ({led.run_dir})")
-    ctx = Context(cfg, led, harness, cwd, say)
+    ctx = Context(cfg, led, harness, cwd, say, pool_options=pool_options)
+    if get_harness is not None:
+        ctx.get_harness = get_harness
     failed = stopped = False
     for name in stages:
         if stopped and name != "report":
@@ -102,14 +108,16 @@ def _run_locked(cfg: HuntConfig, stages: list[str], harness: str, hunt_dir: Path
             continue
         stage = REGISTRY[name]
         assert stage.run is not None
+        python = stage.kind == "python"                # one in-process unit; a fanned stage owns its units
         led.move_stage(name, "running")
-        led.add_units(name, [{"id": name, "input": None, "output": None}])
-        led.move_unit(name, name, "running")
+        if python:
+            led.add_units(name, [{"id": name, "input": None, "output": None}])
+            led.move_unit(name, name, "running")
         say(f"{name} running")
         try:
             res = stage.run(ctx)
         except Exception as e:  # noqa: BLE001, a crashing stage is a failed stage with its traceback in the log
-            with open(ctx.log_path(name, name), "a", encoding="utf-8") as log:
+            with open(ctx.log_path(name, name) if python else ctx.stage_log(name), "a", encoding="utf-8") as log:
                 log.write(traceback.format_exc())
             res = StageResult({}, f"{type(e).__name__}: {e}"[:300])
         fields = dict(res.summary)
@@ -117,15 +125,21 @@ def _run_locked(cfg: HuntConfig, stages: list[str], harness: str, hunt_dir: Path
             fields["needs_human"] = list(res.needs_human)
         if fields:
             led.set_summary(name, **fields)
+        if res.skipped and not res.verdict:
+            led.move_stage(name, "skipped", note=res.skipped)
+            say(f"{name} skipped ({res.skipped})")
+            continue
         if res.verdict:
-            led.move_unit(name, name, "failed", verdict=res.verdict)
+            if python:
+                led.move_unit(name, name, "failed", verdict=res.verdict)
             led.move_stage(name, "failed", note=res.verdict)
             say(f"{name} failed: {res.verdict}")
             failed = True
             break
-        led.move_unit(name, name, "done", verdict="ok")
+        if python:
+            led.move_unit(name, name, "done", verdict="ok")
         led.move_stage(name, "done")
-        say(f"{name} done  {_summary_line(res)}".rstrip())
+        say(f"{name} done  {_summary_line(led.stage(name)['summary'])}".rstrip())
         for item in res.needs_human:
             say(f"{name} needs a human: {item}")
         if res.stop:
