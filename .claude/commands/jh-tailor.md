@@ -32,3 +32,5 @@ Tailor my application for job id **$ARGUMENTS**.
 
 Never fabricate experience. Only reframe what is in my master resume. Remind me this is a DRAFT
 to review before I submit anything myself.
+
+For a batch, `python -m src.hunt run --only tailor` runs this stage under the hunt orchestrator (ledger, retries, coverage checks, `--resume`); this prose flow is for a single interactive use.

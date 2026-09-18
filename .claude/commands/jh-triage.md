@@ -38,3 +38,5 @@ pass, `python -m src.match export --min-bucket 3 --chunk 60 --limit 0`, fan the 
 `data/match/chunk_*.json` (write `data/match/scores_NNN.json` each), then
 `python -m src.match ingest --dir data/match` (shortlist cutoff comes from profile.yaml
 `shortlist_threshold`).
+
+For a batch, `python -m src.hunt run --only triage` runs this stage under the hunt orchestrator (ledger, retries, coverage checks, `--resume`); this prose flow is for a single interactive use.

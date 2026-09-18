@@ -83,3 +83,5 @@ directly; you never read the files behind it.
 The applier enforces the guardrails (forward-only moves, evidence requirements, backlog
 holds untouched); your job is honest classification, not persuasion. If in doubt,
 classify as ambiguous. Zero em-dashes in anything you write.
+
+For a batch, `python -m src.hunt run --only inbox` runs this stage under the hunt orchestrator (ledger, retries, coverage checks, `--resume`); this prose flow is for a single interactive use.
