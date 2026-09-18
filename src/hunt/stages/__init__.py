@@ -5,7 +5,7 @@ and are done when their check passes; fanned stages plan units, run them through
 from __future__ import annotations
 
 from ..config import STAGES
-from . import discover, inbox, match, pick, report, triage
+from . import discover, inbox, match, pick, report, research, triage
 from .base import Context, Stage, StageResult
 
 REGISTRY: dict[str, Stage] = {
@@ -14,7 +14,7 @@ REGISTRY: dict[str, Stage] = {
     "match": Stage("match", "fanned", run=match.run, role="job-matcher", tools=frozenset({"read", "write"})),
     "inbox": Stage("inbox", "fanned", run=inbox.run, role="inbox-classifier", tools=frozenset({"read", "bash"})),
     "pick": Stage("pick", "python", run=pick.run),
-    "research": Stage("research", "fanned", role="company-researcher",
+    "research": Stage("research", "fanned", run=research.run, role="company-researcher",
                       tools=frozenset({"read", "write", "bash", "web"}), needs=frozenset({"web"})),
     "tailor": Stage("tailor", "fanned", role="resume-tailor", tools=frozenset({"read", "write", "edit", "bash"})),
     "report": Stage("report", "python", run=report.run),

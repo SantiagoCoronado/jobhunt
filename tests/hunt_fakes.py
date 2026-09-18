@@ -30,6 +30,22 @@ if "classify every line of the manifest" in prompt:       # the inbox unit: the 
     reply = replies[min(n, len(replies) - 1)]
     print(json.dumps({"ok": True, "result": json.dumps(reply), "structured": reply if isinstance(reply, dict) else None}))
     sys.exit(0)
+if "Task: research " in prompt:                             # a dossier, written the way the plan says
+    out = re.search(r"at `([^`]+\.md)`", prompt).group(1)
+    today = re.search(r"Today is (\S+?)\.", prompt).group(1)
+    unit = os.path.splitext(os.path.basename(out))[0]
+    mine = (json.load(open("fake_agent.json")) if os.path.exists("fake_agent.json") else {}).get(unit, {})
+    count_file = f".fake_{unit}.count"
+    n = int(open(count_file).read()) if os.path.exists(count_file) else 0
+    open(count_file, "w").write(str(n + 1))
+    body = "# Dossier\n\n## 1. Snapshot\nA company" + (" \u2014 really" if n < mine.get("dash", 0) else "") + ".\n\n"
+    if n >= mine.get("no_sources", 0):
+        body += "## 9. Sources\n- https://example.com about page\n"
+    body += f"- researched: {'2026-01-01' if n < mine.get('old_date', 0) else today}\n"
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    open(out, "w", encoding="utf-8").write(body)
+    print(json.dumps({"ok": True}))
+    sys.exit(0)
 paths = re.findall(r"`([^`]+\.(?:json|md))`", prompt)
 src, out = paths[0], paths[1]
 unit = os.path.splitext(os.path.basename(src))[0]
@@ -62,7 +78,10 @@ class FakeAgentHarness:
     binary = sys.executable
     capabilities = frozenset(TOOL_ORDER)
 
-    def __init__(self, workdir: Path):
+    def __init__(self, workdir: Path, capabilities: frozenset[str] | None = None, name: str = "fake"):
+        self.name = name
+        if capabilities is not None:
+            self.capabilities = capabilities
         self.script = workdir / "fake_agent.py"
         self.script.write_text(AGENT)
         self.calls: list[Invocation] = []

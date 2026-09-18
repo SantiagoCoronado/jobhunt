@@ -14,10 +14,11 @@ from pathlib import Path
 from typing import Any
 
 from .. import prompts
-from ..harness import Invocation, Result
+from ..harness import Harness, Invocation, Result
 from ..pool import Outcome, UnitSpec
 from .base import Context, Stage
 
+SHIPPED: tuple[str, ...] = ("claude",)          # adapters in this build; PR 4 adds the rest
 REPLY_CAP = "Reply with one line. Your reply is not read; the output file is."
 SCHEMA_CAP = "Your reply is the output: return only the JSON object the schema describes, no prose around it."
 
@@ -42,20 +43,49 @@ def rel(path: Path, cwd: Path) -> str:
         return str(path)
 
 
+class NoCapableHarness(RuntimeError):
+    pass
+
+
+def resolve_harness(ctx: Context, stage: Stage) -> tuple[str, Harness, str | None]:
+    """(name, adapter, model) for a stage. A stage that needs a capability its harness does
+    not grant (research needs `web`) falls back to the first configured harness that grants
+    it, and says so (spec section 5). The stage's model was picked from its own harness's
+    catalog, so on a substitute the harness default is used instead."""
+    scfg = ctx.cfg.stage(stage.name)
+    hname = scfg.harness or ctx.harness
+    harness = ctx.get_harness(hname)
+    lacking = stage.needs - harness.capabilities
+    if not lacking:
+        return hname, harness, scfg.model
+    others = [ctx.harness, ctx.cfg.harness, *(s.harness for s in ctx.cfg.stages.values() if s.harness),
+              *ctx.cfg.harness_templates, *SHIPPED]
+    for other in dict.fromkeys(o for o in others if o and o != hname):
+        try:
+            candidate = ctx.get_harness(other)
+        except ValueError:
+            continue
+        if stage.needs <= candidate.capabilities:
+            ctx.emit(f"{stage.name}: {hname} does not grant {', '.join(sorted(lacking))}, running on {other} "
+                     f"with its default model")
+            return other, candidate, None
+    raise NoCapableHarness(f"no configured harness grants {', '.join(sorted(lacking))}, which {stage.name} needs; "
+                           f"set [stages.{stage.name}] harness in config/hunt.toml")
+
+
 def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outcome]:
     """Run the planned units of one stage; one Outcome per unit that ran (done units already
     in the ledger are not run again and yield no Outcome)."""
     assert stage.role is not None
     name = stage.name
     scfg = ctx.cfg.stage(name)
-    hname = scfg.harness or ctx.harness
-    harness = ctx.get_harness(hname)
+    hname, harness, model = resolve_harness(ctx, stage)
     role = prompts.load_roles()[stage.role]
     known = {u["id"]: u for u in ctx.ledger.stage(name)["units"]}
     fresh = [p for p in planned if p.id not in known]
     if fresh:
         ctx.ledger.add_units(name, [{"id": p.id, "input": p.input, "output": p.output, "harness": hname,
-                                     "model": scfg.model} for p in fresh])
+                                     "model": model} for p in fresh])
     specs: list[UnitSpec] = []
     prompt_dir = ctx.run_dir / "prompts" / name
     prompt_dir.mkdir(parents=True, exist_ok=True)
@@ -64,7 +94,7 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
             continue
         user = f"{p.task.rstrip()}\n{SCHEMA_CAP if p.schema is not None else REPLY_CAP}\n"
         (prompt_dir / f"{p.id}.md").write_text(f"{role.body.rstrip()}\n\n{user}", encoding="utf-8")
-        inv = Invocation(prompt=user, system=role.body, model=scfg.model, tools=stage.tools, cwd=ctx.cwd,
+        inv = Invocation(prompt=user, system=role.body, model=model, tools=stage.tools, cwd=ctx.cwd,
                          timeout_s=scfg.timeout_s, schema=p.schema)
         specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result))
     return ctx.pool(harness).run_stage(name, specs, scfg.concurrency, scfg.attempts)
