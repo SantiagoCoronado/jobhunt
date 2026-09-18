@@ -118,8 +118,11 @@ class DetailPane(VerticalScroll):
         yield Static("", id="detail-body")
 
     def show(self, d: JobDetail | None) -> None:
+        body = self.query("#detail-body")
+        if not body:        # a worker's result arriving after the screen was torn down
+            return
         self.job_id = d.row.id if d else None
-        self.query_one("#detail-body", Static).update(render_detail(d) if d else Text(""))
+        body.first(Static).update(render_detail(d) if d else Text(""))
         self.scroll_home(animate=False)
 
     @property

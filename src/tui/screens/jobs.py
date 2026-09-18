@@ -23,6 +23,8 @@ WIDE = 120   # under this many columns the detail pane collapses and `enter` ope
 
 
 class JobsScreen(SectionScreen):
+    POLL_SECONDS = 2.0   # how often the DB's mtime is checked for a hunt writing in another pane
+
     DEFAULT_CSS = """
     JobsScreen #panes { height: 1fr; }
     JobsScreen #middle { width: 1fr; height: 1fr; }
@@ -31,6 +33,7 @@ class JobsScreen(SectionScreen):
     """
 
     BINDINGS = [
+        Binding("r", "refresh", "refresh"),
         Binding("slash", "search", "search"),
         Binding("escape", "home", "home", show=False),
         Binding("s", "status", "status"),
@@ -48,6 +51,7 @@ class JobsScreen(SectionScreen):
         self.preset = preset
         self.status_filter: str | None = None
         self.query_text = ""
+        self.seen_mtime = 0.0
 
     def body(self) -> ComposeResult:
         with Horizontal(id="panes"):
@@ -60,7 +64,22 @@ class JobsScreen(SectionScreen):
 
     def on_mount(self) -> None:
         self.query_one(JobsTable).focus()
+        self.seen_mtime = data.db_mtime()
         self.load_counts()
+        self.set_interval(self.POLL_SECONDS, self.poll)
+
+    def poll(self) -> None:
+        """One stat per tick, a reload only when the file moved. Skipped while this screen is
+        not the one on top (another section, or a modal over it): the change is not marked
+        seen, so the first tick after coming back picks it up."""
+        if self.app.screen is self and data.db_mtime() != self.seen_mtime:
+            self.reload()
+
+    def on_screen_resume(self) -> None:
+        self.poll()
+
+    def action_refresh(self) -> None:
+        self.reload()
 
     @property
     def wide(self) -> bool:
@@ -163,6 +182,7 @@ class JobsScreen(SectionScreen):
         self.app.call_from_thread(self.reload)
 
     def reload(self) -> None:
+        self.seen_mtime = data.db_mtime()
         self.load_counts()
         self.load_rows(keep=True)
         self.load_detail(self.query_one(JobsTable).current_id, overlay=False)

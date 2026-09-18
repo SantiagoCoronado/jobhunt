@@ -42,7 +42,17 @@ def _run(coro):
 
 
 async def _settle(app, pilot):
-    await app.workers.wait_for_complete()
+    """Wait for the workers. An exclusive worker that a newer one replaced counts as cancelled
+    and `wait_for_complete` raises for it; that is the app working as designed, so wait again
+    for the one that replaced it."""
+    from textual.worker import WorkerCancelled
+
+    for _ in range(5):
+        try:
+            await app.workers.wait_for_complete()
+            break
+        except WorkerCancelled:
+            continue
     await pilot.pause()
 
 
@@ -559,4 +569,68 @@ def test_slash_searches_inside_the_filter_d_prefix_in_all_and_esc_clears():
             await pilot.press("escape")
             await _settle(app, pilot)
             assert app.focused is table and len(table.job_ids) == 5
+    _run(scenario())
+
+
+def test_live_refresh_reloads_on_an_outside_write_and_keeps_the_cursor(monkeypatch):
+    from src.tui.screens.jobs import JobsScreen
+    from src.tui.widgets.jobs_table import JobsTable
+
+    monkeypatch.setattr(JobsScreen, "POLL_SECONDS", 0.05)
+    top = _add(match_score=90)
+    mine = _add(match_score=80)
+
+    async def wait_for(app, pilot, cond):
+        for _ in range(60):
+            await pilot.pause(0.05)
+            await _settle(app, pilot)
+            if cond():
+                return True
+        return False
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            await pilot.press("j")
+            assert table.current_id == mine
+
+            newer = _add(match_score=99)                      # a hunt in another pane
+            assert await wait_for(app, pilot, lambda: table.job_ids == [newer, top, mine])
+            assert table.current_id == mine                   # same job, one line lower
+            counts = app.screen.query_one(StatusList).options[0].prompt.plain.split()
+            assert counts == ["shortlisted", "3"]
+
+            # Under a modal nothing reloads; the change is picked up once it closes.
+            await pilot.press("s")
+            await pilot.pause()
+            late = _add(match_score=95)
+            await pilot.pause(0.3)
+            assert late not in table.job_ids
+            await pilot.press("escape")
+            assert await wait_for(app, pilot, lambda: late in table.job_ids)
+    _run(scenario())
+
+
+def test_r_forces_a_reload(monkeypatch):
+    from src.tui import data
+    from src.tui.screens.jobs import JobsScreen
+    from src.tui.widgets.jobs_table import JobsTable
+
+    monkeypatch.setattr(JobsScreen, "POLL_SECONDS", 3600)
+    first = _add(match_score=90)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            second = _add(match_score=80)
+            monkeypatch.setattr(data, "db_mtime", lambda: app.screen.seen_mtime)   # a poll would miss it
+            await pilot.pause(0.1)
+            assert table.job_ids == [first]
+            await pilot.press("r")
+            await _settle(app, pilot)
+            assert table.job_ids == [first, second]
     _run(scenario())
