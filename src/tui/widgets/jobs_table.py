@@ -1,11 +1,14 @@
 """Middle pane: one line per job, in the order the preset's sort returned them."""
 from __future__ import annotations
 
+from datetime import date
+
 from rich.text import Text
 from textual.binding import Binding
 from textual.widgets import DataTable
 
 from ..data import JobRow
+from ..presets import LIVE, OVERDUE_STYLE
 
 NONE = "·"
 # (key, label, width). The star column stays empty until PR 4 computes stars from src.pick.
@@ -44,7 +47,7 @@ class JobsTable(DataTable):
         for key, label, width in COLUMNS:
             self.add_column(label, key=key, width=width)
 
-    def cells(self, r: JobRow) -> tuple[Text | str, ...]:
+    def cells(self, r: JobRow, today: date | None = None) -> tuple[Text | str, ...]:
         widths = {key: w for key, _label, w in COLUMNS}
         loc = (clip(r.location, widths["loc"] - len(DREAM_TAG)) + DREAM_TAG if r.dream
                else clip(r.location, widths["loc"]))
@@ -54,14 +57,23 @@ class JobsTable(DataTable):
             clip(r.company, widths["company"]),
             clip(r.title, widths["title"]),
             loc or NONE,
-            r.followup or NONE,
+            self.followup_cell(r, today),
         )
 
-    def load(self, rows: list[JobRow]) -> None:
+    @staticmethod
+    def followup_cell(r: JobRow, today: date | None) -> Text | str:
+        """Red once the date has passed, and only while the application is live: a stale date
+        on a rejected row is history, not something to chase."""
+        if not r.followup:
+            return NONE
+        overdue = today is not None and r.status in LIVE and r.followup < today.isoformat()
+        return Text(r.followup, style=OVERDUE_STYLE) if overdue else r.followup
+
+    def load(self, rows: list[JobRow], today: date | None = None) -> None:
         self.clear()
         self.job_ids = [r.id for r in rows]
         for r in rows:
-            self.add_row(*self.cells(r), key=str(r.id))
+            self.add_row(*self.cells(r, today), key=str(r.id))
 
     @property
     def current_id(self) -> int | None:

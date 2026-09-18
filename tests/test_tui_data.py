@@ -208,3 +208,15 @@ def test_plain_description_keeps_paragraphs_and_handles_escaped_html():
     assert data.plain_description(escaped) == "He didn't stop.\n\nNext"
     assert data.plain_description("plain\n\n\n\ntext  here") == "plain\n\ntext here"
     assert data.plain_description(None) == ""
+
+
+def test_concurrent_first_reads_on_a_fresh_db_do_not_lock(env):
+    """The screen starts counts, rows and detail workers together. Each used to run the schema
+    and the WAL switch, and on a fresh file one of them lost with "database is locked"."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    for round_ in range(60):
+        db.DB_PATH = env.tmp / f"fresh{round_}.db"      # env's monkeypatch restores it
+        with ThreadPoolExecutor(8) as pool:
+            got = list(pool.map(lambda _: data.counts()["all"], range(16)))
+        assert got == [0] * 16

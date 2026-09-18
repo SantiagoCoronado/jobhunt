@@ -49,6 +49,8 @@ class JobsScreen(SectionScreen):
     @work(thread=True, group="counts", exclusive=True)
     def load_counts(self) -> None:
         counts = data.counts()
+        preset = PRESETS[self.preset]
+        counts[self.preset] = sum(counts.get(s, 0) for s in preset.statuses)   # the head entry
         self.app.call_from_thread(self.query_one(StatusList).set_counts, counts)
 
     @work(thread=True, group="rows", exclusive=True)
@@ -58,10 +60,11 @@ class JobsScreen(SectionScreen):
         worker = get_current_worker()
         rows = data.rows(self.preset, self.status_filter, self.query_text)
         if not worker.is_cancelled:
-            self.app.call_from_thread(self.query_one(JobsTable).load, rows)
+            self.app.call_from_thread(self.query_one(JobsTable).load, rows, self.app.today)  # type: ignore[attr-defined]
 
     def on_status_list_picked(self, event: StatusList.Picked) -> None:
-        self.status_filter = event.status
+        # The head entry carries the preset's name and means "no pick": the preset's statuses.
+        self.status_filter = None if event.status == self.preset else event.status
         self.load_rows()
 
     def on_data_table_row_highlighted(self, event: JobsTable.RowHighlighted) -> None:

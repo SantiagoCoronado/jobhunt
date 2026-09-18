@@ -149,7 +149,7 @@ def test_shortlist_and_followups_list_only_their_statuses():
             await pilot.press("3")
             await _settle(app, pilot)
             assert [o.id for o in app.screen.query_one(StatusList).options] == [
-                "applied", "screen", "interview"]
+                "followups", "applied", "screen", "interview"]
     _run(scenario())
 
 
@@ -248,4 +248,51 @@ def test_detail_collapses_under_120_columns_and_enter_opens_the_overlay(tmp_db):
             await pilot.resize_terminal(150, 30)
             await pilot.pause()
             assert jobs.query_one("#detail", DetailPane).display
+    _run(scenario())
+
+
+def test_presets_filter_sort_and_style_overdue_followups_red():
+    from datetime import date
+
+    from src.tui.widgets.jobs_table import JobsTable
+
+    short = _add(status="shortlisted", match_score=80)
+    overdue = _add(status="applied", match_score=60, next_followup_at="2026-09-10")
+    due_later = _add(status="interview", match_score=90, next_followup_at="2026-09-25")
+    undated = _add(status="screen", match_score=99)
+    _add(status="rejected", match_score=70, next_followup_at="2026-09-01")
+
+    async def scenario():
+        app = JobhuntApp(today=date(2026, 9, 18))
+        async with app.run_test(size=(140, 30)) as pilot:
+            await pilot.press("2")
+            await _settle(app, pilot)
+            assert app.screen.query_one(JobsTable).job_ids == [short]
+
+            await pilot.press("3")
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            sl = app.screen.query_one(StatusList)
+            assert app.screen.status_filter is None
+            assert sl.options[0].prompt.plain.split() == ["follow-ups", "3"]
+            assert table.job_ids == [overdue, due_later, undated]
+            late, fine = table.get_row(str(overdue))[5], table.get_row(str(due_later))[5]
+            assert late.plain == "2026-09-10" and late.style == "red"
+            assert fine == "2026-09-25" and table.get_row(str(undated))[5] == "·"
+
+            sl.focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            assert app.screen.status_filter == "applied" and table.job_ids == [overdue]
+
+            await pilot.press("1")
+            await _settle(app, pilot)
+            sl = app.screen.query_one(StatusList)
+            sl.focus()
+            for _ in range(5):
+                await pilot.press("j")
+            await _settle(app, pilot)
+            assert app.screen.status_filter == "rejected"
+            stale = app.screen.query_one(JobsTable).get_row(str(app.screen.query_one(JobsTable).job_ids[0]))[5]
+            assert stale == "2026-09-01"          # a closed row's old date is not something to chase
     _run(scenario())

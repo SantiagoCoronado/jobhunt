@@ -11,6 +11,8 @@ NEVER = ("irrelevant", "expired")
 COLD = ("discovered",)
 HOT: tuple[str, ...] = tuple(s for s in STATUSES if s not in NEVER + COLD)
 ALL = "all"
+LIVE = ("applied", "screen", "interview")   # a follow-up date means something only here
+OVERDUE_STYLE = "red"
 
 # ORDER BY fragments. Literals only: they are spliced into SQL, never built from input.
 BY_SCORE = "match_score IS NULL, match_score DESC, id DESC"
@@ -32,5 +34,8 @@ class Preset:
 PRESETS: dict[str, Preset] = {
     "board": Preset("board", HOT, BY_SCORE, listed=(*HOT, ALL)),
     "shortlist": Preset("shortlist", ("shortlisted",), BY_SCORE),
-    "followups": Preset("followups", ("applied", "screen", "interview"), BY_FOLLOWUP),
+    # The head entry (the preset's own name) is every live application at once, soonest
+    # follow-up first: that is the view the section exists for.
+    "followups": Preset("followups", LIVE, BY_FOLLOWUP, listed=("followups", *LIVE)),
 }
+LABELS = {"followups": "follow-ups"}   # left-pane wording for a head entry

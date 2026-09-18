@@ -9,6 +9,7 @@ import html
 import json
 import re
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -82,10 +83,28 @@ class JobDetail:
     folder: Path | None = None
 
 
+_READY: set[Path] = set()
+_READY_LOCK = threading.Lock()
+
+
+def _ensure_schema(path: Path) -> None:
+    """`db.connect` creates the schema, runs migrations and switches the file to WAL. Those are
+    writes, and the screen starts several workers at once: on a fresh DB they raced each other
+    into "database is locked" (the WAL switch does not wait on busy_timeout). Once per process
+    and path, under a lock; every later connection is a plain one."""
+    with _READY_LOCK:
+        if path not in _READY:
+            db.connect(path).close()
+            _READY.add(path)
+
+
 @contextmanager
 def _conn() -> Iterator[sqlite3.Connection]:
     # db.DB_PATH is read at call time so a test (or a future --db flag) can point it elsewhere.
-    conn = db.connect(db.DB_PATH)
+    path = db.DB_PATH
+    _ensure_schema(path)
+    conn = sqlite3.connect(path, timeout=5.0)
+    conn.row_factory = sqlite3.Row
     try:
         yield conn
     finally:

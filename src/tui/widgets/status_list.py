@@ -7,7 +7,7 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from ..presets import ALL, HOT
+from ..presets import ALL, HOT, LABELS
 
 
 class StatusList(OptionList):
@@ -33,7 +33,7 @@ class StatusList(OptionList):
     @staticmethod
     def _prompt(status: str, count: int | None) -> Text:
         n = "" if count is None else str(count)
-        return Text(f"{status:<13}{n:>6}", style="dim" if status == ALL else "")
+        return Text(f"{LABELS.get(status, status):<13}{n:>6}", style="dim" if status == ALL else "")
 
     def on_mount(self) -> None:
         self.highlighted = 0
