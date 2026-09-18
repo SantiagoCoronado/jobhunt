@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # commands this build does not carry yet and where they land (docs/spec-hunt-orchestrator.md section 12)
-_LANDS_IN = {"run": "a later story of this PR", "models": "story 6 of this PR", "doctor": "story 6 of this PR", "sync-agents": "story 7 of this PR", "report": "PR 3, feat/hunt-fanout story 6"}
+_LANDS_IN = {"models": "story 6 of this PR", "doctor": "story 6 of this PR", "sync-agents": "story 7 of this PR", "report": "PR 3, feat/hunt-fanout story 6"}
 
 
 def _not_yet(cmd: str) -> int:
@@ -125,7 +125,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                 print(f"  {name:<9} python")
         print("units are planned by the stage modules (later stories); nothing ran")
         return 0
-    return _not_yet("run")
+    from . import run as run_mod
+
+    def say(line: str) -> None:
+        if not args.quiet or line.startswith("run ") or " failed" in line or "hunt run:" in line:
+            print(line, flush=True)
+    return run_mod.run(cfg, stages, harness, emit=say, resume=args.resume)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
