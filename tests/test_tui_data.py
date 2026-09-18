@@ -1,0 +1,201 @@
+"""src/tui/data.py on a temp DB: hot/cold filtering, presets, search, verdicts, events, paths."""
+import json
+import os
+
+import pytest
+
+from src import db, reconcile, research
+from src.tui import data
+from src.tui.presets import HOT
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    """A temp DB, applications tree and dossier dir; returns an `add(**cols) -> id` helper."""
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "jobs.db")
+    monkeypatch.setattr(reconcile, "APPS_DIR", tmp_path / "applications")
+    monkeypatch.setattr(research, "COMPANIES_DIR", tmp_path / "companies")
+    (tmp_path / "companies").mkdir()
+    seq = iter(range(1, 10_000))
+
+    def add(**cols) -> int:
+        n = next(seq)
+        row = {"source": "t", "external_id": f"x{n}", "canonical_key": f"k{n}",
+               "company": "Acme", "title": "Engineer", "status": "shortlisted", **cols}
+        conn = db.connect(db.DB_PATH)
+        cur = conn.execute(
+            f"INSERT INTO jobs ({','.join(row)}) VALUES ({','.join('?' for _ in row)})",
+            list(row.values()))
+        conn.commit()
+        conn.close()
+        return int(cur.lastrowid or 0)
+
+    add.tmp = tmp_path  # type: ignore[attr-defined]
+    return add
+
+
+def test_hot_is_db_statuses_order_without_cold_or_hidden():
+    assert HOT == ("shortlisted", "applied", "screen", "interview", "offer",
+                   "rejected", "ghosted", "withdrawn", "backlog")
+
+
+def test_counts_hot_with_zeros_and_all_is_discovered(env):
+    for status, n in (("shortlisted", 2), ("applied", 1), ("discovered", 3),
+                      ("irrelevant", 4), ("expired", 5)):
+        for _ in range(n):
+            env(status=status)
+    got = data.counts()
+    assert list(got) == [*HOT, "all"]
+    assert got["shortlisted"] == 2 and got["applied"] == 1 and got["offer"] == 0
+    assert got["all"] == 3
+    assert "irrelevant" not in got and "expired" not in got and "discovered" not in got
+
+
+def test_board_hides_cold_rows_and_all_shows_discovered_never_dropped(env):
+    hot = env(status="applied", match_score=70)
+    cold = env(status="discovered", match_score=99)
+    env(status="irrelevant")
+    env(status="expired")
+    assert [r.id for r in data.rows("board")] == [hot]
+    assert [r.id for r in data.rows("board", "all")] == [cold, hot]
+    for bad in ("discovered", "irrelevant", "expired", "nope"):
+        with pytest.raises(ValueError):
+            data.rows("board", bad)
+
+
+def test_all_view_is_capped(env, monkeypatch):
+    monkeypatch.setattr(data, "ALL_CAP", 2)
+    for _ in range(4):
+        env(status="discovered")
+    assert len(data.rows("board", "all")) == 2
+
+
+def test_status_pick_filters_and_board_sorts_by_score_nulls_last(env):
+    low = env(status="shortlisted", match_score=60)
+    high = env(status="shortlisted", match_score=90)
+    unscored = env(status="shortlisted")
+    env(status="applied", match_score=95)
+    assert [r.id for r in data.rows("board", "shortlisted")] == [high, low, unscored]
+    assert [r.id for r in data.rows("shortlist")] == [high, low, unscored]
+
+
+def test_followups_preset_pins_live_statuses_and_sorts_by_date(env):
+    later = env(status="applied", next_followup_at="2026-09-20", match_score=90)
+    sooner = env(status="interview", next_followup_at="2026-09-10", match_score=50)
+    undated = env(status="screen", match_score=99)
+    env(status="shortlisted", next_followup_at="2026-09-01")
+    env(status="rejected")
+    got = data.rows("followups")
+    assert [r.id for r in got] == [sooner, later, undated]
+    assert got[0].followup == "2026-09-10"
+
+
+def test_query_matches_title_company_notes_inside_the_filter(env):
+    by_title = env(title="Forward Deployed Engineer")
+    by_company = env(company="Deployd Labs")
+    by_notes = env(notes="recruiter said deploy team")
+    env(title="Backend", description="we deploy daily")
+    env(status="applied", title="Deployment Strategist")
+    got = {r.id for r in data.rows("board", "shortlisted", "deploy")}
+    assert got == {by_title, by_company, by_notes}
+
+
+def test_query_escapes_like_wildcards(env):
+    env(title="100% remote")
+    env(title="Remote")
+    assert [r.title for r in data.rows("board", None, "100%")] == ["100% remote"]
+    assert data.rows("board", None, "_") == []
+
+
+def test_description_prefix_only_in_the_all_view(env):
+    hit = env(status="discovered", title="Backend", description="Kafka and Flink")
+    assert [r.id for r in data.rows("board", "all", "d:kafka")] == [hit]
+    assert data.rows("board", "all", "kafka") == []
+    # Outside `all` the prefix is plain text, so nothing matches it.
+    env(status="shortlisted", title="Backend", description="Kafka")
+    assert data.rows("board", "shortlisted", "d:kafka") == []
+
+
+def test_row_carries_the_dream_flag_from_the_profile(env):
+    env(company="Example Robotics")
+    env(company="Acme")
+    flags = {r.company: r.dream for r in data.rows("board")}
+    assert flags == {"Example Robotics": True, "Acme": False}
+
+
+def test_parse_verdict_shapes():
+    scored = data.parse_verdict(json.dumps({
+        "score": 85, "recommendation": "Strong Yes", "missing_skills": ["Go", "k8s"],
+        "strengths": ["TypeScript"], "reasons": "fits family B"}))
+    assert scored.recommendation == "Strong Yes" and scored.reasons == "fits family B"
+    assert scored.missing_skills == ("Go", "k8s") and scored.strengths == ("TypeScript",)
+    assert scored.bucket is None and not scored.empty
+
+    triaged = data.parse_verdict('{"triage": "keep", "reason": "in scope", "bucket": 2}')
+    assert triaged.recommendation == "triage keep" and triaged.reasons == "in scope"
+    assert triaged.bucket == 2 and triaged.missing_skills == ()
+
+    assert data.parse_verdict(None).empty and data.parse_verdict("").empty
+    assert data.parse_verdict("not json").raw == "not json"
+    assert data.parse_verdict("[1, 2]").raw == "[1, 2]"
+    assert data.parse_verdict('{"missing_skills": "Go"}').missing_skills == ("Go",)
+
+
+def test_detail_fields_and_last_five_events_newest_first(env):
+    jid = env(status="applied", url="https://x.test/1", remote=1, salary_min=90000,
+              salary_max=120000, currency="USD", notes="hello", description="the JD",
+              match_score=88, match_verdict='{"recommendation": "Yes", "missing_skills": ["Go"]}')
+    other = env()
+    conn = db.connect(db.DB_PATH)
+    for i in range(7):
+        db.log_event(conn, jid, "note", {"note": f"n{i}"})
+    db.log_event(conn, other, "note", {"note": "someone else"})
+    conn.execute("INSERT INTO events (job_id, ts, kind, payload) VALUES (?,?,?,?)",
+                 (jid, "2026-09-18T00:00:00+00:00", "contact", "broken{"))
+    conn.commit()
+    conn.close()
+
+    d = data.detail(jid)
+    assert d is not None
+    assert d.row.id == jid and d.row.status == "applied" and d.row.score == 88
+    assert (d.url, d.remote, d.salary_min, d.salary_max, d.currency) == (
+        "https://x.test/1", True, 90000, 120000, "USD")
+    assert d.notes == "hello" and d.description == "the JD"
+    assert d.verdict.missing_skills == ("Go",)
+    assert len(d.events) == 5
+    assert d.events[0].kind == "contact" and d.events[0].payload == {"raw": "broken{"}
+    assert [e.payload["note"] for e in d.events[1:]] == ["n6", "n5", "n4", "n3"]
+
+
+def test_detail_missing_id_is_none(env):
+    env()
+    assert data.detail(999) is None
+
+
+def test_detail_resolves_dossier_and_folder(env):
+    jid = env(company="EasyAudit AI, Inc.", status="applied")
+    d = data.detail(jid)
+    assert d is not None and d.dossier is None and d.folder is None and d.bucket is None
+
+    dossier = env.tmp / "companies" / "easyaudit-ai.md"
+    dossier.write_text("researched: 2026-09-01\n")
+    folder = env.tmp / "applications" / "applied" / f"easyaudit-ai-{jid}"
+    folder.mkdir(parents=True)
+    (env.tmp / "applications" / "pending" / f"other-co-{jid}0").mkdir(parents=True)
+
+    d = data.detail(jid)
+    assert d is not None
+    assert d.dossier == dossier
+    assert (d.bucket, d.folder) == ("applied", folder)
+
+
+def test_db_mtime_follows_the_wal_and_is_zero_without_a_db(env):
+    assert data.db_mtime() == 0.0
+    env()
+    main = db.DB_PATH
+    wal = main.with_name(main.name + "-wal")
+    os.utime(main, (1_000, 1_000))
+    assert wal.exists() or data.db_mtime() == 1_000
+    wal.touch()
+    os.utime(wal, (2_000, 2_000))
+    assert data.db_mtime() == 2_000
