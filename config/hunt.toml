@@ -1,0 +1,53 @@
+# How the hunt RUNS (docs/spec-hunt-orchestrator.md section 6): harness, models, caps,
+# timeouts, retries. What counts as a fit stays in config/profile.yaml; this file never says
+# what to score or whom to shortlist. Read by src/hunt/config.py; `python -m src.hunt doctor`
+# checks it against the harness that is actually installed.
+
+[harness]
+default = "claude"                # any [harness.<name>] below or a shipped adapter
+global_concurrency = 8
+
+# Models: pick from `python -m src.hunt models`, the live catalog of the harness.
+# Leave `model` out to take the harness default. Rolling aliases are the safest choice.
+# A model the harness no longer lists stops the run before it starts.
+
+[stages.triage]
+model = "haiku"                   # claude rolling alias; `hunt models` shows the alternatives
+concurrency = 8
+timeout_s = 300
+retries = 2
+min_pile = 200                    # skip the stage under this many unscored canonical rows
+chunk = 100
+
+[stages.match]
+model = "opus"                    # calibration continuity with the existing shortlist
+concurrency = 4
+timeout_s = 600
+retries = 2
+chunk = 60
+min_bucket = 3
+second_pass_min_bucket = 2        # 0 disables the second pass
+budget_units = 12                 # stop planning match units past this many per run
+
+[stages.inbox]
+model = "sonnet"
+concurrency = 1
+timeout_s = 600
+retries = 1
+
+[stages.research]
+model = "sonnet"
+concurrency = 4
+timeout_s = 900
+retries = 1
+# harness = "claude"              # per-stage override; must grant "web"
+
+[stages.tailor]
+model = "fable"                   # the tailor stays on the strongest writer available
+concurrency = 3
+timeout_s = 900
+retries = 1                       # the one fix round; a second failure is reported, not retried
+
+[pick]
+n = 5
+dream_slots = 2
