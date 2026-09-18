@@ -7,7 +7,9 @@ from textual.app import App
 from textual.binding import Binding
 from textual.screen import Screen
 
+from .presets import PRESETS
 from .screens.base import SectionScreen
+from .screens.jobs import JobsScreen
 
 # (mode, label). Order is the key order: `1` is the first entry.
 SECTIONS: tuple[tuple[str, str], ...] = (
@@ -21,15 +23,17 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _placeholder(mode: str, label: str):
+def _screen(mode: str, label: str):
     def make() -> Screen:
+        if mode in PRESETS:
+            return JobsScreen(mode)
         return SectionScreen(mode, f"{label}: coming in a later story (docs/spec-tui.md)")
     return make
 
 
 class JobhuntApp(App):
     TITLE = "jobhunt"
-    MODES = {mode: _placeholder(mode, label) for mode, label in SECTIONS}
+    MODES = {mode: _screen(mode, label) for mode, label in SECTIONS}
     DEFAULT_MODE = "board"
     BINDINGS = [
         *(Binding(str(i), f"section('{mode}')", label, show=False)
