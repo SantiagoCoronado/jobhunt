@@ -19,6 +19,7 @@ from typing import Any
 from ..config import ROOT
 from . import ledger as ledger_mod
 from .config import HuntConfig
+from .doctor import validate_models
 from .ledger import Ledger, new_run_id
 from .stages import REGISTRY, Context, StageResult
 
@@ -65,6 +66,11 @@ def run(cfg: HuntConfig, stages: Sequence[str], harness: str, *, hunt_dir: Path 
     if not stages:
         say("hunt run: no stage selected")
         return 0
+    problems = [c for c in validate_models(cfg, list(stages), harness) if c.status == "FAIL"]
+    if problems:                                   # decision 6: a retired model fails at minute zero
+        for c in problems:
+            say(f"hunt run: stage {c.name}: {c.detail}")
+        return 2
     hunt_dir = hunt_dir or ledger_mod.HUNT_DIR
     hunt_dir.mkdir(parents=True, exist_ok=True)
     try:

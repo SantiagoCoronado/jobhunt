@@ -58,6 +58,9 @@ class ClaudeHarness:
             return self._bare
         return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
+    def version_argv(self) -> list[str]:
+        return [self.binary, "--version"]
+
     def argv(self, inv: Invocation) -> list[str]:
         tools = check_tools(inv.tools)
         argv = [self.binary, "-p"]

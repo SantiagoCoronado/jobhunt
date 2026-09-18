@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # commands this build does not carry yet and where they land (docs/spec-hunt-orchestrator.md section 12)
-_LANDS_IN = {"models": "story 6 of this PR", "doctor": "story 6 of this PR", "sync-agents": "story 7 of this PR", "report": "PR 3, feat/hunt-fanout story 6"}
+_LANDS_IN = {"sync-agents": "story 7 of this PR", "report": "PR 3, feat/hunt-fanout story 6"}
 
 
 def _not_yet(cmd: str) -> int:
@@ -133,6 +133,33 @@ def cmd_run(args: argparse.Namespace) -> int:
     return run_mod.run(cfg, stages, harness, emit=say, resume=args.resume)
 
 
+def cmd_models(harness_name: str | None, grep: str | None) -> int:
+    from . import doctor as doctor_mod
+    from . import harness as harness_mod
+    try:
+        cfg = hunt_config.load()
+        h = harness_mod.get(harness_name or cfg.harness)
+    except ValueError as e:
+        print(f"hunt models: {e}", file=sys.stderr)
+        return 2
+    models, reason = doctor_mod.catalog(h)
+    aliases = h.aliases() if hasattr(h, "aliases") else None
+    print(doctor_mod.render_models(h.name, models, reason, grep, aliases))
+    return 0
+
+
+def cmd_doctor(harness_name: str | None) -> int:
+    from . import doctor as doctor_mod
+    try:
+        cfg = hunt_config.load()
+    except ValueError as e:
+        print(f"hunt doctor: {e}", file=sys.stderr)
+        return 2
+    checks, rc = doctor_mod.doctor(cfg, harness_name)
+    print(doctor_mod.render(harness_name or cfg.harness, checks, rc))
+    return rc
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "runs":
@@ -141,6 +168,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_status(args.run)
     if args.cmd == "run":
         return cmd_run(args)
+    if args.cmd == "models":
+        return cmd_models(args.harness, args.grep)
+    if args.cmd == "doctor":
+        return cmd_doctor(args.harness)
     return _not_yet(args.cmd)
 
 
