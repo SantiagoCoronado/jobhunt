@@ -6,6 +6,8 @@ wrong, and how many times, comes from `fake_agent.json` in the working directory
     {"<unit id>": {"short": 1}}      the first call writes a file missing its last row
     {"<unit id>": {"bad_keep": 9}}   every call writes keep as a string
     {"<unit id>": {"crash": 1}}      the first call exits 1 with an error envelope
+    {"<unit id>": {"kill_parent": 1}} the first call SIGKILLs the orchestrator
+    {"<unit id>": {"hang": 30}}      every call sleeps that many seconds first
 
     {"job_7": {"bad": 1}}            the tailor unit copies fake_out/bad/ on its first call, fake_out/good/ after
     {"job_7": {"nothing": 9}}        the tailor unit writes nothing
@@ -72,6 +74,12 @@ n = int(open(count_file).read()) if os.path.exists(count_file) else 0
 open(count_file, "w").write(str(n + 1))
 if n < mine.get("crash", 0):
     print(json.dumps({"error": "agent crashed"})); sys.exit(1)
+if n < mine.get("kill_parent", 0):                        # the orchestrator dies mid-stage, as under kill -9
+    import signal
+    os.kill(os.getppid(), signal.SIGKILL); sys.exit(1)
+if mine.get("hang"):
+    import time
+    time.sleep(mine["hang"])
 rows = json.load(open(src))
 if "triage" in src:
     data = [{"id": r["id"], "keep": r["id"] % 3 != 0, "reason": "fake", "bucket": r["id"] % 4} for r in rows]

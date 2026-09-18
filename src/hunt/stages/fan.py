@@ -91,7 +91,7 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
     prompt_dir = ctx.run_dir / "prompts" / name
     prompt_dir.mkdir(parents=True, exist_ok=True)
     for p in planned:
-        if known.get(p.id, {}).get("state") == "done":
+        if p.id in known and _settled_on_disk(ctx, name, p, known[p.id]["state"]):
             continue
         user = f"{p.task.rstrip()}\n{SCHEMA_CAP if p.schema is not None else REPLY_CAP}\n"
         (prompt_dir / f"{p.id}.md").write_text(f"{role.body.rstrip()}\n\n{user}", encoding="utf-8")
@@ -99,6 +99,38 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
                          timeout_s=scfg.timeout_s, schema=p.schema)
         specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result, _retry(p, prompt_dir, role.body)))
     return ctx.pool(harness).run_stage(name, specs, scfg.concurrency, scfg.attempts)
+
+
+def _settled_on_disk(ctx: Context, stage: str, p: Planned, state: str) -> bool:
+    """A resumed unit (decision 9): its output on disk is verified again, never trusted and
+    never redone for nothing. Done and still passing stays done; done and no longer passing is
+    failed and runs again; interrupted or failed with an output that passes is done without a run."""
+    why = p.verify()
+    if state == "done":
+        if why is None:
+            return True
+        ctx.ledger.move_unit(stage, p.id, "failed", verdict=f"was done, the output no longer verifies: {why}"[:300])
+        ctx.emit(f"{stage} {p.id} was done but its output no longer verifies ({why}); it runs again")
+        return False
+    if why is None:
+        ctx.ledger.move_unit(stage, p.id, "done", verdict="ok", note="output on disk verified, not run again")
+        ctx.emit(f"{stage} {p.id} done (output on disk verified, not run again)")
+        return True
+    return False
+
+
+def chunks_changed(recorded: dict[str, int], actual: dict[str, int], where: str) -> str | None:
+    """On a resume the chunk files ARE the run's inputs (decision 9): a list that differs from
+    the one state.json recorded is reported, never planned around."""
+    if recorded == actual:
+        return None
+    gone = sorted(set(recorded) - set(actual))
+    new = sorted(set(actual) - set(recorded))
+    resized = sorted(k for k in set(recorded) & set(actual) if recorded[k] != actual[k])
+    parts = [f"{label} {', '.join(names[:4])}{' ...' if len(names) > 4 else ''}"
+             for label, names in (("missing", gone), ("unknown", new), ("resized", resized)) if names]
+    return (f"{where} changed since this run exported it ({'; '.join(parts)}): something exported again. "
+            f"Start a new run; this one cannot be resumed past here")[:300]
 
 
 def _retry(p: Planned, prompt_dir: Path, body: str) -> Callable[[str], str | None] | None:

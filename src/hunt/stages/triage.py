@@ -18,7 +18,7 @@ from typing import Any
 from ... import config as app_config
 from ... import triage as triage_mod
 from .base import Context, StageResult
-from .fan import Planned, failed_verdict, fan_out, rel
+from .fan import Planned, chunks_changed, failed_verdict, fan_out, rel
 
 NAME = "triage"
 
@@ -110,6 +110,11 @@ def run(ctx: Context) -> StageResult:
         with open(ctx.stage_log(NAME, "export"), "a", encoding="utf-8") as log, contextlib.redirect_stdout(log):
             triage_mod.export(scfg.option("chunk"), None)
     chunks = sorted(triage_mod.TRIAGE_DIR.glob("chunk_*.json"))
+    if resumed:
+        changed = chunks_changed(dict(ctx.ledger.stage(NAME)["summary"].get("chunk_rows") or {}),
+                                 {c.stem: len(_load(c)) for c in chunks}, "data/triage")
+        if changed:
+            return StageResult({}, changed)
     if not chunks:
         return StageResult({"pile": 0}, skipped="nothing to triage")
     planned = plan(ctx, chunks)

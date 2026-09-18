@@ -141,7 +141,7 @@ def test_a_stage_with_no_runner_resume_and_the_lock_are_refused_cleanly(env, cap
     err = capsys.readouterr().out
     assert "research not in this build yet" in err and "select from discover, " in err
     assert cli.main(["run", "--only", "pick", "--resume", "latest"]) == 2
-    assert "--resume lands in PR 3" in capsys.readouterr().out
+    assert "--resume continues the stages of that run" in capsys.readouterr().err
     (env / "hunt" / ".lock").mkdir(parents=True)
     assert cli.main(["run", "--only", "pick"]) == 2
     assert "another hunt holds" in capsys.readouterr().out

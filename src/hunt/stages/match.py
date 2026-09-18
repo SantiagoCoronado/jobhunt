@@ -23,7 +23,7 @@ from typing import Any
 from ... import match as match_mod
 from ...dream import is_dream
 from .base import Context, StageResult
-from .fan import Planned, failed_verdict, fan_out, rel
+from .fan import Planned, chunks_changed, failed_verdict, fan_out, rel
 
 NAME = "match"
 EM_DASH = "\u2014"
@@ -119,6 +119,11 @@ def _run_pass(ctx: Context, pass_no: int, totals: dict[str, Any]) -> tuple[int, 
     planned = plan(ctx, pass_no, chunks)
     rows = {p.id: len(_load(_chunk_of(p.id))) for p in planned}
     known = dict(ctx.ledger.stage(NAME)["summary"].get("chunk_rows") or {})
+    recorded = {k: v for k, v in known.items() if k.startswith(f"p{pass_no}_")}
+    if recorded:                                      # a resume: these files are the pass's inputs
+        changed = chunks_changed(recorded, rows, "data/match")
+        if changed:
+            return len(recorded), changed
     ctx.ledger.set_summary(NAME, chunk_rows={**known, **rows})
     outcomes = fan_out(ctx, REGISTRY[NAME], planned)
     for o in outcomes:
@@ -166,10 +171,13 @@ def run(ctx: Context) -> StageResult:
         return StageResult({}, skipped="budget_units is 0")
     n1 = sum(1 for u in units if u.startswith("p1_"))
     verdict = None
-    if not in_p2:                                     # a resume inside pass 2 means pass 1 was ingested
+    if in_p2:                                         # a resume inside pass 2: pass 1 was ingested, its files are gone
+        totals.update(ctx.ledger.stage(NAME)["summary"].get("pass1_totals") or {})
+    else:
         if not units:                                 # decision 9: a resume never exports again
             _export(ctx, 1, scfg.option("min_bucket"), budget, chunk)
         n1, verdict = _run_pass(ctx, 1, totals)
+        ctx.ledger.set_summary(NAME, pass1_totals={k: (list(v) if isinstance(v, list) else v) for k, v in totals.items()})
     n2 = 0
     if verdict is None and (in_p2 or (second > 0 and second < scfg.option("min_bucket") and n1 < budget)):
         if not in_p2:

@@ -16,6 +16,7 @@ plain text the TUI can tail. Zero em-dashes.
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
 from collections.abc import Sequence
 
@@ -127,6 +128,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"hunt run: {e}", file=sys.stderr)
         return 2
+    if args.resume and (args.from_ or args.to or args.only or args.skip or args.dry_run):
+        print("hunt run: --resume continues the stages of that run; it takes no --from, --to, --only, --skip or --dry-run",
+              file=sys.stderr)
+        return 2
     harness = args.harness or cfg.harness
     if args.dry_run:
         print(f"dry run: {len(stages)} stage(s) on {harness}, config {cfg.source or 'defaults'}")
@@ -138,14 +143,18 @@ def cmd_run(args: argparse.Namespace) -> int:
                       f"x{s.concurrency} {s.timeout_s}s {s.attempts} attempts")
             else:
                 print(f"  {name:<9} python")
-        print("units are planned by the stage modules (later stories); nothing ran")
+        print("nothing ran; units are planned when the run reaches a stage (chunks from its export, picks from pick)")
         return 0
     from . import run as run_mod
 
     def say(line: str) -> None:
         if not args.quiet or line.startswith("run ") or " failed" in line or "hunt run:" in line:
             print(line, flush=True)
-    return run_mod.run(cfg, stages, harness, emit=say, resume=args.resume)
+    def terminate(signum: int, frame: object) -> None:          # SIGTERM closes the ledger like Ctrl+C does
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, terminate)
+    # a resumed run keeps the harness it started on unless one is named now
+    return run_mod.run(cfg, stages, args.harness if args.resume else harness, emit=say, resume=args.resume)
 
 
 def cmd_models(harness_name: str | None, grep: str | None) -> int:
