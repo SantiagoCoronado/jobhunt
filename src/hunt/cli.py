@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 # commands this build does not carry yet and where they land (docs/spec-hunt-orchestrator.md section 12)
-_LANDS_IN = {"sync-agents": "story 7 of this PR", "report": "PR 3, feat/hunt-fanout story 6"}
+_LANDS_IN = {"report": "PR 3, feat/hunt-fanout story 6"}
 
 
 def _not_yet(cmd: str) -> int:
@@ -160,6 +160,26 @@ def cmd_doctor(harness_name: str | None) -> int:
     return rc
 
 
+def cmd_sync_agents(check: bool) -> int:
+    from . import prompts
+    try:
+        cfg = hunt_config.load()
+        changed, same = prompts.sync(cfg, check=check)
+    except ValueError as e:
+        print(f"hunt sync-agents: {e}", file=sys.stderr)
+        return 2
+    if check:
+        if changed:
+            print("out of sync (run `python -m src.hunt sync-agents`): " + ", ".join(changed))
+            return 1
+        print(f"agents in sync ({len(same)} files)")
+        return 0
+    for rel in changed:
+        print(f"wrote    {rel}")
+    print(f"{len(changed)} written, {len(same)} unchanged")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "runs":
@@ -172,6 +192,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_models(args.harness, args.grep)
     if args.cmd == "doctor":
         return cmd_doctor(args.harness)
+    if args.cmd == "sync-agents":
+        return cmd_sync_agents(args.check)
     return _not_yet(args.cmd)
 
 

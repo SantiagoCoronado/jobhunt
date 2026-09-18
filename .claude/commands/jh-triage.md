@@ -20,30 +20,13 @@ that later orders scoring. Run this after `/jh-discover` when the discovered pil
    **Workflow** so they fan out under a concurrency cap and are resumable; hardcode the chunk count
    in the script (passing it via `args` has been unreliable).
 
-   RUBRIC (keep-on-doubt: this is a junk cut, NOT the final judge; when in any doubt, KEEP):
-   Open the rubric with the candidate block: run `python -m src.config candidate` ONCE with Bash
-   before spawning and paste its output verbatim here (it renders `candidate_line`, the lettered
-   `role_families` with their titles and skills, the strongest families, and the
-   `work_authorization` summary from `config/profile.yaml`; never restate them by hand).
-   Every listed family is IN scope; bucket good fits in the families it marks STRONGEST 2-3.
-   Director/Lead/Manager/Strategist titles are IN scope.
-   DROP (keep=false) ONLY if clearly one of: (1) OFF-FIELD (not software/AI/data/ML/frontend/internal
-   -tools engineering AND not an AI deployment/solutions/enablement/strategy or technical
-   product/program role): nurse,
-   accountant, non-technical sales/account executive, customer success, recruiter/HR, marketing,
-   finance, legal, admin, mechanical/civil/chemical/electrical/manufacturing engineering, retail;
-   (2) requires an active security clearance OR citizenship of a specific country the candidate
-   block does not claim; (3) base salary EXPLICITLY listed
-   and, ONCE ANNUALIZED, clearly below `comp.min_usd_latam_scope` in `config/profile.yaml`.
-   Annualize first: a USD figure under 20,000 is a MONTHLY rate, multiply by 12 (a "5,000-7,000
-   USD" getonbrd row is 60k-84k/yr, not 5k-7k/yr). Never drop a monthly rate as if it were annual.
-   NEVER drop for location, city, on-site, hybrid, remote, or country. Location is judged later with
-   the full JD. Give each KEPT job a bucket 0-3 (0 weak, 1 plausible, 2 good, 3 strong fit).
-   DREAM COMPANIES: a row carrying `"dream": true` is at one of `dream_companies` in
-   `config/profile.yaml` (its `dream_rule` is the authority). For those rows rule (3) (pay) does
-   NOT apply and location never did; rules (1) off-field and (2) clearance / citizens-only /
-   export-control ("US person", ITAR) still drop. When in doubt on a dream row, keep it and
-   bucket honestly.
+   RUBRIC: the rubric is the body of `prompts/agents/triager.md` (the same system prompt the
+   hunt orchestrator gives the triage units; `.claude/agents/triager.md` is generated from it).
+   Read that file ONCE, and open every sub-agent prompt with the candidate block: run
+   `python -m src.config candidate` ONCE with Bash before spawning and paste its output verbatim
+   (it renders `candidate_line`, the lettered `role_families` with their titles and skills, the
+   strongest families, and the `work_authorization` summary from `config/profile.yaml`; never
+   restate them by hand), then the rubric, then the chunk and output file names.
 
 3. Verify every chunk has a complete out file (ids match its chunk), re-running any that fell short.
 

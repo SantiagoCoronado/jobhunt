@@ -78,7 +78,7 @@ def test_dry_run_prints_the_selected_stages_with_harness_and_model(capsys):
 
 
 def test_the_other_commands_say_they_land_later(capsys):
-    for argv in (["report"], ["sync-agents", "--check"]):
+    for argv in (["report"],):
         assert cli.main(argv) == 2
         err = capsys.readouterr().err
         assert "lands in " in err and "docs/spec-hunt-orchestrator.md section 12" in err

@@ -54,7 +54,7 @@ def test_no_user_owned_file_is_tracked():
 # personal mail provider or a phone-number-shaped string, whoever the author is. Placeholder
 # local parts (you@, me@, example@) are documentation. docs/ and tests/ are exempt because
 # their mail examples are invented, and the identity rule below covers the author's own.
-PRODUCT_TEXT_DIRS = ("src/", "scripts/", "config/", ".claude/", ".github/")
+PRODUCT_TEXT_DIRS = ("src/", "scripts/", "config/", ".claude/", ".github/", "prompts/")
 PRODUCT_TEXT_FILES = ("CLAUDE.md", "README.md", "setup.sh", "pyproject.toml", "requirements.txt")
 _PERSONAL_MAIL = re.compile(r"\b(?!(?:you|me|example|user|name)@)[a-z0-9._%+-]+@(?:gmail|googlemail|outlook|hotmail|yahoo|icloud|proton|protonmail|live)\.[a-z.]+", re.I)
 _PHONE = re.compile(r"\+\d{1,3}[\s.-]\d{2,4}[\s.-]\d{3,4}[\s.-]\d{4}\b")

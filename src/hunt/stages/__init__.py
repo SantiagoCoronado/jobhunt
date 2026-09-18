@@ -15,7 +15,7 @@ REGISTRY: dict[str, Stage] = {
     "inbox": Stage("inbox", "fanned", role="inbox-classifier", tools=frozenset({"read", "bash"})),
     "pick": Stage("pick", "python", run=pick.run),
     "research": Stage("research", "fanned", role="company-researcher",
-                      tools=frozenset({"read", "write", "web"}), needs=frozenset({"web"})),
+                      tools=frozenset({"read", "write", "bash", "web"}), needs=frozenset({"web"})),
     "tailor": Stage("tailor", "fanned", role="resume-tailor", tools=frozenset({"read", "write", "edit", "bash"})),
     "report": Stage("report", "python", run=report.run),
 }
