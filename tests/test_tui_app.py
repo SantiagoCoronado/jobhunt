@@ -163,3 +163,89 @@ def test_table_cells_clip_and_tag_dream_rows():
     cells = JobsTable().cells(row)
     assert cells[1].plain == "·" and len(cells[3]) == 38
     assert cells[4].endswith("(dream)") and len(cells[4]) <= 18 and cells[5] == "·"
+
+
+def _seed_detail(tmp_db) -> int:
+    jid = _add(company="EasyAudit AI, Inc.", title="Forward Deployed Engineer", location="Remote LATAM",
+               source="ashby", status="applied", match_score=94, applied_at="2026-09-01",
+               next_followup_at="2026-09-08", notes="talked to Ana", salary_min=90000,
+               salary_max=120000, currency="USD", first_seen="2026-08-30T10:00:00+00:00",
+               description="<p>We deploy agents.</p><ul><li>Python</li><li>Go</li></ul>",
+               match_verdict='{"recommendation": "Strong Yes", "reasons": "family B", '
+                             '"missing_skills": ["Go", "k8s"]}')
+    conn = db.connect(db.DB_PATH)
+    db.log_event(conn, jid, "status_change", {"from": "shortlisted", "to": "applied"})
+    db.log_event(conn, jid, "contact", {"date": "2026-09-05", "bumped": True})
+    conn.commit()
+    conn.close()
+    (tmp_db / "companies").mkdir()
+    (tmp_db / "companies" / "easyaudit-ai.md").write_text("researched: 2026-09-01\n")
+    (tmp_db / "applications" / "applied" / f"easyaudit-ai-{jid}").mkdir(parents=True)
+    return jid
+
+
+def test_detail_pane_shows_every_block_for_the_highlighted_row(tmp_db):
+    from src.tui.widgets.detail import DetailPane
+
+    jid = _seed_detail(tmp_db)
+    _add(status="applied", match_score=50, company="Other", title="Second")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            pane = app.screen.query_one("#detail", DetailPane)
+            assert pane.display and pane.job_id == jid
+            text = pane.text
+            for want in (f"#{jid} EasyAudit AI, Inc.", "Forward Deployed Engineer",
+                         "Remote LATAM · ashby · dream: no · USD 90,000 to 120,000",
+                         "score 94 · applied · seen 2026-08-30",
+                         "applied 2026-09-01  fup 2026-09-08  contact ·  folder applied/",
+                         "easyaudit-ai.md", "Strong Yes", "family B", "missing: Go, k8s",
+                         "talked to Ana", "contact 2026-09-05 (follow-up bumped)",
+                         "shortlisted -> applied", "We deploy agents.\n\n- Python\n- Go"):
+                assert want in text, want
+            assert text.index("contact 2026-09-05") < text.index("shortlisted -> applied")
+            assert "—" not in text
+
+            app.screen.query_one("#jobs-table").focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            assert "Second" in pane.text and "not scored yet" in pane.text
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.focused is pane
+    _run(scenario())
+
+
+def test_detail_collapses_under_120_columns_and_enter_opens_the_overlay(tmp_db):
+    from src.tui.widgets.detail import DetailPane
+    from src.tui.widgets.modals import DetailOverlay
+
+    jid = _seed_detail(tmp_db)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await _settle(app, pilot)
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            jobs = app.screen
+            assert not jobs.query_one("#detail", DetailPane).display
+            jobs.query_one("#jobs-table").focus()
+            await pilot.press("enter")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, DetailOverlay)
+            assert f"#{jid} EasyAudit" in app.screen.query_one(DetailPane).text
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.screen is jobs
+
+            await pilot.resize_terminal(150, 30)
+            await pilot.pause()
+            assert jobs.query_one("#detail", DetailPane).display
+    _run(scenario())

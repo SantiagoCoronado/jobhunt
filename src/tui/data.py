@@ -5,7 +5,9 @@ sqlite3 connection belongs to the thread that made it and workers run on a pool.
 """
 from __future__ import annotations
 
+import html
 import json
+import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -188,6 +190,34 @@ def parse_verdict(blob: str | None) -> Verdict:
     )
 
 
+_LI = re.compile(r"<li\b[^>]*>", re.IGNORECASE)
+_BLOCK = re.compile(r"</?(p|div|br|li|ul|ol|h[1-6]|tr|section)\b[^>]*>", re.IGNORECASE)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def plain_description(s: str | None) -> str:
+    """A posting body as readable text: some sources store HTML, a few store it escaped
+    (`&lt;p&gt;`), so unescape first, then turn block tags into line breaks and list items
+    into `- ` lines. Unlike `models.strip_html` this keeps the paragraphs."""
+    if not s:
+        return ""
+    if "&lt;" in s:
+        s = html.unescape(s)
+    s = _LI.sub("\n- ", s)
+    s = _TAG.sub("", _BLOCK.sub("\n", s))
+    lines = [" ".join(line.split()) for line in html.unescape(s).splitlines()]
+    out: list[str] = []
+    for line in lines:
+        if line in ("", "-") and (not out or out[-1] == ""):
+            continue
+        out.append("" if line == "-" else line)
+    # </li> and <li> each left a break; a list reads better without a gap between its items.
+    tight = [line for i, line in enumerate(out)
+             if line or not (0 < i < len(out) - 1
+                             and out[i - 1].startswith("- ") and out[i + 1].startswith("- "))]
+    return "\n".join(tight).strip()
+
+
 def _payload(blob: str | None) -> dict:
     try:
         d = json.loads(blob) if blob else {}
@@ -212,7 +242,7 @@ def detail(job_id: int) -> JobDetail | None:
         row=_job_row(r), url=r["url"] or "", remote=bool(r["remote"]),
         salary_min=r["salary_min"], salary_max=r["salary_max"], currency=r["currency"] or "",
         posted_at=r["posted_at"], first_seen=r["first_seen"], last_contact_at=r["last_contact_at"],
-        notes=r["notes"] or "", description=r["description"] or "",
+        notes=r["notes"] or "", description=plain_description(r["description"]),
         verdict=parse_verdict(r["match_verdict"]), events=events,
         dossier=dossier if dossier and dossier.exists() else None,
         bucket=found[0] if found else None, folder=found[1] if found else None,

@@ -199,3 +199,12 @@ def test_db_mtime_follows_the_wal_and_is_zero_without_a_db(env):
     wal.touch()
     os.utime(wal, (2_000, 2_000))
     assert data.db_mtime() == 2_000
+
+
+def test_plain_description_keeps_paragraphs_and_handles_escaped_html():
+    raw = '<div class="x"><h3>About</h3> <p>We build &amp; ship.</p><ul><li>Python</li><li> Go </li></ul></div>'
+    assert data.plain_description(raw) == "About\n\nWe build & ship.\n\n- Python\n- Go"
+    escaped = "&lt;p&gt;He didn&#39;t&amp;nbsp;stop.&lt;/p&gt;&lt;p&gt;Next&lt;/p&gt;"
+    assert data.plain_description(escaped) == "He didn't stop.\n\nNext"
+    assert data.plain_description("plain\n\n\n\ntext  here") == "plain\n\ntext here"
+    assert data.plain_description(None) == ""
