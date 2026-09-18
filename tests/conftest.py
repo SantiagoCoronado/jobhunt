@@ -6,6 +6,7 @@ clone that has no user files at all, which is what CI is (docs/spec-open-source.
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -40,3 +41,25 @@ def _user_files_from_fixtures(monkeypatch):
     match._LOCATION_RES = None
     stats._FAMILIES = None
     render_docx._HEADER_ITEM = None
+
+
+AGENT_CLIS = frozenset({"claude", "codex", "opencode", "pi", "agy", "gemini"})
+_RealPopen = subprocess.Popen
+
+
+class _NoAgentPopen(_RealPopen):
+    """No test may start a real agent CLI. On 2026-09-18 a test that expected `hunt run` to be
+    refused started a real hunt once the last fanned stage landed: `match.export` ran on the
+    real DB and four Opus units scored real jobs before anyone noticed. A fake harness is a
+    Python script; anything whose program is an agent binary is a test bug, so it raises."""
+
+    def __init__(self, args, *a, **kw):
+        program = args if isinstance(args, str) else (args[0] if args else "")
+        if Path(str(program)).name in AGENT_CLIS:
+            raise AssertionError(f"a test tried to start the real agent CLI {program!r}; use a fake harness")
+        super().__init__(args, *a, **kw)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_agent_cli(monkeypatch):
+    monkeypatch.setattr(subprocess, "Popen", _NoAgentPopen)

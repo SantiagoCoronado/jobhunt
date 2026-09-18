@@ -13,12 +13,13 @@ for a decision: the unit's `verify` callable looks at the output file (decision 
 """
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import threading
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ from .ledger import Ledger, add_usage
 
 BACKOFF_S: tuple[int, ...] = (30, 60, 120)
 FAST_FAIL_S = 10.0
+INTERRUPTED = "interrupted"
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,8 @@ class UnitSpec:
     id: str
     invocation: Invocation
     verify: Callable[[], str | None]     # None when the output passes, else why it did not
+    on_result: Callable[[Result], None] | None = None   # a schema unit's reply IS its output (inbox)
+    retry_prompt: Callable[[str], str | None] | None = None   # the next attempt's prompt, given the verdict (tailor's fix round)
 
 
 @dataclass(frozen=True)
@@ -67,6 +71,18 @@ class Pool:
         self.backoff_s = tuple(backoff_s)
         self.sleep = sleep
         self.emit = emit or (lambda line: print(line, flush=True))
+        self.cancelled = threading.Event()
+        self._procs: set[subprocess.Popen[str]] = set()
+        self._procs_lock = threading.Lock()
+
+    def cancel(self) -> None:
+        """Stop the stage: kill every unit process, run no further attempt. The units end
+        failed with `interrupted`, which `--resume` runs again."""
+        self.cancelled.set()
+        with self._procs_lock:
+            for proc in list(self._procs):
+                with contextlib.suppress(OSError):
+                    proc.kill()
 
     # -- the stage entry point
     def run_stage(self, stage: str, specs: Sequence[UnitSpec], concurrency: int, attempts: int) -> list[Outcome]:
@@ -76,7 +92,11 @@ class Pool:
         if not specs:
             return []
         with ThreadPoolExecutor(max_workers=max(1, concurrency)) as ex:
-            return list(ex.map(lambda s: self._run_unit(s, attempts), specs))
+            try:
+                return list(ex.map(lambda s: self._run_unit(s, attempts), specs))
+            except KeyboardInterrupt:
+                self.cancel()                                    # then the executor drains: killed units return at once
+                raise
 
     # -- one unit
     def _run_unit(self, spec: UnitSpec, max_attempts: int) -> Outcome:
@@ -85,7 +105,10 @@ class Pool:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         attempts, waits_total = 0, 0
         verdict: str | None = None
+        inv = spec.invocation
         while True:
+            if self.cancelled.is_set():                          # never started, or between attempts
+                return Outcome(stage, uid, "failed", attempts, INTERRUPTED, self.ledger.unit(stage, uid)["usage"], waits_total)
             self.ledger.move_unit(stage, uid, "running")
             attempts += 1
             self.emit(f"{stage} {uid} running attempt {attempts}")
@@ -93,10 +116,10 @@ class Pool:
             waits = 0
             while True:                                          # one attempt, with rate-limit waits
                 with self.global_slots:
-                    ex = self._execute(spec.invocation, log_path, attempts)
-                res = self._result(ex, spec.invocation.timeout_s)
+                    ex = self._execute(inv, log_path, attempts)
+                res = self._result(ex, inv.timeout_s)
                 usage = _merge(usage, res.usage)
-                if self._rate_limited(res, ex) and waits < len(self.backoff_s):
+                if self._rate_limited(res, ex) and waits < len(self.backoff_s) and not self.cancelled.is_set():
                     wait = self.backoff_s[waits]
                     waits += 1
                     waits_total += 1
@@ -105,11 +128,15 @@ class Pool:
                     self.sleep(wait)
                     continue
                 break
-            if self._rate_limited(res, ex):
+            if self.cancelled.is_set():
+                verdict = INTERRUPTED
+            elif self._rate_limited(res, ex):
                 verdict = f"rate limited {waits} times: {res.error}"
             elif res.error:
                 verdict = res.error
             else:
+                if spec.on_result is not None:
+                    spec.on_result(res)
                 verdict = spec.verify()
             if verdict is None:
                 self.ledger.move_unit(stage, uid, "done", verdict="ok", usage=usage)
@@ -117,8 +144,10 @@ class Pool:
                 return Outcome(stage, uid, "done", attempts, "ok", self.ledger.unit(stage, uid)["usage"], waits_total)
             self.ledger.move_unit(stage, uid, "failed", verdict=verdict, usage=usage)
             self.emit(f"{stage} {uid} failed: {verdict}")
-            if attempts >= max_attempts:
+            if attempts >= max_attempts or self.cancelled.is_set():
                 return Outcome(stage, uid, "failed", attempts, verdict, self.ledger.unit(stage, uid)["usage"], waits_total)
+            if spec.retry_prompt is not None:
+                inv = replace(spec.invocation, prompt=spec.retry_prompt(verdict) or spec.invocation.prompt)
 
     # -- helpers
     def _rate_limited(self, res: Result, ex: _Exec) -> bool:
@@ -170,6 +199,8 @@ class Pool:
                 except (BrokenPipeError, OSError):
                     pass
 
+            with self._procs_lock:
+                self._procs.add(proc)
             err_lines: list[str] = []
             threads = [threading.Thread(target=pump_err, daemon=True), threading.Thread(target=pump_out, daemon=True)]
             if stdin is not None:
@@ -183,6 +214,8 @@ class Pool:
                 timed_out = True
                 proc.kill()
                 proc.wait()
+            with self._procs_lock:
+                self._procs.discard(proc)
             for t in threads:
                 t.join(timeout=5)
             elapsed = time.monotonic() - started

@@ -16,6 +16,7 @@ plain text the TUI can tail. Zero em-dashes.
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
 from collections.abc import Sequence
 
@@ -72,13 +73,28 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-# commands this build does not carry yet and where they land (docs/spec-hunt-orchestrator.md section 12)
-_LANDS_IN = {"report": "PR 3, feat/hunt-fanout story 6"}
+def _open(run: str) -> tuple[ledger.Ledger | None, int]:
+    path = ledger.resolve(run, ledger.HUNT_DIR)
+    if path is None:
+        what = "no runs yet" if run in ("latest", "") else f"no run '{run}'"
+        print(f"{what} under {ledger.HUNT_DIR}")
+        return None, 1
+    try:
+        return ledger.Ledger.open(path), 0
+    except (FileNotFoundError, ValueError) as e:
+        print(f"{path.name}: unreadable ledger ({e})")
+        return None, 2
 
 
-def _not_yet(cmd: str) -> int:
-    print(f"hunt {cmd}: lands in {_LANDS_IN[cmd]} (docs/spec-hunt-orchestrator.md section 12)", file=sys.stderr)
-    return 2
+def cmd_report(run: str) -> int:
+    """Write report.md from the ledger as it stands now and print it."""
+    from .stages import report as report_stage
+    led, rc = _open(run)
+    if led is None:
+        return rc
+    md = report_stage.write_markdown(led)
+    print(md.read_text(encoding="utf-8"), end="")
+    return 0
 
 
 def cmd_runs() -> int:
@@ -112,6 +128,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"hunt run: {e}", file=sys.stderr)
         return 2
+    if args.resume and (args.from_ or args.to or args.only or args.skip or args.dry_run):
+        print("hunt run: --resume continues the stages of that run; it takes no --from, --to, --only, --skip or --dry-run",
+              file=sys.stderr)
+        return 2
     harness = args.harness or cfg.harness
     if args.dry_run:
         print(f"dry run: {len(stages)} stage(s) on {harness}, config {cfg.source or 'defaults'}")
@@ -123,14 +143,18 @@ def cmd_run(args: argparse.Namespace) -> int:
                       f"x{s.concurrency} {s.timeout_s}s {s.attempts} attempts")
             else:
                 print(f"  {name:<9} python")
-        print("units are planned by the stage modules (later stories); nothing ran")
+        print("nothing ran; units are planned when the run reaches a stage (chunks from its export, picks from pick)")
         return 0
     from . import run as run_mod
 
     def say(line: str) -> None:
         if not args.quiet or line.startswith("run ") or " failed" in line or "hunt run:" in line:
             print(line, flush=True)
-    return run_mod.run(cfg, stages, harness, emit=say, resume=args.resume)
+    def terminate(signum: int, frame: object) -> None:          # SIGTERM closes the ledger like Ctrl+C does
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, terminate)
+    # a resumed run keeps the harness it started on unless one is named now
+    return run_mod.run(cfg, stages, args.harness if args.resume else harness, emit=say, resume=args.resume)
 
 
 def cmd_models(harness_name: str | None, grep: str | None) -> int:
@@ -194,7 +218,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_doctor(args.harness)
     if args.cmd == "sync-agents":
         return cmd_sync_agents(args.check)
-    return _not_yet(args.cmd)
+    return cmd_report(args.run)
 
 
 if __name__ == "__main__":

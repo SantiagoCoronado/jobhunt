@@ -93,6 +93,21 @@ Three real applications under the read-once, write-once, build-once protocol
 30 to 70 calls and 1M to 4.5M before. No fix rounds: the page-geometry block in the bundle
 got every first draft to 91 to 92% at fit level 0 with a clean audit and one verified page.
 
+## Measured under the orchestrator
+
+Since PR 3 of `docs/spec-hunt-orchestrator.md` the hunt runs as `python -m src.hunt run` and
+`/jh-hunt` only watches it, so the main session line (16.9M of 25.9M on 2026-09-02) should all
+but disappear and the per-stage lines should stay where the table above has them. The numbers
+come from the ledger, not from a Claude transcript: `python -m src.hunt report <run>` prints
+the usage table (units, attempts, input, output, cache read, cache write, cost per stage).
+
+| Hunt | Run id | Context read, total | Main session | Triage | Match | Inbox | Research | Tailor |
+|---|---|---|---|---|---|---|---|---|
+| first real hunt under the orchestrator | not run yet | | | | | | | |
+
+Fill the row from the first real hunt's report; nothing here is estimated. Compare "Main
+session" with `python scripts/token_audit.py --latest` on the `/jh-hunt` session that watched it.
+
 ## Rules going forward
 
 - No Notion, no Chrome, no `query crm` inside `/jh-hunt`.

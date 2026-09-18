@@ -42,6 +42,9 @@ STAGE_MOVES: frozenset[tuple[str, str]] = frozenset({
 })
 UNIT_MOVES: frozenset[tuple[str, str]] = frozenset({
     ("pending", "running"), ("running", "done"), ("running", "failed"), ("failed", "running"),
+    # resume only (decision 9): an output already on disk that verifies is done without a run,
+    # and a done unit whose output no longer verifies is failed so it runs again
+    ("pending", "done"), ("failed", "done"), ("done", "failed"),
 })
 USAGE_KEYS = ("input", "output", "cache_read", "cache_create", "cost_usd")
 
@@ -284,6 +287,7 @@ class Ledger:
         if to == "running":
             s["started"] = s["started"] or self.clock()
             s["ended"] = None
+            s["note"] = None                     # a resumed stage sheds the note of the failure it re-enters
         elif to in ("done", "failed", "skipped"):
             s["ended"] = self.clock()
         if note is not None:
@@ -335,6 +339,28 @@ class Ledger:
             u["usage"] = add_usage(u["usage"], usage)
         self._save()
         self._event(stage, unit_id, frm, to, note if note is not None else verdict)
+
+    @_locked
+    def interrupt(self, note: str = "interrupted") -> list[str]:
+        """Close what a dead or cancelled run left open: every running unit and stage becomes
+        failed, which is the state `--resume` re-enters. Returns what it closed."""
+        closed: list[str] = []
+        for s in self.state["stages"]:
+            for u in s["units"]:
+                if u["state"] == "running":
+                    self.move_unit(s["name"], u["id"], "failed", verdict=note)
+                    closed.append(f"{s['name']}/{u['id']}")
+            if s["state"] == "running":
+                self.move_stage(s["name"], "failed", note=note)
+                closed.append(s["name"])
+        return closed
+
+    @_locked
+    def reopen(self) -> None:
+        """A resumed run is not ended."""
+        self.state["ended"] = None
+        self._save()
+        self._event(None, None, None, "resumed", None)
 
     @_locked
     def set_summary(self, stage: str, **fields: Any) -> None:

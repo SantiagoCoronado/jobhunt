@@ -25,3 +25,5 @@ Research the company for **$ARGUMENTS** and write a reusable dossier.
 The dossier is comprehensive, but cover letters and answers should lean into the company's
 specific narrative, not checklist every section. This is a DRAFT to review. Once it exists,
 `/jh-tailor <id>` will automatically weave it into the cover letter. Never fabricate company facts.
+
+For a batch, `python -m src.hunt run --only research` runs this stage under the hunt orchestrator (ledger, retries, coverage checks, `--resume`); this prose flow is for a single interactive use.

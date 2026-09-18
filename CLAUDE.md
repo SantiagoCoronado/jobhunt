@@ -57,8 +57,19 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    only ever contain master-resume facts. Every status change / contact / debrief lands in the
    `events` table (written by `db.set_status`/`touch_contact`/`log_event`).
 
-`/jh-hunt` runs the whole loop end to end: discover, triage (Haiku, 100-row chunks), match,
-inbox pull, pick the top 5 shortlisted (`src.pick`), research those 5, then tailor those 5.
+`/jh-hunt` runs the whole loop end to end under the hunt orchestrator (`python -m src.hunt`,
+spec `docs/spec-hunt-orchestrator.md`): discover, triage, match, inbox, pick the top 5
+shortlisted (`src.pick`), research those 5, tailor those 5, report. The skill is a viewer:
+`hunt run` in the background, `hunt status latest` while it runs, `hunt report latest` at the
+end; no Agent calls, no Workflow. The orchestrator fans out at the PROCESS level (one harness
+process per triage chunk, match chunk, dossier, tailor, one for the inbox), so it never uses
+a harness's own subagent or workflow feature. Python judges done: a unit is done when its
+output file passes the stage's check (coverage of every id, the applier's dry run, the dossier
+`researched:` line, `tailor_build` run again), never because the agent said so. Only Python
+writes the DB. `config/hunt.toml` says how to run (harness, per-stage model from the live
+catalog, caps, timeouts, retries); `config/profile.yaml` still says what counts as a fit.
+The ledger is `data/hunt/<run_id>/` (`state.json`, `events.jsonl`, `prompts/`, `logs/`,
+`picks.json`, `report.md`); questions a run cannot ask become `needs_human` lines in the report.
 
 **Token discipline** (audit 2026-09-02, `docs/token-efficiency.md`): measure any hunt with
 `python scripts/token_audit.py --latest` (per agent, per tool, per phase; `--all` for one row per
@@ -129,6 +140,14 @@ All commands are `jh-` prefixed; see `.claude/commands/`.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
 `python -m src.hunt sync-agents` regenerates `.claude/agents/*.md` from them with each stage's model
 from `config/hunt.toml`, and CI runs `sync-agents --check`. Never edit a generated agent file.
+Hunt orchestrator: `python -m src.hunt run [--from S] [--to S] [--only S] [--skip S] [--harness H]`
+(exit 0 done, 2 a stage failed, 3 nothing to tailor), `run --resume RUN|latest` (done units
+skipped, outputs on disk verified again, never a second export; a dead run's lock is taken
+over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. `scripts/ai_pass.sh` is
+`hunt run --to match` then the digest. Stage code is `src/hunt/stages/<stage>.py` over the
+shared `fan.py`. Tests must use a fake harness: `tests/conftest.py` refuses to start a real
+agent CLI, and a bare `hunt run` in a test IS a hunt (patch `connect` and the data dirs of
+every module a stage touches, as `tests/test_hunt_*.py` do).
 Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T ...` (reuses a same company+title row when one exists; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the
@@ -137,8 +156,8 @@ Lean tailor (spec `docs/spec-tailor-lean.md`, Phase A landed 2026-09-02): `pytho
 writes the one input file the tailor reads (`data/tailor/<id>/inputs.md`, voice + profile + master +
 generated page geometry + job + dossier + answers); `python -m src.tailor_build <folder>` splits `draft.md`,
 checks, renders, audits, exports PDFs, verifies the page count and prints a verdict (exit 1 = fix it),
-writing `build.json` + `state.json` in the folder. The resume-tailor agent, `/jh-tailor` and `/jh-hunt`
-step 7 run on them (Phase B, measured at 3 to 4 calls and under 0.2M tokens per application).
+writing `build.json` + `state.json` in the folder. The resume-tailor agent, `/jh-tailor` and the hunt's
+tailor stage (`src/hunt/stages/tailor.py`) run on them (Phase B, measured at 3 to 4 calls and under 0.2M tokens per application).
 Folder/DB drift check: `python -m src.reconcile [--apply]`. Tests: `.venv/bin/python -m pytest tests/`.
 DB maintenance (auto-runs after discover): `python -m src.maintain [--vacuum]`, expires postings
 that vanished from an actively-checked source, prunes irrelevant/expired descriptions.

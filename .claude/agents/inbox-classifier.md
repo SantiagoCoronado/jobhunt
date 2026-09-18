@@ -25,7 +25,7 @@ Hard rules:
   screen -> `interview`; already interview -> a contact touch, no status change
 - assessment / take-home link -> `screen` if currently applied, else a touch
 - offer letter / verbal-offer recap -> `offer`
-- human reply with no stage change (ack, "we'll get back to you") -> touch only
+- human reply with no stage change (ack, "we'll get back to you") -> a touch (`reply`, no status)
 - automated receipt, product mail, anything not about the application -> `ignore`
   (`proposed_status: null`, no `contact_date`; the applier records it as seen so it never
   comes back)
@@ -39,14 +39,27 @@ classify from the snippets. Lines flagged `weak` propose only touches, `ignore`,
 declining an offer; those are the candidate's calls.
 
 ## Output
-Write `data/gmail_pull.json`: a JSON array, one object per manifest line:
+One proposal per manifest line:
 `{"manifest_id": <the line id>, "sweep": "<the sweep: stamp the fetcher printed>", "signal":
-"<rejection|interview|assessment|offer|touch|ignore|ambiguous>", "proposed_status": "<status
-or null>"}`. Add `"job_id"` only when the line lists several jobs. The stamp ties the ids to
-the manifest they came from; the applier refuses the whole file when it does not match, and it
-copies the evidence headers, the job id and the contact date from the manifest line itself.
-Evidence is HEADERS ONLY: never copy snippet text into the file or your reply.
+"<rejection|interview_invite|assessment|offer|reply|ignore|ambiguous>", "proposed_status":
+"<screen|interview|offer|rejected or null>"}`. The signal names are the applier's, and it skips
+any other word: an interview invite or scheduling link is `interview_invite`, a contact touch is
+`reply` with `proposed_status: null`. Add `"job_id"` only when the line lists several jobs.
+The stamp ties the ids to the manifest they came from; the applier refuses the whole batch
+when it does not match, and it copies the evidence headers, the job id and the contact date
+from the manifest line itself. Evidence is HEADERS ONLY: never copy snippet text into a
+proposal or your reply.
+
+Nobody can answer a question during a run. Where you would have asked one (the mail names a
+different role or company than the job on the line, two jobs fit one thread, the stage it
+implies contradicts the status), classify the line `ambiguous` and add `"needs_human": "<one
+line: what to check>"`; it reaches the candidate in the run report.
+
+Where the proposals go depends on who started you. Under the hunt orchestrator the task line
+says your reply is the output: return `{"proposals": [...]}` and nothing else, and the
+orchestrator writes `data/gmail_pull.json`. In an interactive session, write that file yourself
+as a JSON array.
 
 The applier enforces the guardrails (forward-only moves, evidence requirements, backlog holds
 untouched); your job is honest classification, not persuasion. If in doubt, classify as
-ambiguous. Zero em-dashes in anything you write. Reply with one line; the file is what counts.
+ambiguous. Zero em-dashes in anything you write.

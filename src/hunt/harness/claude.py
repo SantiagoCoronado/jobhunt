@@ -110,7 +110,8 @@ class ClaudeHarness:
             detail = detail[:200]
             error = f"{reason}{f' ({status})' if status else ''}: {detail}" if detail else f"{reason} (exit {rc})"
         rate_limited = failed and (status in (429, 529) or bool(_RATE_LIMIT.search(f"{text or ''} {stderr}")))
-        return Result(usage, error, rate_limited, text)
+        # verified on 2.1.276: with --json-schema the envelope carries the object as `structured_output`
+        return Result(usage, error, rate_limited, text, structured=data.get("structured_output"))
 
     def models(self) -> list[Model] | None:
         """No catalog on this CLI (spec section 5); the aliases are display only."""

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scheduled read-only AI pass: discover -> headless Claude (triage + match) -> digest.
+# Scheduled read-only AI pass: hunt orchestrator (discover, triage, match) -> digest.
 # This is the "honest digest" ordering: scoring happens BEFORE notify, so the
 # email contains today's jobs, not yesterday's leftovers.
 #
@@ -30,24 +30,16 @@ LOG="data/logs/ai-pass-$(date +%Y%m%d-%H%M).log"
 
 [ -d .venv ] && source .venv/bin/activate || true
 
-echo "== [1/3] Discover ==" | tee -a "$LOG"
-python -m src.discover 2>&1 | tee -a "$LOG"
+echo "== [1/2] Hunt: discover, triage, match (python -m src.hunt) ==" | tee -a "$LOG"
+# Read-only AI stages only, under the orchestrator: a ledger in data/hunt/<run>/, retries,
+# coverage checks, the models of config/hunt.toml. HUNT_HARNESS overrides [harness].default.
+# A run that died earlier is never resumed here: a scheduled pass starts clean.
+HARNESS_ARGS=()
+[ -n "${HUNT_HARNESS:-}" ] && HARNESS_ARGS=(--harness "$HUNT_HARNESS")
+python -m src.hunt run --to match ${HARNESS_ARGS[@]+"${HARNESS_ARGS[@]}"} 2>&1 | tee -a "$LOG" \
+  || echo "Hunt stage failed (python -m src.hunt status latest); the digest shows the unscored backlog." | tee -a "$LOG"
 
-echo "== [2/3] Triage + match (headless Claude) ==" | tee -a "$LOG"
-if command -v claude >/dev/null 2>&1; then
-  # Read-only AI stages only: triage the discovered pile, score the keepers.
-  # Tools are limited to local files + python; no browsing, no MCP, no submits.
-  claude -p "Run the /jh-triage flow, then the /jh-match flow (use the scaled \
-bucket-ordered pass if the pile is large). End with one line: jobs triaged, \
-kept vs dropped, jobs scored, how many shortlisted." \
-    --allowedTools "Bash(python:*)" "Bash(.venv/bin/python:*)" "Read" "Write" "Task" "Agent" "Skill" "Workflow" \
-    --max-turns 100 2>&1 | tee -a "$LOG" \
-    || echo "AI stage failed; digest will show the unscored backlog." | tee -a "$LOG"
-else
-  echo "claude CLI not found; skipping AI stage (digest will show unscored count)." | tee -a "$LOG"
-fi
-
-echo "== [3/3] Digest (now reflects today's scores) ==" | tee -a "$LOG"
+echo "== [2/2] Digest (now reflects today's scores) ==" | tee -a "$LOG"
 python -m src.notify 2>&1 | tee -a "$LOG" || true
 
 echo "AI pass complete. Log: $LOG"

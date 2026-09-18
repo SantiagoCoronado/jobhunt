@@ -177,7 +177,7 @@ def test_transitions_land_in_state_and_events_and_replay_to_the_same_skeleton(tm
     (lambda led: led.move_stage("discover", "running"), "stage discover cannot move done -> running"),
     (lambda led: led.move_stage("pick", "done"), "stage pick cannot move pending -> done"),
     (lambda led: led.move_unit("triage", "chunk_000", "running"), "unit triage/chunk_000 cannot move done -> running"),
-    (lambda led: led.move_unit("triage", "chunk_002", "done"), "cannot move failed -> done"),
+    (lambda led: led.move_unit("triage", "chunk_002", "pending"), "cannot move failed -> pending"),
     (lambda led: led.add_units("pick", [{"id": "a"}, {"id": "a"}]), "already has unit 'a'"),
     (lambda led: led.add_units("triage", [{"id": "chunk_009"}]), "stage triage is failed, cannot add units"),
     (lambda led: led.add_units("inbox", [{"id": "x"}]), "stage inbox is skipped, cannot add units"),

@@ -12,3 +12,5 @@ Score the pending jobs against my profile.
    many were shortlisted.
 
 Be calibrated, I want the ~10-20% genuinely worth tailoring for, not a wall of 90s.
+
+For a batch, `python -m src.hunt run --only match` runs this stage under the hunt orchestrator (ledger, retries, coverage checks, `--resume`); this prose flow is for a single interactive use.
