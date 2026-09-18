@@ -22,10 +22,15 @@ class Preset:
     name: str
     statuses: tuple[str, ...]   # what the preset shows when no status is picked in the left pane
     order_by: str
+    listed: tuple[str, ...] = ()   # the left pane's entries; empty = the same as `statuses`
+
+    @property
+    def entries(self) -> tuple[str, ...]:
+        return self.listed or self.statuses
 
 
 PRESETS: dict[str, Preset] = {
-    "board": Preset("board", HOT, BY_SCORE),
+    "board": Preset("board", HOT, BY_SCORE, listed=(*HOT, ALL)),
     "shortlist": Preset("shortlist", ("shortlisted",), BY_SCORE),
     "followups": Preset("followups", ("applied", "screen", "interview"), BY_FOLLOWUP),
 }

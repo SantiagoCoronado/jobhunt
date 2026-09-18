@@ -101,3 +101,65 @@ def test_moving_in_the_status_list_sets_the_table_filter():
             await pilot.pause()
             assert app.screen.status_filter == "all"
     _run(scenario())
+
+
+def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
+    from src.tui.widgets.jobs_table import JobsTable
+
+    ids = [_add(match_score=s, company=f"Co{s}") for s in (70, 95, 80)]
+    applied = _add(status="applied", match_score=99, next_followup_at="2026-09-20")
+    by_score = [ids[1], ids[2], ids[0]]
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert app.focused is table
+            assert [c.label.plain for c in table.columns.values()] == [
+                " ", "score", "company", "title", "loc", "fup"]
+            assert table.job_ids == by_score and table.current_id == by_score[0]
+            assert table.get_row(str(by_score[0]))[0] == ""      # star column reserved for PR 4
+            await pilot.press("j")
+            assert table.current_id == by_score[1]
+            await pilot.press("G")
+            assert table.current_id == by_score[2]
+            await pilot.press("k")
+            assert table.current_id == by_score[1]
+            await pilot.press("g")
+            assert table.current_id == by_score[0]
+
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            assert table.job_ids == [applied]
+            assert table.get_row(str(applied))[5] == "2026-09-20"
+    _run(scenario())
+
+
+def test_shortlist_and_followups_list_only_their_statuses():
+    _add(status="interview", next_followup_at="2026-09-10")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await pilot.press("2")
+            await _settle(app, pilot)
+            assert [o.id for o in app.screen.query_one(StatusList).options] == ["shortlisted"]
+            await pilot.press("3")
+            await _settle(app, pilot)
+            assert [o.id for o in app.screen.query_one(StatusList).options] == [
+                "applied", "screen", "interview"]
+    _run(scenario())
+
+
+def test_table_cells_clip_and_tag_dream_rows():
+    from src.tui.data import JobRow
+    from src.tui.widgets.jobs_table import JobsTable, clip
+
+    assert clip("a  b\n c", 10) == "a b c" and clip("abcdefghij", 5) == "abcd…"
+    row = JobRow(1, "Example Robotics", "T" * 60, "San Francisco, California, United States",
+                 "ashby", "shortlisted", None, None, None, True)
+    cells = JobsTable().cells(row)
+    assert cells[1].plain == "·" and len(cells[3]) == 38
+    assert cells[4].endswith("(dream)") and len(cells[4]) <= 18 and cells[5] == "·"
