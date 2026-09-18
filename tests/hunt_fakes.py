@@ -6,6 +6,9 @@ wrong, and how many times, comes from `fake_agent.json` in the working directory
     {"<unit id>": {"short": 1}}      the first call writes a file missing its last row
     {"<unit id>": {"bad_keep": 9}}   every call writes keep as a string
     {"<unit id>": {"crash": 1}}      the first call exits 1 with an error envelope
+
+The unit id is the input file's stem (`chunk_001`). Match scores: 90 on an even id, 65 on an
+odd one, and every `reasons` carries an em-dash for the stage to scrub.
 """
 from __future__ import annotations
 
@@ -33,6 +36,11 @@ if "triage" in src:
     data = [{"id": r["id"], "keep": r["id"] % 3 != 0, "reason": "fake", "bucket": r["id"] % 4} for r in rows]
     if n < mine.get("bad_keep", 0):
         data[0]["keep"] = "maybe"
+if "match" in src:
+    data = [{"id": r["id"], "score": 90 if r["id"] % 2 == 0 else 65, "recommendation": "Yes",
+             "reasons": "fake \u2014 verdict"} for r in rows]
+    if n < mine.get("bad_score", 0):
+        data[0]["score"] = "high"
 if n < mine.get("short", 0):
     data = data[:-1]
 json.dump(data, open(out, "w"))

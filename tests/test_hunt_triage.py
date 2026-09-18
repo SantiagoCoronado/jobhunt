@@ -76,7 +76,7 @@ def test_a_short_file_is_run_again_then_everything_is_ingested(env):
     assert inv.tools == frozenset({"read", "write"}) and inv.timeout_s == 300 and inv.system.startswith("You are a triage screener")
     assert "Exported 25 jobs" in (run_dir / "logs" / "triage" / "export.log").read_text()
     assert "Triage ingest" in (run_dir / "logs" / "triage" / "ingest.log").read_text()
-    assert "—" not in prompt + "\n".join(lines)
+    assert "\u2014" not in prompt + "\n".join(lines)
 
 
 def test_under_min_pile_the_stage_is_skipped_and_nothing_is_exported(env):
