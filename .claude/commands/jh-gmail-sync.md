@@ -37,8 +37,9 @@ directly; you never read the files behind it.
 
 4. **Classify** each manifest line into exactly one signal by the rules in
    `prompts/agents/inbox-classifier.md` (read it once; it is the same system prompt the hunt
-   orchestrator gives the inbox unit): rejection, interview (advance ONE stage), assessment,
-   offer, touch, ignore, ambiguous. Settle a line from the manifest only when the lead itself
+   orchestrator gives the inbox unit). The `signal` values are the applier's, and it skips any
+   other word: `rejection`, `interview_invite` (advance ONE stage), `assessment`, `offer`,
+   `reply` (a contact touch), `ignore`, `ambiguous`. Settle a line from the manifest only when the lead itself
    carries the decision sentence; for every unsettled line, and for every `offer?` line
    regardless, run `python -m src.mail_fetch show <id> <id> ...` ONCE with all the ids you
    need (25 per call). NEVER propose ghosted, withdrawn, or accepting/declining an offer;

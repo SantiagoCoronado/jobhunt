@@ -57,6 +57,7 @@ class Result:
     rate_limited: bool
     text: str | None
     envelope: bool = True              # False: the process died without printing one
+    structured: Any = None             # the schema-constrained reply, when the unit asked for one (inbox)
 
 
 class Harness(Protocol):

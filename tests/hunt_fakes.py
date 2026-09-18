@@ -7,6 +7,8 @@ wrong, and how many times, comes from `fake_agent.json` in the working directory
     {"<unit id>": {"bad_keep": 9}}   every call writes keep as a string
     {"<unit id>": {"crash": 1}}      the first call exits 1 with an error envelope
 
+    {"inbox": {"replies": [...]}}    the inbox unit's reply per call (the last one repeats)
+
 The unit id is the input file's stem (`chunk_001`). Match scores: 90 on an even id, 65 on an
 odd one, and every `reasons` carries an em-dash for the stage to scrub.
 """
@@ -21,6 +23,13 @@ from src.hunt.harness import TOOL_ORDER, Invocation, Result, Usage
 AGENT = r'''
 import json, os, re, sys
 prompt = sys.argv[1]
+if "classify every line of the manifest" in prompt:       # the inbox unit: the reply is the output
+    replies = (json.load(open("fake_agent.json")).get("inbox") or {}).get("replies") or []
+    n = int(open(".fake_inbox.count").read()) if os.path.exists(".fake_inbox.count") else 0
+    open(".fake_inbox.count", "w").write(str(n + 1))
+    reply = replies[min(n, len(replies) - 1)]
+    print(json.dumps({"ok": True, "result": json.dumps(reply), "structured": reply if isinstance(reply, dict) else None}))
+    sys.exit(0)
 paths = re.findall(r"`([^`]+\.(?:json|md))`", prompt)
 src, out = paths[0], paths[1]
 unit = os.path.splitext(os.path.basename(src))[0]
@@ -75,7 +84,8 @@ class FakeAgentHarness:
             return Result(Usage(), f"exit {rc}, no JSON envelope", False, None, envelope=False)
         if rc != 0:
             return Result(Usage(input=5), str(data.get("error")), False, None)
-        return Result(Usage(input=100, output=10, cost_usd=0.01), None, False, stdout.strip())
+        return Result(Usage(input=100, output=10, cost_usd=0.01), None, False, data.get("result") or stdout.strip(),
+                      structured=data.get("structured"))
 
     def models(self):
         return None

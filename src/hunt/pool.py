@@ -35,6 +35,7 @@ class UnitSpec:
     id: str
     invocation: Invocation
     verify: Callable[[], str | None]     # None when the output passes, else why it did not
+    on_result: Callable[[Result], None] | None = None   # a schema unit's reply IS its output (inbox)
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,8 @@ class Pool:
             elif res.error:
                 verdict = res.error
             else:
+                if spec.on_result is not None:
+                    spec.on_result(res)
                 verdict = spec.verify()
             if verdict is None:
                 self.ledger.move_unit(stage, uid, "done", verdict="ok", usage=usage)

@@ -14,11 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from .. import prompts
-from ..harness import Invocation
+from ..harness import Invocation, Result
 from ..pool import Outcome, UnitSpec
 from .base import Context, Stage
 
 REPLY_CAP = "Reply with one line. Your reply is not read; the output file is."
+SCHEMA_CAP = "Your reply is the output: return only the JSON object the schema describes, no prose around it."
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class Planned:
     task: str                             # the task lines: input file, output file, contract
     verify: Callable[[], str | None]      # None when the output passes, else why it did not
     schema: dict[str, Any] | None = None
+    on_result: Callable[[Result], None] | None = None   # with `schema`: the reply is the output
 
 
 def rel(path: Path, cwd: Path) -> str:
@@ -60,11 +62,11 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
     for p in planned:
         if known.get(p.id, {}).get("state") == "done":
             continue
-        user = f"{p.task.rstrip()}\n{REPLY_CAP}\n"
+        user = f"{p.task.rstrip()}\n{SCHEMA_CAP if p.schema is not None else REPLY_CAP}\n"
         (prompt_dir / f"{p.id}.md").write_text(f"{role.body.rstrip()}\n\n{user}", encoding="utf-8")
         inv = Invocation(prompt=user, system=role.body, model=scfg.model, tools=stage.tools, cwd=ctx.cwd,
                          timeout_s=scfg.timeout_s, schema=p.schema)
-        specs.append(UnitSpec(name, p.id, inv, p.verify))
+        specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result))
     return ctx.pool(harness).run_stage(name, specs, scfg.concurrency, scfg.attempts)
 
 
