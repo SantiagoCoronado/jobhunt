@@ -1,12 +1,14 @@
 """Modal screens. Every one closes on `esc` (spec: esc is home)."""
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, OptionList
+from textual.widgets import Input, Label, OptionList, TextArea
 from textual.widgets.option_list import Option
 
 from ..data import JobDetail
@@ -119,3 +121,70 @@ class Confirm(ModalScreen[bool]):
     def on_key(self, event) -> None:
         event.stop()
         self.dismiss(event.key == "y")
+
+
+class NotesEditor(ModalScreen[str | None]):
+    """The whole notes field in a text area. `ctrl+s` saves, `esc` drops the edit."""
+
+    DEFAULT_CSS = """
+    NotesEditor { align: center middle; }
+    NotesEditor #notes-box { width: 80%; height: 70%; border: round $primary; background: $surface; padding: 0 1; }
+    NotesEditor TextArea { height: 1fr; border: none; }
+    """
+    BINDINGS = [
+        Binding("ctrl+s", "save", "save", priority=True),
+        Binding("escape", "dismiss(None)", "cancel"),
+    ]
+
+    def __init__(self, title: str, text: str) -> None:
+        super().__init__()
+        self.heading = title
+        self.text = text
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="notes-box"):
+            yield Label(Text.assemble((self.heading, "bold"), "  ctrl+s save · esc cancel"))
+            yield TextArea(self.text, id="notes-text", soft_wrap=True, show_line_numbers=False)
+
+    def on_mount(self) -> None:
+        area = self.query_one(TextArea)
+        area.focus()
+        area.move_cursor(area.document.end)
+
+    def action_save(self) -> None:
+        self.dismiss(self.query_one(TextArea).text)
+
+
+class Prompt(ModalScreen[str | None]):
+    """One line of input. `parse` turns it into the value to dismiss with; when it raises
+    ValueError the message shows under the box and the prompt stays open."""
+
+    DEFAULT_CSS = """
+    Prompt { align: center middle; }
+    Prompt #prompt-box { width: 56; height: auto; border: round $primary; background: $surface; padding: 0 1; }
+    Prompt Input { border: none; height: 1; padding: 0; }
+    Prompt #prompt-error { color: $error; }
+    """
+    BINDINGS = [Binding("escape", "dismiss(None)", "cancel")]
+
+    def __init__(self, title: str, hint: str, parse: Callable[[str], str], value: str = "") -> None:
+        super().__init__()
+        self.heading = title
+        self.hint = hint
+        self.parse = parse
+        self.value = value
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="prompt-box"):
+            yield Label(Text(self.heading, style="bold"))
+            yield Input(value=self.value, placeholder=self.hint, id="prompt-input")
+            yield Label("", id="prompt-error")
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        try:
+            self.dismiss(self.parse(event.value))
+        except ValueError as e:
+            self.query_one("#prompt-error", Label).update(str(e))

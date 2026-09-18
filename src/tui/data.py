@@ -13,6 +13,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 
 from .. import config, db, dream, reconcile, research
@@ -291,3 +292,68 @@ def set_status(job_id: int, status: str, note: str | None = None,
     moved = reconcile.sync_folder(job_id, status, reconcile.APPS_DIR)
     line = f"#{job_id} {changed['company']}: {changed['old_status']} -> {status}"
     return f"{line} · {moved}" if moved else line
+
+
+def _current_status(conn: sqlite3.Connection, job_id: int) -> str:
+    r = conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if r is None:
+        raise ValueError(f"No job with id {job_id}")
+    return r["status"]
+
+
+def notes(job_id: int) -> str:
+    """The whole notes field, for the editor (the table rows do not carry it)."""
+    with _conn() as conn:
+        r = conn.execute("SELECT notes FROM jobs WHERE id=?", (job_id,)).fetchone()
+    return (r["notes"] or "") if r else ""
+
+
+NOTE_EVENT_CHARS = 200
+
+
+def set_notes(job_id: int, text: str) -> str:
+    """Replace the notes field (`db.set_status(notes=...)`, the status untouched). The field
+    keeps only the latest text, so the edit also lands in the events log."""
+    text = text.strip()
+    with _conn() as conn:
+        db.set_status(conn, job_id, _current_status(conn, job_id), notes=text)
+        shown = text if len(text) <= NOTE_EVENT_CHARS else text[:NOTE_EVENT_CHARS - 1] + "…"
+        db.log_event(conn, job_id, "note", {"note": shown or "notes cleared", "edit": True})
+        conn.commit()
+    return f"#{job_id} notes saved" if text else f"#{job_id} notes cleared"
+
+
+def parse_followup(text: str, today: date) -> str:
+    """`YYYY-MM-DD`, `+N` (days from today), `t` (today); empty or `-` clears (returns "")."""
+    text = text.strip().lower()
+    if text in ("", "-"):
+        return ""
+    if text == "t":
+        return today.isoformat()
+    if text.startswith("+"):
+        if not text[1:].isdigit():
+            raise ValueError(f"+N needs a whole number of days, got {text!r}")
+        return (today + timedelta(days=int(text[1:]))).isoformat()
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        raise ValueError(f"use YYYY-MM-DD, +N or t, got {text!r}") from None
+
+
+def set_followup(job_id: int, when: str) -> str:
+    """`when` is an ISO date, or "" to clear (what `parse_followup` returns)."""
+    with _conn() as conn:
+        db.set_status(conn, job_id, _current_status(conn, job_id), next_followup=when)
+        conn.commit()
+    return f"#{job_id} follow-up {when}" if when else f"#{job_id} follow-up cleared"
+
+
+def touch(job_id: int, bump: bool = False) -> str:
+    """Contact today; with `bump` the follow-up moves `config.followup_days()` out, as
+    `query touch --bump` does."""
+    with _conn() as conn:
+        changed = db.touch_contact(conn, job_id,
+                                   bump_days=config.followup_days() if bump else None)
+        conn.commit()
+    line = f"#{job_id} {changed['company']}: contact {changed['last_contact_at']}"
+    return f"{line} · follow-up {changed['next_followup_at']}" if bump else line

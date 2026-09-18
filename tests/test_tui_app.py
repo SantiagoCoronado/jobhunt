@@ -396,3 +396,67 @@ def test_b_backlogs_directly_and_leaving_applied_needs_y():
             assert _status(live) == "rejected"
             assert _events(live) == [("status_change", '{"from": "applied", "to": "rejected"}')]
     _run(scenario())
+
+
+def test_n_edits_notes_f_sets_the_followup_t_and_T_touch(tmp_db):
+    from datetime import date, timedelta
+
+    from src.tui import data
+    from src.tui.widgets.detail import DetailPane
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import NotesEditor, Prompt
+
+    jid = _add(status="applied", applied_at="2026-09-01", notes="first")
+    app_today = date(2026, 9, 18)
+
+    async def scenario():
+        app = JobhuntApp(today=app_today)
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            jobs = app.screen
+            table = jobs.query_one(JobsTable)
+            table.focus()
+
+            await pilot.press("n")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, NotesEditor)
+            assert app.screen.query_one("#notes-text").text == "first"
+            await pilot.press("space", "x", "escape")
+            await _settle(app, pilot)
+            assert data.notes(jid) == "first"
+
+            await pilot.press("n")
+            await _settle(app, pilot)
+            await pilot.press("space", "a", "n", "a", "ctrl+s")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert data.notes(jid) == "first ana"
+            assert "first ana" in jobs.query_one("#detail", DetailPane).text
+
+            await pilot.press("f")
+            await pilot.pause()
+            assert isinstance(app.screen, Prompt)
+            await pilot.press("s", "o", "o", "n", "enter")
+            await pilot.pause()
+            assert isinstance(app.screen, Prompt)
+            assert "YYYY-MM-DD" in str(app.screen.query_one("#prompt-error").content)
+            for _ in range(4):
+                await pilot.press("backspace")
+            await pilot.press("+", "3", "enter")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert table.get_row(str(jid))[5] == "2026-09-21"
+
+            await pilot.press("t")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            d = data.detail(jid)
+            assert d.last_contact_at == date.today().isoformat() and d.row.followup == "2026-09-21"
+            await pilot.press("T")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert data.detail(jid).row.followup == (date.today() + timedelta(days=7)).isoformat()
+    _run(scenario())

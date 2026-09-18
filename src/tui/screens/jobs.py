@@ -1,6 +1,8 @@
 """Sections 1 to 3: one three-pane screen (status list, jobs table, detail) under a preset."""
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from textual import events, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -11,7 +13,7 @@ from .. import data
 from ..presets import PRESETS
 from ..widgets.detail import DetailPane
 from ..widgets.jobs_table import JobsTable
-from ..widgets.modals import Confirm, DetailOverlay, StatusPicker
+from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
 from ..widgets.status_list import StatusList
 from .base import SectionScreen
 
@@ -27,6 +29,10 @@ class JobsScreen(SectionScreen):
     BINDINGS = [
         Binding("s", "status", "status"),
         Binding("b", "backlog", "backlog"),
+        Binding("n", "notes", "note"),
+        Binding("f", "followup", "follow-up"),
+        Binding("t", "touch(False)", "touch"),
+        Binding("T", "touch(True)", "touch+bump", show=False),
     ]
 
     def __init__(self, preset: str) -> None:
@@ -130,10 +136,14 @@ class JobsScreen(SectionScreen):
 
         self.app.push_screen(Confirm(f"#{row.id} {row.company}: leave {row.status} for {status}?"), answered)
 
-    @work(thread=True, group="write")
     def write_status(self, job_id: int, status: str) -> None:
+        self.write(lambda: data.set_status(job_id, status))
+
+    @work(thread=True, group="write")
+    def write(self, op: Callable[[], str]) -> None:
+        """Every write: run it off the UI thread, toast its one line, reload the view."""
         try:
-            line = data.set_status(job_id, status)
+            line = op()
         except ValueError as e:
             self.app.call_from_thread(self.app.notify, str(e), severity="error")
             return
@@ -144,3 +154,41 @@ class JobsScreen(SectionScreen):
     def reload(self) -> None:
         self.load_counts()
         self.load_rows(keep=True)
+        self.load_detail(self.query_one(JobsTable).current_id, overlay=False)
+
+    # Notes and dates.
+
+    def action_notes(self) -> None:
+        row = self.current_row()
+        if row is not None:
+            self.open_notes(row)
+
+    @work(thread=True, group="notes", exclusive=True)
+    def open_notes(self, row: data.JobRow) -> None:
+        before = data.notes(row.id)      # the table rows do not carry the field
+
+        def saved(text: str | None) -> None:
+            if text is not None and text.strip() != before.strip():
+                self.write(lambda: data.set_notes(row.id, text))
+
+        self.app.call_from_thread(
+            self.app.push_screen, NotesEditor(f"#{row.id} {row.company} notes", before), saved)
+
+    def action_followup(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        today = self.app.today  # type: ignore[attr-defined]
+
+        def entered(when: str | None) -> None:
+            if when is not None and when != (row.followup or ""):
+                self.write(lambda: data.set_followup(row.id, when))
+
+        self.app.push_screen(Prompt(f"#{row.id} {row.company} follow-up", "YYYY-MM-DD, +N, t; empty clears",
+                                    lambda text: data.parse_followup(text, today),
+                                    row.followup or ""), entered)
+
+    def action_touch(self, bump: bool) -> None:
+        row = self.current_row()
+        if row is not None:
+            self.write(lambda: data.touch(row.id, bump))

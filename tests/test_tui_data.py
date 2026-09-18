@@ -247,3 +247,51 @@ def test_confirm_only_when_leaving_the_pipeline_statuses():
     assert data.needs_confirm("screen", "interview")
     assert not data.needs_confirm("shortlisted", "applied")
     assert not data.needs_confirm("rejected", "applied") and not data.needs_confirm("applied", "applied")
+
+
+def test_parse_followup_forms():
+    from datetime import date
+
+    today = date(2026, 9, 18)
+    assert data.parse_followup("2026-10-01", today) == "2026-10-01"
+    assert data.parse_followup(" +7 ", today) == "2026-09-25"
+    assert data.parse_followup("+0", today) == data.parse_followup("T", today) == "2026-09-18"
+    assert data.parse_followup("", today) == data.parse_followup("-", today) == ""
+    for bad in ("tomorrow", "+x", "+", "2026-13-01", "09/18/2026"):
+        with pytest.raises(ValueError):
+            data.parse_followup(bad, today)
+
+
+def test_notes_followup_and_touch_write_through_db(env):
+    from datetime import date, timedelta
+
+    jid = env(status="applied", notes="old")
+    assert data.notes(jid) == "old" and data.notes(999) == ""
+
+    assert data.set_notes(jid, "  new text \n") == f"#{jid} notes saved"
+    assert data.set_followup(jid, "2026-10-01") == f"#{jid} follow-up 2026-10-01"
+    d = data.detail(jid)
+    assert d is not None and d.notes == "new text" and d.row.followup == "2026-10-01"
+    assert d.row.status == "applied"
+    assert d.events[0].kind == "note" and d.events[0].payload == {"note": "new text", "edit": True}
+
+    assert data.set_followup(jid, "") == f"#{jid} follow-up cleared"
+    assert data.touch(jid).endswith(f"contact {date.today().isoformat()}")
+    d = data.detail(jid)
+    assert d is not None and d.row.followup is None and d.last_contact_at == date.today().isoformat()
+
+    bumped = (date.today() + timedelta(days=7)).isoformat()      # fixtures carry no notify.yaml: 7
+    assert data.touch(jid, bump=True).endswith(f"follow-up {bumped}")
+    d = data.detail(jid)
+    assert d is not None and d.row.followup == bumped
+    assert [e.kind for e in d.events[:2]] == ["contact", "contact"] and d.events[0].payload["bumped"]
+
+    assert data.set_notes(jid, "") == f"#{jid} notes cleared" and data.notes(jid) == ""
+    long = "x" * 500
+    data.set_notes(jid, long)
+    d = data.detail(jid)
+    assert d is not None and d.notes == long and len(d.events[0].payload["note"]) == 200
+    with pytest.raises(ValueError):
+        data.set_followup(jid, "soon")
+    with pytest.raises(ValueError):
+        data.set_notes(999, "x")
