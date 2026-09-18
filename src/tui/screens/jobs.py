@@ -6,7 +6,8 @@ from collections.abc import Callable
 from textual import events, work
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Input
 from textual.worker import get_current_worker
 
 from .. import commands, data
@@ -24,9 +25,14 @@ WIDE = 120   # under this many columns the detail pane collapses and `enter` ope
 class JobsScreen(SectionScreen):
     DEFAULT_CSS = """
     JobsScreen #panes { height: 1fr; }
+    JobsScreen #middle { width: 1fr; height: 1fr; }
+    JobsScreen #search { display: none; height: 1; border: none; padding: 0 1; background: $boost; }
+    JobsScreen #search.open { display: block; }
     """
 
     BINDINGS = [
+        Binding("slash", "search", "search"),
+        Binding("escape", "home", "home", show=False),
         Binding("s", "status", "status"),
         Binding("b", "backlog", "backlog"),
         Binding("o", "open(False)", "open posting"),
@@ -46,7 +52,10 @@ class JobsScreen(SectionScreen):
     def body(self) -> ComposeResult:
         with Horizontal(id="panes"):
             yield StatusList(PRESETS[self.preset].entries, id="status-list")
-            yield JobsTable(id="jobs-table")
+            with Vertical(id="middle"):
+                yield Input(placeholder="search title, company, notes (d: adds descriptions in all)",
+                            id="search")
+                yield JobsTable(id="jobs-table")
             yield DetailPane(id="detail")
 
     def on_mount(self) -> None:
@@ -219,3 +228,27 @@ class JobsScreen(SectionScreen):
             self.app.call_from_thread(self.app.notify, str(e), severity="warning")
             return
         self.app.call_from_thread(self.app.notify, line)
+
+    # Search: live, inside the current filter. `enter` keeps the query and goes back to the
+    # table; `esc` clears it from wherever the focus is.
+
+    def action_search(self) -> None:
+        box = self.query_one("#search", Input)
+        box.add_class("open")
+        box.focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "search" and event.value != self.query_text:
+            self.query_text = event.value
+            self.load_rows()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "search":
+            self.query_one(JobsTable).focus()
+
+    def action_home(self) -> None:
+        box = self.query_one("#search", Input)
+        box.remove_class("open")
+        if box.value:
+            box.value = ""          # fires Changed, which reloads the unfiltered rows
+        self.query_one(JobsTable).focus()

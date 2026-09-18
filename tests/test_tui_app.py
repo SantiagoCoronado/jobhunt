@@ -515,3 +515,48 @@ def test_open_posting_only_hands_http_urls_to_the_desktop(tmp_db):
     with pytest.raises(ValueError):
         commands.open_path(tmp_db / "nope")
     assert len(OPENED) == 1
+
+
+def test_slash_searches_inside_the_filter_d_prefix_in_all_and_esc_clears():
+    from src.tui.widgets.jobs_table import JobsTable
+
+    fde = _add(match_score=90, title="Forward Deployed Engineer")
+    noted = _add(match_score=80, title="Backend", notes="ask about the forward team")
+    plain = _add(match_score=70, title="Platform Engineer")
+    _add(status="applied", match_score=99, title="Forward Deployed Engineer II")
+    cold = _add(status="discovered", match_score=60, title="Data Engineer", description="Kafka all day")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            box = app.screen.query_one("#search")
+            assert not box.display
+            await pilot.press("slash")
+            await pilot.pause()
+            assert box.display and app.focused is box
+            await pilot.press(*"forward")
+            await _settle(app, pilot)
+            assert table.job_ids == [fde, noted]          # `s`, `o`, `b` typed, not acted on
+
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.focused is table and table.job_ids == [fde, noted] and box.display
+            await pilot.press("escape")
+            await _settle(app, pilot)
+            assert table.job_ids == [fde, noted, plain] and not box.display and box.value == ""
+
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("end")
+            await _settle(app, pilot)
+            await pilot.press("slash", *"kafka")
+            await _settle(app, pilot)
+            assert table.job_ids == []
+            await pilot.press("escape", "slash", *"d:kafka")
+            await _settle(app, pilot)
+            assert table.job_ids == [cold]
+            await pilot.press("escape")
+            await _settle(app, pilot)
+            assert app.focused is table and len(table.job_ids) == 5
+    _run(scenario())
