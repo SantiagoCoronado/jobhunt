@@ -52,6 +52,13 @@ def fetch() -> str:
     return buf.getvalue()
 
 
+def printed_manifest(doc: dict[str, Any]) -> str:
+    """The sweep on disk as `mail_fetch run` printed it: stamp, legend, every manifest line."""
+    lines = [f"sweep: {doc.get('generated_at', '?')}  (copy this stamp into every proposal as \"sweep\")", "",
+             *mail_fetch.format_legend(doc), "", *mail_fetch.format_manifest(doc, 1, 100000)]
+    return "\n".join(lines) + "\n"
+
+
 def _proposals(res: Result) -> list[dict[str, Any]] | None:
     data = res.structured
     if data is None and res.text:
@@ -111,6 +118,8 @@ def run(ctx: Context) -> StageResult:
     with open(ctx.stage_log(NAME, "fetch"), "a", encoding="utf-8") as log:
         log.write(manifest)
     doc = mail_fetch.load_result(mail_fetch.INBOX_PATH)
+    if classified:                                    # no second fetch, but a re-run still needs the manifest to read
+        manifest = printed_manifest(doc)
     threads = len(doc.get("threads") or [])
     ctx.ledger.set_summary(NAME, accounts=len(accounts), threads=threads)
     failed_boxes = [f"inbox: mailbox {a['label']} {a['status']}" for a in doc.get("accounts") or [] if a.get("status") != "ok"]

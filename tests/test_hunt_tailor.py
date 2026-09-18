@@ -99,8 +99,9 @@ def test_a_failed_build_gets_one_fix_round_with_the_verdict_in_the_prompt(env):
 def test_a_second_failure_is_reported_not_retried_and_nothing_written_never_passes(env):
     folder = env / "applications" / "pending" / "acme-7"
     folder.mkdir(parents=True)
-    for p in (env / "fake_out" / "good").iterdir():                      # an older, passing application
+    for p in (env / "fake_out" / "good").iterdir():                      # an older, passing application,
         (folder / p.name).write_text(p.read_text())
+    assert stage.build(folder)["ok"] and (folder / "build.json").exists()    # with the build.json a real one has
     rc, lines, _fake, st = _run(env, "20260919-0901", PICKS, plan={"job_7": {"nothing": 9}, "job_8": {"bad": 9}})
     assert rc == 2 and st["state"] == "failed" and st["note"].startswith("2 of 2 tailor unit(s) failed")
     units = {u["id"]: u for u in st["units"]}
@@ -109,6 +110,41 @@ def test_a_second_failure_is_reported_not_retried_and_nothing_written_never_pass
     needs = st["summary"]["needs_human"]
     assert any(n.startswith("tailor: job_8 did not pass its build after the fix round: ") for n in needs)
     assert st["summary"]["builds"]["job_8"]["ok"] is False and st["summary"]["passed"] == 0
+    # the leftover passing build.json is not this run's PASS: the summary follows the unit's verdict
+    assert json.loads((folder / "build.json").read_text())["ok"] is True
+    assert st["summary"]["builds"]["job_7"] == {"ok": False, "folder": str(folder),
+                                                "lines": ["FAIL    the unit wrote nothing in acme-7"]}
+    assert st["summary"]["failed_units"] == 2
+    assert "tailor: job_7 did not pass its build after the fix round: FAIL    the unit wrote nothing in acme-7" in needs
+
+
+def test_a_resume_builds_done_units_again_and_reruns_only_what_no_longer_passes(env):
+    import shutil
+    rc, _lines, _fake, st = _run(env, "20260919-0904", PICKS, plan={"job_8": {"bad": 9}})
+    assert rc == 2 and {u["id"]: u["state"] for u in st["units"]} == {"job_7": "done", "job_8": "failed"}
+
+    def resume(plan):
+        (env / "fake_agent.json").write_text(json.dumps(plan))
+        for f in env.glob(".fake_job_*.count"):
+            f.unlink()
+        fake = FakeAgentHarness(env)
+        lines: list[str] = []
+        rc = run_mod.run(hc.defaults(), [], None, cwd=env, hunt_dir=env / "hunt", resume="20260919-0904",
+                         emit=lines.append, get_harness=lambda name: fake, pool_options={"sleep": lambda s: None})
+        return rc, lines, fake, ledger.load_state(env / "hunt" / "20260919-0904")["stages"][1]
+
+    # job_7 still builds: the harness is not called for it; job_8 runs again
+    (env / "applications" / "pending" / "acme-8" / "CoverLetter.md").unlink()
+    rc, lines, fake, st = resume({"job_8": {"bad": 9}})
+    assert rc == 2 and all("job #8" in i.prompt for i in fake.calls) and fake.calls
+    assert {u["id"]: u["state"] for u in st["units"]} == {"job_7": "done", "job_8": "failed"}
+    # job_7's folder is gone: done is not trusted, it is bundled and tailored again
+    shutil.rmtree(env / "applications" / "pending" / "acme-7")
+    rc, lines, fake, st = resume({})
+    assert rc == 0, lines
+    assert any(line.startswith("tailor job_7 was done but its output no longer verifies") for line in lines)
+    assert sorted({i.prompt.split("tailor job #")[1][0] for i in fake.calls}) == ["7", "8"]
+    assert all(u["state"] == "done" for u in st["units"]) and st["summary"]["passed"] == 2
 
 
 def test_no_picks_skips_and_a_missing_picks_file_fails(env):

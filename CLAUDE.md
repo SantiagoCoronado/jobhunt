@@ -156,8 +156,8 @@ Lean tailor (spec `docs/spec-tailor-lean.md`, Phase A landed 2026-09-02): `pytho
 writes the one input file the tailor reads (`data/tailor/<id>/inputs.md`, voice + profile + master +
 generated page geometry + job + dossier + answers); `python -m src.tailor_build <folder>` splits `draft.md`,
 checks, renders, audits, exports PDFs, verifies the page count and prints a verdict (exit 1 = fix it),
-writing `build.json` + `state.json` in the folder. The resume-tailor agent, `/jh-tailor` and `/jh-hunt`
-step 7 run on them (Phase B, measured at 3 to 4 calls and under 0.2M tokens per application).
+writing `build.json` + `state.json` in the folder. The resume-tailor agent, `/jh-tailor` and the hunt's
+tailor stage (`src/hunt/stages/tailor.py`) run on them (Phase B, measured at 3 to 4 calls and under 0.2M tokens per application).
 Folder/DB drift check: `python -m src.reconcile [--apply]`. Tests: `.venv/bin/python -m pytest tests/`.
 DB maintenance (auto-runs after discover): `python -m src.maintain [--vacuum]`, expires postings
 that vanished from an actively-checked source, prunes irrelevant/expired descriptions.

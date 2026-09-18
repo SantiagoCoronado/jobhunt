@@ -46,9 +46,14 @@ def _mtimes(folder: Path) -> dict[str, float]:
     return {p.name: p.stat().st_mtime_ns for p in folder.iterdir() if p.is_file() and p.name not in _BOOKKEEPING}
 
 
-def verify_build(folder: Path, before: dict[str, float]) -> str | None:
-    """Run the build and judge it (registry row 7). None when it passes on one page."""
-    if _mtimes(folder) == before:
+def verify_build(folder: Path, before: dict[str, float] | None) -> str | None:
+    """Run the build and judge it (registry row 7). None when it passes on one page. `before`
+    is the folder as the plan found it: a unit that changed nothing fails without a build.
+    None skips that gate, for a resumed unit the ledger already holds as done (decision 9:
+    its output on disk is verified again, and it runs again only when that fails)."""
+    if not folder.is_dir():
+        return f"the application folder {folder.name} is gone"
+    if before is not None and _mtimes(folder) == before:
         return f"the unit wrote nothing in {folder.name}"
     try:
         doc = build(folder)
@@ -78,13 +83,18 @@ def fix_task(folder: Path, cwd: Path, first_task: str) -> str | None:
             f"`.venv/bin/python -m src.tailor_build {rel(folder, cwd)}` once, and stop whatever it prints.")
 
 
-def metrics(folder: Path) -> dict[str, Any]:
+def metrics(folder: Path, unit: dict[str, Any]) -> dict[str, Any]:
+    """One pick's entry in the stage summary. Whether it passed is the unit's verdict in the
+    ledger, never `build.json` alone: a folder can hold an older application's passing build
+    that this run's unit never touched."""
+    ok = unit["state"] == "done"
+    verdict = str(unit.get("verdict") or "")
     path = folder / "build.json"
-    if not path.exists():
-        return {"ok": False, "lines": ["no build.json"]}
+    if not path.exists() or (not ok and not verdict.startswith("build FAIL")):
+        return {"ok": ok, "folder": str(folder), "lines": [f"FAIL    {verdict or 'no build.json'}"]}
     doc = json.loads(path.read_text(encoding="utf-8"))
     lines = [str(ln) for ln in doc.get("verdict") or []]
-    out: dict[str, Any] = {"ok": bool(doc.get("ok")), "folder": doc.get("folder"),
+    out: dict[str, Any] = {"ok": ok, "folder": doc.get("folder"),
                            "pages": doc["metrics"].get("pages"), "letter_words": doc["metrics"].get("letter_words"),
                            "warnings": len(doc.get("warnings") or []),
                            "relocation_line": bool(doc["metrics"].get("relocation_line")),
@@ -108,10 +118,13 @@ def run(ctx: Context) -> StageResult:
     folders: dict[str, Path] = {}
     for p in picks:
         uid = f"job_{p['id']}"
-        if uid in done_before:                        # a resume: the bundle would only restamp the folder
-            folders[uid] = tailor_bundle.application_folder(p["id"], p.get("company") or "")
-            planned.append(Planned(uid, None, None, "", lambda: None))
-            continue
+        done = uid in done_before
+        if done:                                      # a resume: no new bundle, but the folder is built again as verify
+            folder = tailor_bundle.application_folder(p["id"], p.get("company") or "")
+            if verify_build(folder, None) is None:
+                folders[uid] = folder
+                planned.append(Planned(uid, None, None, "", lambda: None))
+                continue
         inputs, folder = bundle(p["id"], p.get("company") or "", ctx.stage_log(NAME, "bundle"))
         folders[uid] = folder
         before = _mtimes(folder)
@@ -124,7 +137,7 @@ def run(ctx: Context) -> StageResult:
                                lambda f=folder, b=before: verify_build(f, b),          # type: ignore[misc]
                                retry_task=lambda verdict, f=folder, t=task: fix_task(f, ctx.cwd, t)))  # type: ignore[misc]
     outcomes = fan_out(ctx, REGISTRY[NAME], planned)
-    builds = {uid: metrics(folder) for uid, folder in folders.items()}
+    builds = {uid: metrics(folder, ctx.ledger.unit(NAME, uid)) for uid, folder in folders.items()}
     passed = sum(1 for b in builds.values() if b["ok"])
     summary = {"picks": len(picks), "passed": passed, "failed_units": len(picks) - passed, "builds": builds}
     needs = [f"tailor: {uid} did not pass its build after the fix round: {'; '.join(b['lines'][-2:])}"

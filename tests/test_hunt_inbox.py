@@ -124,3 +124,26 @@ def test_skipped_cleanly_with_no_account_and_with_no_mail(env, monkeypatch):
     rc, lines, fake, st = _run(env, "20260918-2203", [])
     assert rc == 0 and st["state"] == "skipped" and st["note"] == "no new mail on the open applications"
     assert st["summary"] == {"accounts": 1, "threads": 0} and fake.calls == []
+
+
+def test_a_resumed_done_unit_whose_file_is_gone_runs_again_with_the_manifest_not_a_second_fetch(env, monkeypatch):
+    _mail(monkeypatch, env, threads=THREADS[:2])
+    good = {"proposals": [_prop(1, "interview_invite", "screen"), _prop(2, "rejection", "rejected")]}
+    rc, _lines, _fake, _st = _run(env, "20260918-2204", [good])
+    assert rc == 0
+    led = ledger.Ledger.open(env / "hunt" / "20260918-2204")                 # as if the run died after the unit, before the stage closed
+    led.state["stages"][0]["state"] = "failed"
+    led._save()
+    (env / "data" / "gmail_pull.json").unlink()
+    monkeypatch.setattr(stage, "fetch", lambda: pytest.fail("a resume after the unit never fetches again"))
+    (env / "fake_agent.json").write_text(json.dumps({"inbox": {"replies": [good]}}))
+    (env / ".fake_inbox.count").unlink()
+    fake = FakeAgentHarness(env)
+    lines: list[str] = []
+    rc = run_mod.run(hc.defaults(), [], None, cwd=env, resume="20260918-2204", emit=lines.append,
+                     get_harness=lambda name: fake, pool_options={"sleep": lambda s: None})
+    assert rc == 0, lines
+    assert any(line.startswith("inbox inbox was done but its output no longer verifies") for line in lines)
+    [inv] = fake.calls
+    assert f"sweep: {SWEEP}" in inv.prompt and "Interview invitation | we would like to schedule a call" in inv.prompt
+    assert "Your application | we have decided not to move forward" in inv.prompt
