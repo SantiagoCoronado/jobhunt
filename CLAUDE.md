@@ -126,6 +126,9 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 
 ## Commands
 All commands are `jh-` prefixed; see `.claude/commands/`.
+Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
+`python -m src.hunt sync-agents` regenerates `.claude/agents/*.md` from them with each stage's model
+from `config/hunt.toml`, and CI runs `sync-agents --check`. Never edit a generated agent file.
 Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T ...` (reuses a same company+title row when one exists; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the

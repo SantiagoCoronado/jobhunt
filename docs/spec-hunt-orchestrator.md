@@ -165,7 +165,7 @@ Reference command lines (verified against `--help` on 2026-09-07; the adapter te
 
 | Harness | argv |
 |---|---|
-| claude | `claude -p --bare --output-format json --model {model} --system-prompt {system} --allowedTools Read Write Edit "Bash(python:*)" "Bash(.venv/bin/python:*)" [WebSearch WebFetch] --permission-mode acceptEdits [--json-schema {schema}] {prompt}` |
+| claude | `claude -p [--bare] --output-format json --no-session-persistence --strict-mcp-config --permission-mode acceptEdits --permission-prompts none --model {model} --system-prompt {system} --tools Read,Write,Edit,Bash[,WebSearch,WebFetch] --allowedTools Read Write Edit "Bash(python:*)" "Bash(.venv/bin/python:*)" [WebSearch WebFetch] [--json-schema {schema}]` with the prompt on stdin. Landed 2026-09-18 (PR 2 story 3, verified on 2.1.276): the prompt cannot be a trailing argument because `--allowedTools` and `--tools` are variadic; `--tools` restricts the built-in set and `--allowedTools` pre-approves it; `--permission-prompts none` denies instead of hanging; `--bare` is passed only when `ANTHROPIC_API_KEY` is set, because bare mode never reads the OAuth login and fails with `terminal_reason: api_error`, "Not logged in" |
 | codex | `codex exec --json -o {last_msg} -m {model} --sandbox workspace-write [--output-schema {file}] --ephemeral --skip-git-repo-check {system + prompt}` |
 | opencode | `opencode run --format json -m {provider/model} --agent {role} {system + prompt}` (the generated agent file carries tools and permissions; `--agent` is what applies them) |
 | pi | `pi -p --mode json --no-session --provider {provider} --model {model} --system-prompt {system} --tools read,write,edit,bash {prompt}` |

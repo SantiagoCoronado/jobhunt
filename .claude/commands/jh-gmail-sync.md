@@ -35,24 +35,14 @@ directly; you never read the files behind it.
    For this path only, `python -m src.query crm` is allowed to get the open rows. If neither
    the fetcher nor the MCP is usable, say so and stop; nothing else depends on this.
 
-4. **Classify** each manifest line into exactly one signal:
-   - rejection -> propose `rejected`
-   - interview invite / scheduling link -> advance ONE stage: applied -> `screen`,
-     screen -> `interview`; already interview -> a contact touch, no status change
-   - assessment / take-home link -> `screen` if currently applied, else a touch
-   - offer letter / verbal-offer recap -> `offer`
-   - human reply with no stage change (ack, "we'll get back to you") -> touch only
-   - automated receipt, product mail, anything not about my application -> `ignore`
-     (write it to the file with `proposed_status: null` and no `contact_date`; the applier
-     records it as seen so it never comes back)
-   - anything unclear, or conflicting with the current status -> `ambiguous`
-   Settle a line from the manifest only when the lead itself contains the decision
-   sentence. A hint (`reject?`, `schedule?`, `assessment?`, `offer?`, `receipt?`,
-   `human?`) is never enough on its own. For every unsettled line, and for every
-   `offer?` line regardless, run `python -m src.mail_fetch show <id> <id> ...` ONCE with
-   all the ids you need (25 per call), then classify from the snippets. Lines flagged
-   `weak` propose only touches, `ignore`, or `ambiguous` unless the text names the role.
-   NEVER propose ghosted, withdrawn, or accepting/declining an offer; those are my calls.
+4. **Classify** each manifest line into exactly one signal by the rules in
+   `prompts/agents/inbox-classifier.md` (read it once; it is the same system prompt the hunt
+   orchestrator gives the inbox unit): rejection, interview (advance ONE stage), assessment,
+   offer, touch, ignore, ambiguous. Settle a line from the manifest only when the lead itself
+   carries the decision sentence; for every unsettled line, and for every `offer?` line
+   regardless, run `python -m src.mail_fetch show <id> <id> ...` ONCE with all the ids you
+   need (25 per call). NEVER propose ghosted, withdrawn, or accepting/declining an offer;
+   those are my calls.
 
 5. **Write `data/gmail_pull.json`**: a JSON array, one object per proposal.
    - Manifest path (step 1 ran): `{"manifest_id": <the line id>, "sweep": "<the sweep: stamp
