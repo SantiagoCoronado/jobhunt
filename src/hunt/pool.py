@@ -18,7 +18,7 @@ import threading
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,7 @@ class UnitSpec:
     invocation: Invocation
     verify: Callable[[], str | None]     # None when the output passes, else why it did not
     on_result: Callable[[Result], None] | None = None   # a schema unit's reply IS its output (inbox)
+    retry_prompt: Callable[[str], str | None] | None = None   # the next attempt's prompt, given the verdict (tailor's fix round)
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ class Pool:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         attempts, waits_total = 0, 0
         verdict: str | None = None
+        inv = spec.invocation
         while True:
             self.ledger.move_unit(stage, uid, "running")
             attempts += 1
@@ -94,8 +96,8 @@ class Pool:
             waits = 0
             while True:                                          # one attempt, with rate-limit waits
                 with self.global_slots:
-                    ex = self._execute(spec.invocation, log_path, attempts)
-                res = self._result(ex, spec.invocation.timeout_s)
+                    ex = self._execute(inv, log_path, attempts)
+                res = self._result(ex, inv.timeout_s)
                 usage = _merge(usage, res.usage)
                 if self._rate_limited(res, ex) and waits < len(self.backoff_s):
                     wait = self.backoff_s[waits]
@@ -122,6 +124,8 @@ class Pool:
             self.emit(f"{stage} {uid} failed: {verdict}")
             if attempts >= max_attempts:
                 return Outcome(stage, uid, "failed", attempts, verdict, self.ledger.unit(stage, uid)["usage"], waits_total)
+            if spec.retry_prompt is not None:
+                inv = replace(spec.invocation, prompt=spec.retry_prompt(verdict) or spec.invocation.prompt)
 
     # -- helpers
     def _rate_limited(self, res: Result, ex: _Exec) -> bool:

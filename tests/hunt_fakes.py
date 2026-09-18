@@ -7,6 +7,8 @@ wrong, and how many times, comes from `fake_agent.json` in the working directory
     {"<unit id>": {"bad_keep": 9}}   every call writes keep as a string
     {"<unit id>": {"crash": 1}}      the first call exits 1 with an error envelope
 
+    {"job_7": {"bad": 1}}            the tailor unit copies fake_out/bad/ on its first call, fake_out/good/ after
+    {"job_7": {"nothing": 9}}        the tailor unit writes nothing
     {"inbox": {"replies": [...]}}    the inbox unit's reply per call (the last one repeats)
 
 The unit id is the input file's stem (`chunk_001`). Match scores: 90 on an even id, 65 on an
@@ -44,6 +46,20 @@ if "Task: research " in prompt:                             # a dossier, written
     body += f"- researched: {'2026-01-01' if n < mine.get('old_date', 0) else today}\n"
     os.makedirs(os.path.dirname(out), exist_ok=True)
     open(out, "w", encoding="utf-8").write(body)
+    print(json.dumps({"ok": True}))
+    sys.exit(0)
+if "Task: tailor job " in prompt:                          # copies prepared deliverables into the folder
+    import shutil
+    folder = re.search(r"run the build on `([^`]+)`", prompt).group(1)
+    unit = "job_" + re.search(r"tailor job #(\d+)", prompt).group(1)
+    mine = (json.load(open("fake_agent.json")) if os.path.exists("fake_agent.json") else {}).get(unit, {})
+    count_file = f".fake_{unit}.count"
+    n = int(open(count_file).read()) if os.path.exists(count_file) else 0
+    open(count_file, "w").write(str(n + 1))
+    if n >= mine.get("nothing", 0):
+        variant = "bad" if n < mine.get("bad", 0) else "good"
+        for name in os.listdir(os.path.join("fake_out", variant)):
+            shutil.copy(os.path.join("fake_out", variant, name), os.path.join(folder, name))
     print(json.dumps({"ok": True}))
     sys.exit(0)
 paths = re.findall(r"`([^`]+\.(?:json|md))`", prompt)

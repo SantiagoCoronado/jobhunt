@@ -32,6 +32,7 @@ class Planned:
     verify: Callable[[], str | None]      # None when the output passes, else why it did not
     schema: dict[str, Any] | None = None
     on_result: Callable[[Result], None] | None = None   # with `schema`: the reply is the output
+    retry_task: Callable[[str], str | None] | None = None   # the task lines of the next attempt, given the verdict
 
 
 def rel(path: Path, cwd: Path) -> str:
@@ -96,8 +97,25 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
         (prompt_dir / f"{p.id}.md").write_text(f"{role.body.rstrip()}\n\n{user}", encoding="utf-8")
         inv = Invocation(prompt=user, system=role.body, model=model, tools=stage.tools, cwd=ctx.cwd,
                          timeout_s=scfg.timeout_s, schema=p.schema)
-        specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result))
+        specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result, _retry(p, prompt_dir, role.body)))
     return ctx.pool(harness).run_stage(name, specs, scfg.concurrency, scfg.attempts)
+
+
+def _retry(p: Planned, prompt_dir: Path, body: str) -> Callable[[str], str | None] | None:
+    """The next attempt's prompt from the stage's `retry_task`, written beside the first one
+    (`<unit>.retry.md`) so the round that actually ran can be re-run by hand too."""
+    if p.retry_task is None:
+        return None
+    retry_task = p.retry_task
+
+    def prompt(verdict: str) -> str | None:
+        task = retry_task(verdict)
+        if task is None:
+            return None
+        user = f"{task.rstrip()}\n{REPLY_CAP}\n"
+        (prompt_dir / f"{p.id}.retry.md").write_text(f"{body.rstrip()}\n\n{user}", encoding="utf-8")
+        return user
+    return prompt
 
 
 def failed_verdict(stage: str, outcomes: Sequence[Outcome], total: int) -> str | None:

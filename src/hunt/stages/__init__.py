@@ -5,7 +5,7 @@ and are done when their check passes; fanned stages plan units, run them through
 from __future__ import annotations
 
 from ..config import STAGES
-from . import discover, inbox, match, pick, report, research, triage
+from . import discover, inbox, match, pick, report, research, tailor, triage
 from .base import Context, Stage, StageResult
 
 REGISTRY: dict[str, Stage] = {
@@ -16,7 +16,7 @@ REGISTRY: dict[str, Stage] = {
     "pick": Stage("pick", "python", run=pick.run),
     "research": Stage("research", "fanned", run=research.run, role="company-researcher",
                       tools=frozenset({"read", "write", "bash", "web"}), needs=frozenset({"web"})),
-    "tailor": Stage("tailor", "fanned", role="resume-tailor", tools=frozenset({"read", "write", "edit", "bash"})),
+    "tailor": Stage("tailor", "fanned", run=tailor.run, role="resume-tailor", tools=frozenset({"read", "write", "edit", "bash"})),
     "report": Stage("report", "python", run=report.run),
 }
 assert tuple(REGISTRY) == STAGES

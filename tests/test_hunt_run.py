@@ -133,11 +133,13 @@ def test_no_picks_skips_to_the_report_and_exits_3(env, monkeypatch):
     assert "- none" in (env / "hunt" / "20260918-1701" / "report.md").read_text()
 
 
-def test_fanned_stages_resume_and_the_lock_are_refused_cleanly(env, capsys):
-    assert cli.main(["run"]) == 2
+def test_a_stage_with_no_runner_resume_and_the_lock_are_refused_cleanly(env, capsys, monkeypatch):
+    # never `cli.main(["run"])` bare in a test: every stage has a runner now, so that IS a hunt
+    assert all(s.implemented for s in REGISTRY.values())
+    monkeypatch.setitem(REGISTRY, "research", REGISTRY["research"].__class__("research", "fanned", role="company-researcher"))
+    assert cli.main(["run", "--from", "pick", "--to", "research"]) == 2
     err = capsys.readouterr().out
-    missing = [n for n, s in REGISTRY.items() if not s.implemented]
-    assert missing and f"{', '.join(missing)} not in this build yet" in err and "select from discover, " in err
+    assert "research not in this build yet" in err and "select from discover, " in err
     assert cli.main(["run", "--only", "pick", "--resume", "latest"]) == 2
     assert "--resume lands in PR 3" in capsys.readouterr().out
     (env / "hunt" / ".lock").mkdir(parents=True)
@@ -146,6 +148,14 @@ def test_fanned_stages_resume_and_the_lock_are_refused_cleanly(env, capsys):
     assert ledger.list_runs(env / "hunt") == []
     (env / "hunt" / ".lock").rmdir()
     assert run_mod.run(hc.defaults(), [], "claude", emit=lambda s: None) == 0
+
+
+def test_the_conftest_guard_refuses_a_real_agent_cli():
+    import subprocess
+    with pytest.raises(AssertionError, match="real agent CLI"):
+        subprocess.run(["claude", "--version"], check=False)
+    with pytest.raises(AssertionError, match="real agent CLI"):
+        subprocess.Popen(["/opt/homebrew/bin/codex", "exec"])
 
 
 def test_a_crashing_stage_is_a_failed_stage_with_its_traceback_logged(env, monkeypatch):
