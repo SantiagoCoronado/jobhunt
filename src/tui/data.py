@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .. import config, db, dream, reconcile, research
-from .presets import ALL, COLD, HOT, PRESETS
+from .presets import ALL, COLD, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
 EVENTS_SHOWN = 5
@@ -148,16 +148,18 @@ def _like(term: str) -> str:
     return f"%{esc}%"
 
 
-def rows(preset: str = "board", status: str | None = None, query: str = "") -> list[JobRow]:
+def rows(preset: str = "board", status: str | None = None, query: str = "",
+         sort: Sort | None = None) -> list[JobRow]:
     """Rows for the jobs table. `status` is the left-pane pick: a hot status, `all`, or None
     for the preset's own statuses. Never `irrelevant`/`expired`. `query` matches title,
-    company and notes inside that filter.
+    company and notes inside that filter. `sort` replaces the preset's own order.
 
     `all` is how `discovered` is reached, and its left-pane number is the discovered count,
     so the cold rows come FIRST and ALL_CAP limits only them; the hot rows follow, uncapped
     (there are hundreds, not thousands). One score-sorted list under one cap would be 500
-    scored hot rows and not a single discovered one."""
+    scored hot rows and not a single discovered one. A `sort` orders each half on its own."""
     p = PRESETS[preset]
+    order_by = sort.order_by if sort else p.order_by
     if status is not None and status != ALL and status not in HOT:
         raise ValueError(f"{status!r} is not a status the TUI shows")
 
@@ -171,7 +173,7 @@ def rows(preset: str = "board", status: str | None = None, query: str = "") -> l
 
     def select(conn: sqlite3.Connection, statuses: tuple[str, ...], cap: int | None) -> list[JobRow]:
         where = f"status IN ({','.join('?' for _ in statuses)})" + (f" AND {match}" if match else "")
-        sql = f"SELECT {_ROW_COLS} FROM jobs WHERE {where} ORDER BY {p.order_by}"
+        sql = f"SELECT {_ROW_COLS} FROM jobs WHERE {where} ORDER BY {order_by}"
         if cap is not None:
             sql += f" LIMIT {int(cap)}"
         return [_job_row(r) for r in conn.execute(sql, [*statuses, *match_args])]

@@ -93,6 +93,11 @@ Jobs table (sections 1 to 3): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` d
 `b` backlog, `n` notes, `f` follow-up date, `t` touch, `T` touch and bump, `o` open posting,
 `O` open folder (or dossier when no folder), `c` copy `/jh-tailor <id>` (selection when any),
 `C` copy every starred role, `/` search, `tab` cycle status list / table / detail.
+Sort (added 2026-09-19): `>` / `<` sort by the next / previous column (score, company, title,
+loc, fup), `-` flips ascending and descending, `=` returns to the section's own sort; a click
+on a column header sorts by it and a second click flips. The sorted header carries `▲` or `▼`.
+The order is made in SQL (`data.rows(..., sort)`, whitelisted columns, empty values last in
+both directions), so search, the `all` cap and live refresh keep it.
 
 Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile.
 
@@ -200,6 +205,11 @@ any text the TUI renders or writes.
 12. **Live refresh**: 2 s mtime poll, reload on change preserving cursor and selection, `r` forces.
 13. **Help and footer**: `?` overlay grouped by section, footer driven by the binding table, `esc` home semantics everywhere.
 14. **Retire Flask**: delete `src/crm/`, `tests/test_viewer.py`, the Flask pin; update CLAUDE.md Track section and README to name `python -m src.tui`.
+
+### PR 3b: `feat/tui-sort-launch` (added 2026-09-19, after Santiago tested PR 3; Linear PRA-104)
+
+1. **Sort**: `>` `<` `-` `=` and header clicks order the jobs table by any data column, ascending or descending; the order is made in `data.rows`; arrow on the sorted header; cursor stays on the same job.
+2. **Launcher**: `bin/jobhunt` opens the TUI from any directory; `scripts/install_launcher.sh [name]` symlinks it into `~/.local/bin` under `jobhunt` or any name, never over a foreign command; `--uninstall` removes it.
 
 ### PR 4: `feat/tui-stars-apps`
 

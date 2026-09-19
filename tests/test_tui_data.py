@@ -319,3 +319,37 @@ def test_notes_followup_and_touch_write_through_db(env):
         data.set_followup(jid, "soon")
     with pytest.raises(ValueError):
         data.set_notes(999, "x")
+
+
+def test_sort_orders_in_both_directions_with_empty_values_last(env):
+    from src.tui.presets import Sort
+
+    b = env(company="beta", title="Zeta", match_score=70, location="Berlin", next_followup_at="2026-09-20")
+    a = env(company="Acme", title="alpha", match_score=90, location="", next_followup_at="2026-09-10")
+    c = env(company="Core", title="Mid", location="Austin")             # no score, no date
+
+    def ids(column, desc):
+        return [r.id for r in data.rows("board", "shortlisted", sort=Sort(column, desc))]
+
+    assert ids("score", True) == [a, b, c] and ids("score", False) == [b, a, c]
+    assert ids("company", False) == [a, b, c] and ids("company", True) == [c, b, a]   # case-blind
+    assert ids("title", False) == [a, c, b]
+    assert ids("loc", False) == [c, b, a] and ids("loc", True) == [b, c, a]            # "" is empty too
+    assert ids("fup", False) == [a, b, c] and ids("fup", True) == [b, a, c]
+    assert [r.id for r in data.rows("board", "shortlisted")] == [a, b, c]              # preset order untouched
+
+    assert Sort.first("score").desc and not Sort.first("company").desc
+    with pytest.raises(ValueError):
+        data.rows("board", sort=Sort("notes; DROP TABLE jobs", False))
+
+
+def test_sort_keeps_the_query_and_the_cold_first_all_view(env, monkeypatch):
+    from src.tui.presets import Sort
+
+    monkeypatch.setattr(data, "ALL_CAP", 2)
+    hot = [env(company=c, title="Engineer") for c in ("Zed", "Abc")]
+    cold = [env(status="discovered", company=c, title="Engineer") for c in ("Yak", "Bee", "Cat")]
+    env(company="Aaa", title="Designer")
+
+    got = data.rows("board", "all", "engineer", Sort("company", False))
+    assert [r.id for r in got] == [cold[1], cold[2], hot[1], hot[0]]    # each half A to Z, cold capped at 2

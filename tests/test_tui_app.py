@@ -133,7 +133,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             table = app.screen.query_one(JobsTable)
             assert app.focused is table
             assert [c.label.plain for c in table.columns.values()] == [
-                " ", "score", "company", "title", "loc", "fup"]
+                " ", "score ▼", "company", "title", "loc", "fup"]      # the board leads with score
             assert table.job_ids == by_score and table.current_id == by_score[0]
             assert table.get_row(str(by_score[0]))[0].plain == ""      # star column reserved for PR 4
             await pilot.press("j")
@@ -793,3 +793,90 @@ def test_real_run_path_boots_board_without_a_screen_stack_error():
     assert app._exception is None
     assert app.return_code == 0
     assert seen == {"mode": "board", "screen": "JobsScreen"}
+
+
+def test_sort_keys_and_header_click_order_the_table_and_mark_the_header():
+    from src.tui.presets import Sort
+    from src.tui.widgets.jobs_table import JobsTable
+
+    low = _add(match_score=60, company="Acme")
+    high = _add(match_score=90, company="Zed")
+    mid = _add(match_score=75, company="Mid")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+
+            def labels():
+                return [c.label.plain for c in table.columns.values()]
+
+            assert table.job_ids == [high, mid, low] and labels()[1] == "score ▼"
+            await pilot.press("j")
+            assert table.current_id == mid
+
+            await pilot.press("minus")
+            await _settle(app, pilot)
+            assert table.job_ids == [low, mid, high] and labels()[1] == "score ▲"
+            assert table.current_id == mid                                  # the cursor follows the job
+
+            await pilot.press("greater_than_sign")
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("company", False)
+            assert table.job_ids == [low, mid, high] and labels()[1:3] == ["score", "company ▲"]
+            await pilot.press("minus")
+            await _settle(app, pilot)
+            assert table.job_ids == [high, mid, low] and labels()[2] == "company ▼"
+
+            await pilot.press("less_than_sign")
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("score", True)
+            await pilot.press("less_than_sign")                             # wraps to the last column
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("fup", False) and labels()[5] == "fup ▲"
+
+            # A search and a reload keep the sort; `=` hands the order back to the section.
+            await pilot.press("greater_than_sign", "greater_than_sign", "minus")   # score, company, desc
+            await pilot.press("slash", "d", "enter")
+            await _settle(app, pilot)
+            assert table.job_ids == [high, mid]                             # Zed, Mid: company Z to A
+            await pilot.press("escape", "r")
+            await _settle(app, pilot)
+            assert table.job_ids == [high, mid, low] and app.screen.sort == Sort("company", True)
+            await pilot.press("equals_sign")
+            await _settle(app, pilot)
+            assert app.screen.sort is None and labels()[1] == "score ▼" and labels()[2] == "company"
+
+            # Header click: first click sorts by the column, the next one flips it.
+            title_x = 22 + 1 + 3 + 9 + 22 + 2                               # inside the title header
+            await pilot.click(JobsTable, offset=(title_x - 22, 0))
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("title", False), labels()
+            await pilot.click(JobsTable, offset=(title_x - 22, 0))
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("title", True) and labels()[3] == "title ▼"
+            await pilot.click(JobsTable, offset=(1, 0))                     # the star column: ignored
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("title", True)
+    _run(scenario())
+
+
+def test_followups_marks_its_own_lead_and_flips_from_it():
+    from src.tui.presets import Sort
+    from src.tui.widgets.jobs_table import JobsTable
+
+    soon = _add(status="applied", next_followup_at="2026-09-10")
+    late = _add(status="screen", next_followup_at="2026-09-25")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await pilot.press("3")
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert table.columns["fup"].label.plain == "fup ▲" and table.job_ids == [soon, late]
+            await pilot.press("minus")
+            await _settle(app, pilot)
+            assert app.screen.sort == Sort("fup", True) and table.job_ids == [late, soon]
+    _run(scenario())

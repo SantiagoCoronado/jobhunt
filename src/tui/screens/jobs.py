@@ -11,7 +11,7 @@ from textual.widgets import Input
 from textual.worker import get_current_worker
 
 from .. import commands, data
-from ..presets import PRESETS
+from ..presets import PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
 from ..widgets.jobs_table import JobsTable
 from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
@@ -35,6 +35,10 @@ class JobsScreen(SectionScreen):
     BINDINGS = [
         Binding("r", "refresh", "refresh"),
         Binding("slash", "search", "search"),
+        Binding("greater_than_sign", "sort_move(1)", "sort by next column", key_display=">"),
+        Binding("less_than_sign", "sort_move(-1)", "sort by previous column", key_display="<", show=False),
+        Binding("minus", "sort_flip", "ascending / descending", key_display="-"),
+        Binding("equals_sign", "sort_reset", "back to the section's own sort", key_display="=", show=False),
         Binding("escape", "home", "home: back to the table, search cleared", show=False),
         Binding("tab", "app.focus_next", "next pane: status list, table, detail", show=False),
         Binding("s", "status", "status"),
@@ -52,6 +56,7 @@ class JobsScreen(SectionScreen):
         self.preset = preset
         self.status_filter: str | None = None
         self.query_text = ""
+        self.sort: Sort | None = None      # None = the preset's own order
         self.seen_mtime = 0.0
 
     def body(self) -> ComposeResult:
@@ -65,6 +70,7 @@ class JobsScreen(SectionScreen):
 
     def on_mount(self) -> None:
         self.query_one(JobsTable).focus()
+        self.call_after_refresh(self.set_sort, None)      # the arrow on the preset's lead column
         self.seen_mtime = data.db_mtime()
         self.load_counts()
         self.set_interval(self.POLL_SECONDS, self.poll)
@@ -101,7 +107,7 @@ class JobsScreen(SectionScreen):
         """SQLite off the UI thread. A thread cannot be interrupted, so a load that was
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
-        rows = data.rows(self.preset, self.status_filter, self.query_text)
+        rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
         if not worker.is_cancelled:
             today = self.app.today  # type: ignore[attr-defined]
             self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep)
@@ -277,3 +283,31 @@ class JobsScreen(SectionScreen):
         if box.value:
             box.value = ""          # fires Changed, which reloads the unfiltered rows
         self.query_one(JobsTable).focus()
+
+    # Sort. `>` `<` pick the column, `-` flips, `=` returns to the preset; a header click does
+    # both (first click sorts by that column, the next one flips). The order is made in SQL.
+
+    def set_sort(self, sort: Sort | None) -> None:
+        changed = sort != self.sort
+        self.sort = sort
+        self.query_one(JobsTable).mark_sort(sort or PRESETS[self.preset].leads)
+        if changed:
+            self.load_rows(keep=True)
+
+    def action_sort_move(self, step: int) -> None:
+        keys = list(SORT_COLUMNS)
+        at = keys.index((self.sort or PRESETS[self.preset].leads).column)
+        self.set_sort(Sort.first(keys[(at + step) % len(keys)]))
+
+    def action_sort_flip(self) -> None:
+        self.set_sort((self.sort or PRESETS[self.preset].leads).flipped())
+
+    def action_sort_reset(self) -> None:
+        self.set_sort(None)
+
+    def on_data_table_header_selected(self, event: JobsTable.HeaderSelected) -> None:
+        column = event.column_key.value or ""
+        if column not in SORT_COLUMNS:
+            return                                  # the star column
+        now = self.sort or PRESETS[self.preset].leads
+        self.set_sort(now.flipped() if now.column == column else Sort.first(column))
