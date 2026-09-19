@@ -1051,3 +1051,131 @@ def test_copy_falls_back_to_the_terminal_clipboard_when_pbcopy_fails(monkeypatch
     commands.copy("/jh-tailor 7", got.append)
     assert got == ["/jh-tailor 7"]
     assert commands.tailor_commands([3, 1]) == "/jh-tailor 3\n/jh-tailor 1"
+
+
+def _app_folder(tmp, bucket: str, name: str, files: tuple[str, ...] = (), age: int = 0):
+    import os
+    path = tmp / "applications" / bucket / name
+    path.mkdir(parents=True)
+    for f in files:
+        (path / f).write_text("x", encoding="utf-8")
+    os.utime(path, (1_800_000_000 - age, 1_800_000_000 - age))
+    return path
+
+
+def test_apps_lists_pending_first_and_opens_posting_folder_and_pdf(tmp_db, monkeypatch):
+    from src.tui.screens.apps import AppsScreen
+    from src.tui.widgets.apps_table import AppsTable
+
+    sent = _add(status="applied", company="Sent [bold]Co", title="Backend", url="https://sent.example/j")
+    wait = _add(company="Wait Co", url="ftp://nope")
+    _app_folder(tmp_db, "applied", f"sent-co-{sent}", ("AlexExampleResume.pdf", "CoverLetter.pdf"))
+    pending = _app_folder(tmp_db, "pending", f"wait-co-{wait}")
+    (pending / "build.json").write_text('{"ok": false, "failures": ["x"]}', encoding="utf-8")
+    toasts: list[str] = []
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(160, 30)) as pilot:
+            await pilot.press("4")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, AppsScreen)
+            table = app.screen.query_one(AppsTable)
+            assert app.focused is table
+            assert [a.job_id for a in table.apps] == [wait, sent]
+            bucket, company, _title, status, files, build, drift = (
+                c.plain for c in table.get_row(f"pending/wait-co-{wait}"))
+            assert (bucket, company, status, build, drift) == ("pending", "Wait Co", "shortlisted", "fail 1", "")
+            assert files == "······ ··· ······ ·······"
+            row = [c.plain for c in table.get_row(f"applied/sent-co-{sent}")]
+            assert row[1] == "Sent [bold]Co" and row[4] == "······ pdf letter ·······"   # never markup
+
+            await pilot.press("p")                           # pending row: nothing to open yet
+            assert OPENED == [] and "no resume PDF" in toasts[-1]
+            await pilot.press("o")                           # a bad URL still opens the folder
+            assert OPENED == [str(pending)] and "no posting URL" in toasts[-1]
+            await pilot.press("j", "o")
+            assert OPENED[1:] == ["https://sent.example/j", str(tmp_db / "applications" / "applied" / f"sent-co-{sent}")]
+            await pilot.press("p")
+            assert OPENED[-1].endswith("AlexExampleResume.pdf")
+    _run(scenario())
+
+
+def test_apps_status_change_moves_the_folder_and_keeps_the_cursor_on_it(tmp_db):
+    from src.tui.widgets.apps_table import AppsTable
+    from src.tui.widgets.modals import Confirm
+
+    first = _add(company="First Co")
+    second = _add(company="Second Co")
+    _app_folder(tmp_db, "pending", f"first-co-{first}")
+    _app_folder(tmp_db, "pending", f"second-co-{second}", age=100)
+    _app_folder(tmp_db, "pending", "no-suffix", age=200)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 30)) as pilot:
+            await pilot.press("4")
+            await _settle(app, pilot)
+            table = app.screen.query_one(AppsTable)
+            await pilot.press("s", "a", "p", "p", "enter")   # shortlisted -> applied: no question
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "applied" / f"first-co-{first}").is_dir()
+            assert [(a.bucket, a.job_id) for a in table.apps] == [
+                ("pending", second), ("pending", None), ("applied", first)]
+            assert table.current is not None and table.current.job_id == first
+            await pilot.press("s", "r", "e", "j", "enter")   # leaving applied asks
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)
+            await pilot.press("y")
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "other" / f"first-co-{first}").is_dir()
+            await pilot.press("g", "j", "s")                 # a folder with no row has no status to set
+            await pilot.pause()
+            assert not isinstance(app.screen, Confirm) and app.screen.query(AppsTable)
+    _run(scenario())
+
+
+def test_R_shows_the_plan_asks_once_and_applies_it(tmp_db, monkeypatch):
+    from src.tui.widgets.apps_table import AppsTable
+    from src.tui.widgets.modals import Confirm
+
+    flip = _add(company="Flip Co")                           # folder already in applied/
+    ahead = _add(company="Ahead Co", status="rejected")      # DB ahead of the folder
+    _app_folder(tmp_db, "applied", f"flip-co-{flip}")
+    _app_folder(tmp_db, "pending", f"ahead-co-{ahead}")
+    _app_folder(tmp_db, "pending", "no-suffix")
+    toasts: list[str] = []
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(160, 30)) as pilot:
+            await pilot.press("4")
+            await _settle(app, pilot)
+            table = app.screen.query_one(AppsTable)
+            assert sum(bool(a.drift) for a in table.apps) == 3
+            await pilot.press("R")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, Confirm)
+            assert app.screen.question == "reconcile: 1 DB update, 1 folder move, 1 by hand. apply?"
+            await pilot.press("n")
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "pending" / f"ahead-co-{ahead}").is_dir()
+            await pilot.press("R")
+            await _settle(app, pilot)
+            await pilot.press("y")
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "other" / f"ahead-co-{ahead}").is_dir()
+            assert toasts[-1].startswith("reconciled: 1 DB update, 1 folder move, 1 by hand · ")
+            assert "no-suffix" in toasts[-1]
+            assert [a.drift for a in table.apps if a.job_id is not None] == ["", ""]
+            conn = db.connect(db.DB_PATH)
+            assert conn.execute("SELECT status FROM jobs WHERE id=?", (flip,)).fetchone()[0] == "applied"
+            conn.close()
+
+            await pilot.press("R")                           # only the hand-made case is left: no question
+            await _settle(app, pilot)
+            assert not isinstance(app.screen, Confirm)
+            assert toasts[-1].startswith("reconcile: 0 DB updates, 0 folder moves, 1 by hand")
+    _run(scenario())

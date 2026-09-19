@@ -377,14 +377,60 @@ def apps() -> list[AppRow]:
             drift = "also in " + ", ".join(f"{b}/" for b in seen[job_id] if b != bucket) + ": resolve by hand"
         else:
             drift = _drift(bucket, r["status"] or "")
-        files, pdf = _app_files(path)
+        try:
+            files, pdf = _app_files(path)
+            build, mtime = _build_verdict(path), path.stat().st_mtime
+        except OSError:
+            continue    # moved between the scan and here (a status change, a hunt): the next load has it
         row = AppRow(bucket=bucket, folder=path, job_id=job_id,
                      company=(r["company"] or "") if r else path.name,
                      title=(r["title"] or "") if r else "", status=(r["status"] or "") if r else "",
                      url=(r["url"] or "") if r else "", files=files, resume_pdf=pdf,
-                     build=_build_verdict(path), drift=drift)
-        out.append(((reconcile.BUCKET_ORDER[bucket], -path.stat().st_mtime, path.name), row))
+                     build=build, drift=drift)
+        out.append(((reconcile.BUCKET_ORDER[bucket], -mtime, path.name), row))
     return [row for _key, row in sorted(out, key=lambda pair: pair[0])]
+
+
+@dataclass(frozen=True)
+class ReconcilePlan:
+    db_updates: int
+    folder_moves: int
+    unmatched: tuple[str, ...]      # what only a human can settle
+
+    @property
+    def fixes(self) -> int:
+        return self.db_updates + self.folder_moves
+
+    @property
+    def line(self) -> str:
+        if not self.fixes and not self.unmatched:
+            return "reconcile: no drift, folders and DB statuses agree"
+        parts = [f"{self.db_updates} DB update{'' if self.db_updates == 1 else 's'}",
+                 f"{self.folder_moves} folder move{'' if self.folder_moves == 1 else 's'}"]
+        if self.unmatched:
+            parts.append(f"{len(self.unmatched)} by hand")
+        return "reconcile: " + ", ".join(parts)
+
+
+def _plan(conn: sqlite3.Connection) -> tuple[dict, ReconcilePlan]:
+    p = reconcile.plan(conn, reconcile.APPS_DIR)
+    return p, ReconcilePlan(len(p["db_updates"]), len(p["folder_moves"]), tuple(p["unmatched"]))
+
+
+def reconcile_plan() -> ReconcilePlan:
+    """`python -m src.reconcile` as a dry run."""
+    with _conn() as conn:
+        return _plan(conn)[1]
+
+
+def reconcile_apply() -> str:
+    """`python -m src.reconcile --apply`. The plan is computed again here, so what runs is
+    the tree as it is now, not as it was when the question was asked."""
+    with _conn() as conn:
+        p, summary = _plan(conn)
+        notes = reconcile.apply(conn, p, reconcile.APPS_DIR)
+    bad = [n for n in notes if n.startswith(("CONFLICT", "ERROR"))]
+    return " · ".join([summary.line.replace("reconcile:", "reconciled:"), *bad, *summary.unmatched])
 
 
 # Writes. Each one goes through the same db function `python -m src.query` uses, so the events

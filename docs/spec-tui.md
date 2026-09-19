@@ -99,7 +99,9 @@ on a column header sorts by it and a second click flips. The sorted header carri
 The order is made in SQL (`data.rows(..., sort)`, whitelisted columns, empty values last in
 both directions), so search, the `all` cap and live refresh keep it.
 
-Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile.
+Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile (the dry
+run first; one `y` applies it when there is something it can fix, and what only a human can
+settle stays in the toast).
 
 Run (6): `j`/`k` pick a stage, `enter` run (Python stage) or `c` copy (LLM stage),
 `ctrl+c` inside the log pane cancels the running stage.
@@ -218,6 +220,12 @@ any text the TUI renders or writes.
 3. **Copy commands**: `commands.py` with the slash-command builder and clipboard (`pbcopy`, fallback to Textual's clipboard); `c` current or selection, `C` all starred, one per line; toast confirms what was copied.
 4. **Apps data**: `data.apps()` scans the three buckets, joins by the `-<id>` suffix, reads `build.json` when present, flags drift the way `reconcile` does; tests on a temp tree.
 5. **Apps screen**: table pending-first, `o` posting + Finder, `p` PDF, `s` picker, `R` reconcile with its output in a toast.
+
+As built (2026-09-19): `pick.pick` takes the caller's connection and applications tree, so
+`data.stars()` answers on the DB the TUI has open; the first column is two cells wide, the
+selection mark `●` then the star; the shortlist leads with the stars only under its own sort;
+`space` steps down after marking; a bulk verb spends its selection; `C` copies in pick order;
+`reconcile.apply` is the one apply path for the CLI and the TUI.
 
 ### PR 5: `feat/tui-run-settings`
 

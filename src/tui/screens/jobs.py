@@ -1,8 +1,6 @@
 """Sections 1 to 3: one three-pane screen (status list, jobs table, detail) under a preset."""
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from textual import events, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -202,22 +200,6 @@ class JobsScreen(SectionScreen):
         else:
             self.query_one(JobsTable).set_selection(set())     # a bulk verb spends its selection
             self.write(lambda: data.set_status_many([r.id for r in rows], status))
-
-    @work(thread=True, group="write")
-    def write(self, op: Callable[[], str]) -> None:
-        """Every write: run it off the UI thread, toast its one line, reload the view."""
-        try:
-            line = op()
-        except ValueError as e:
-            self.app.call_from_thread(self.toast, str(e), "error")
-            return
-        bad = "CONFLICT" in line or "ERROR" in line
-        self.app.call_from_thread(self.toast, line, "warning" if bad else "information")
-        self.app.call_from_thread(self.reload)
-
-    def toast(self, line: str, severity: str = "information") -> None:
-        """A toast line carries a company name or a typed value: never parse it as markup."""
-        self.app.notify(line, severity=severity, markup=False)  # type: ignore[arg-type]
 
     def reload(self) -> None:
         self.seen_mtime = data.db_mtime()

@@ -34,9 +34,11 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
    `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
    2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
-   detail); `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
+   detail); stars are `data.stars()` over `src.pick` (computed, never stored), `space`/`v` select for
+   bulk status and `c`/`C` copy `/jh-tailor` lines; section 4 lists `applications/` beside the DB
+   (`data.apps()`, `R` = reconcile through `reconcile.apply`). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
    `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
-   Pilot tests patch `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR` and `commands.launch`.
+   Pilot tests patch `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `commands.launch` and `commands.pbcopy`.
    Notion is gone since 2026-09-04 (pull script and command deleted; its MCP push had cost
    25M to 65M context tokens per hunt, `docs/token-efficiency.md`). The hunt picks its 5 targets with
    `python -m src.pick` (star rule, dream slots, skips companies already in play).

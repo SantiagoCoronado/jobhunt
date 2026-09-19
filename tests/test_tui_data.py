@@ -471,3 +471,20 @@ def test_apps_flags_drift_the_way_reconcile_does(env):
 
 def test_apps_with_no_tree_is_empty(env):
     assert data.apps() == []
+
+
+def test_apps_skips_a_folder_that_moves_mid_scan(env, monkeypatch):
+    """A status change in another thread (or a hunt in another pane) can move a folder between
+    the scan and the read; that load leaves it out instead of failing."""
+    stay, gone = env(company="Stay"), env(company="Gone")
+    _folder(env, "pending", f"stay-{stay}")
+    moved = _folder(env, "pending", f"gone-{gone}")
+    real = reconcile.scan
+
+    def scan_then_move(apps_dir):
+        found = real(apps_dir)
+        moved.rename(env.tmp / "elsewhere")
+        return found
+
+    monkeypatch.setattr(reconcile, "scan", scan_then_move)
+    assert [a.job_id for a in data.apps()] == [stay]
