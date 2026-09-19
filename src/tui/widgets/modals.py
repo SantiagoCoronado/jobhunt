@@ -187,7 +187,7 @@ class Prompt(ModalScreen[str | None]):
         try:
             self.dismiss(self.parse(event.value))
         except ValueError as e:
-            self.query_one("#prompt-error", Label).update(str(e))
+            self.query_one("#prompt-error", Label).update(Text(str(e)))   # echoes typed text: no markup
 
 
 KEY_NAMES = {"slash": "/", "question_mark": "?", "escape": "esc", "space": "space", "comma": ","}

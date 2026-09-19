@@ -176,11 +176,15 @@ class JobsScreen(SectionScreen):
         try:
             line = op()
         except ValueError as e:
-            self.app.call_from_thread(self.app.notify, str(e), severity="error")
+            self.app.call_from_thread(self.toast, str(e), "error")
             return
         bad = "CONFLICT" in line or "ERROR" in line
-        self.app.call_from_thread(self.app.notify, line, severity="warning" if bad else "information")
+        self.app.call_from_thread(self.toast, line, "warning" if bad else "information")
         self.app.call_from_thread(self.reload)
+
+    def toast(self, line: str, severity: str = "information") -> None:
+        """A toast line carries a company name or a typed value: never parse it as markup."""
+        self.app.notify(line, severity=severity, markup=False)  # type: ignore[arg-type]
 
     def reload(self) -> None:
         self.seen_mtime = data.db_mtime()
@@ -246,9 +250,9 @@ class JobsScreen(SectionScreen):
             else:
                 raise ValueError(f"#{job_id} has no application folder and no dossier yet")
         except (ValueError, OSError) as e:
-            self.app.call_from_thread(self.app.notify, str(e), severity="warning")
+            self.app.call_from_thread(self.toast, str(e), "warning")
             return
-        self.app.call_from_thread(self.app.notify, line)
+        self.app.call_from_thread(self.toast, line)
 
     # Search: live, inside the current filter. `enter` keeps the query and goes back to the
     # table; `esc` clears it from wherever the focus is.

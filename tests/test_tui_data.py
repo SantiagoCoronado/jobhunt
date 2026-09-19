@@ -63,11 +63,35 @@ def test_board_hides_cold_rows_and_all_shows_discovered_never_dropped(env):
             data.rows("board", bad)
 
 
-def test_all_view_is_capped(env, monkeypatch):
+def test_all_view_caps_only_the_discovered_rows(env, monkeypatch):
     monkeypatch.setattr(data, "ALL_CAP", 2)
     for _ in range(4):
         env(status="discovered")
-    assert len(data.rows("board", "all")) == 2
+    hot = env(status="applied")
+    got = data.rows("board", "all")
+    assert [r.status for r in got] == ["discovered", "discovered", "applied"] and got[-1].id == hot
+
+
+def test_all_view_reaches_discovered_behind_more_hot_rows_than_the_cap(env, monkeypatch):
+    """The shape of the real DB: hundreds of scored hot rows, discovered mostly unscored. One
+    score-sorted list under one cap showed the hot rows only, with and without a query."""
+    monkeypatch.setattr(data, "ALL_CAP", 5)
+    for i in range(12):
+        env(status="shortlisted", match_score=90 - i, title="Platform Engineer")
+    cold = [env(status="discovered", title="Platform Engineer", match_score=40),
+            env(status="discovered", title="Platform Engineer"),
+            env(status="discovered", title="Data Analyst", description="Platform team, Kafka")]
+
+    got = data.rows("board", "all")
+    # Cold first (scored, then unscored newest first), and every hot row follows.
+    assert [r.id for r in got[:3]] == [cold[0], cold[2], cold[1]] and len(got) == 15
+    assert data.counts()["all"] == 3 == sum(r.status == "discovered" for r in got)
+
+    broad = data.rows("board", "all", "engineer")
+    assert [r.id for r in broad[:2]] == cold[:2] and len(broad) == 14
+    assert all(r.status == "shortlisted" for r in broad[2:])
+    assert [r.id for r in data.rows("board", "all", "d:kafka")] == [cold[2]]
+    assert {r.id for r in data.rows("board", "all", "d:platform") if r.status == "discovered"} == set(cold)
 
 
 def test_status_pick_filters_and_board_sorts_by_score_nulls_last(env):

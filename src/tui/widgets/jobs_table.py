@@ -49,27 +49,31 @@ class JobsTable(DataTable):
         for key, label, width in COLUMNS:
             self.add_column(label, key=key, width=width)
 
-    def cells(self, r: JobRow, today: date | None = None) -> tuple[Text | str, ...]:
+    def cells(self, r: JobRow, today: date | None = None) -> tuple[Text, ...]:
+        """Every cell is a `Text`. DataTable runs `Text.from_markup` on a `str` cell, and these
+        strings come from scraped postings: `[on-site]` would vanish, `[/bold]` would raise
+        MarkupError and kill the table, `[link=file:///...]` would plant a link that never
+        passed the http(s) check in `commands.open_posting`."""
         widths = {key: w for key, _label, w in COLUMNS}
         loc = (clip(r.location, widths["loc"] - len(DREAM_TAG)) + DREAM_TAG if r.dream
                else clip(r.location, widths["loc"]))
         return (
-            "",
+            Text(""),
             Text(NONE if r.score is None else str(r.score), justify="right"),
-            clip(r.company, widths["company"]),
-            clip(r.title, widths["title"]),
-            loc or NONE,
+            Text(clip(r.company, widths["company"])),
+            Text(clip(r.title, widths["title"])),
+            Text(loc or NONE),
             self.followup_cell(r, today),
         )
 
     @staticmethod
-    def followup_cell(r: JobRow, today: date | None) -> Text | str:
+    def followup_cell(r: JobRow, today: date | None) -> Text:
         """Red once the date has passed, and only while the application is live: a stale date
         on a rejected row is history, not something to chase."""
         if not r.followup:
-            return NONE
+            return Text(NONE)
         overdue = today is not None and r.status in LIVE and r.followup < today.isoformat()
-        return Text(r.followup, style=OVERDUE_STYLE) if overdue else r.followup
+        return Text(r.followup, style=OVERDUE_STYLE if overdue else "")
 
     def load(self, rows: list[JobRow], today: date | None = None, keep: bool = False) -> None:
         """Replace the rows. With `keep` (a reload of the same view) the cursor stays on the same

@@ -135,7 +135,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             assert [c.label.plain for c in table.columns.values()] == [
                 " ", "score", "company", "title", "loc", "fup"]
             assert table.job_ids == by_score and table.current_id == by_score[0]
-            assert table.get_row(str(by_score[0]))[0] == ""      # star column reserved for PR 4
+            assert table.get_row(str(by_score[0]))[0].plain == ""      # star column reserved for PR 4
             await pilot.press("j")
             assert table.current_id == by_score[1]
             await pilot.press("G")
@@ -149,7 +149,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             await pilot.press("j")
             await _settle(app, pilot)
             assert table.job_ids == [applied]
-            assert table.get_row(str(applied))[5] == "2026-09-20"
+            assert table.get_row(str(applied))[5].plain == "2026-09-20"
     _run(scenario())
 
 
@@ -170,6 +170,8 @@ def test_shortlist_and_followups_list_only_their_statuses():
 
 
 def test_table_cells_clip_and_tag_dream_rows():
+    from rich.text import Text
+
     from src.tui.data import JobRow
     from src.tui.widgets.jobs_table import JobsTable, clip
 
@@ -177,8 +179,9 @@ def test_table_cells_clip_and_tag_dream_rows():
     row = JobRow(1, "Example Robotics", "T" * 60, "San Francisco, California, United States",
                  "ashby", "shortlisted", None, None, None, True)
     cells = JobsTable().cells(row)
+    assert all(isinstance(c, Text) for c in cells)
     assert cells[1].plain == "·" and len(cells[3]) == 38
-    assert cells[4].endswith("(dream)") and len(cells[4]) <= 18 and cells[5] == "·"
+    assert cells[4].plain.endswith("(dream)") and len(cells[4]) <= 18 and cells[5].plain == "·"
 
 
 def _seed_detail(tmp_db) -> int:
@@ -294,7 +297,8 @@ def test_presets_filter_sort_and_style_overdue_followups_red():
             assert table.job_ids == [overdue, due_later, undated]
             late, fine = table.get_row(str(overdue))[5], table.get_row(str(due_later))[5]
             assert late.plain == "2026-09-10" and late.style == "red"
-            assert fine == "2026-09-25" and table.get_row(str(undated))[5] == "·"
+            assert (fine.plain, fine.style) == ("2026-09-25", "")
+            assert table.get_row(str(undated))[5].plain == "·"
 
             sl.focus()
             await pilot.press("j")
@@ -310,7 +314,7 @@ def test_presets_filter_sort_and_style_overdue_followups_red():
             await _settle(app, pilot)
             assert app.screen.status_filter == "rejected"
             stale = app.screen.query_one(JobsTable).get_row(str(app.screen.query_one(JobsTable).job_ids[0]))[5]
-            assert stale == "2026-09-01"          # a closed row's old date is not something to chase
+            assert (stale.plain, stale.style) == ("2026-09-01", "")   # a closed row's old date: not chased
     _run(scenario())
 
 
@@ -464,7 +468,7 @@ def test_n_edits_notes_f_sets_the_followup_t_and_T_touch(tmp_db):
             await pilot.press("+", "3", "enter")
             await _settle(app, pilot)
             await _settle(app, pilot)
-            assert table.get_row(str(jid))[5] == "2026-09-21"
+            assert table.get_row(str(jid))[5].plain == "2026-09-21"
 
             await pilot.press("t")
             await _settle(app, pilot)
@@ -717,4 +721,56 @@ def test_esc_is_home_from_every_pane_and_modal():
             await pilot.press("5", "escape")                         # a section with no home
             await pilot.pause()
             assert app.current_mode == "stats"
+    _run(scenario())
+
+
+HOSTILE = ("Software Engineer [on-site]", "Lead [/bold] Engineer", "[link=file:///etc/passwd]Acme[/link]",
+           "Remote :smile: [red]LATAM")
+
+
+def test_feed_text_with_markup_loads_and_shows_literally(tmp_db):
+    """Story 5. DataTable parses a `str` cell as Rich markup, and these strings come from
+    scraped postings: a tag would vanish, a stray closing tag would raise and kill the table,
+    a [link=...] would plant a link that never passed the http(s) check on `o`."""
+    from src.tui.widgets.detail import DetailPane
+    from src.tui.widgets.jobs_table import JobsTable
+
+    ids = [_add(match_score=90 - i, title=text, company=text[:20], location=text[:18])
+           for i, text in enumerate(HOSTILE)]
+    live = _add(status="applied", applied_at="2026-09-01", match_score=50, company="[/b] Co [x]")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(170, 40)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert table.job_ids == ids
+            for jid, text in zip(ids, HOSTILE, strict=True):
+                _star, _score, company, title, loc, _fup = table.get_row(str(jid))
+                assert title.plain == text
+                assert company.plain == text[:20].strip() and loc.plain == text[:18].strip()
+                assert not title.spans and not company.spans and not loc.spans   # no link, no style
+            for _ in ids:
+                await pilot.press("j")
+                await _settle(app, pilot)
+            assert HOSTILE[-1] in app.screen.query_one("#detail", DetailPane).text
+
+            # The same strings reach the confirm modal and the toast through a status change.
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")
+            await _settle(app, pilot)
+            table.focus()
+            await pilot.press("b", "y")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert _status(live) == "backlog"
+
+            # A typed value is echoed in the prompt's error line.
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("k")
+            await _settle(app, pilot)
+            table.focus()
+            await pilot.press("f", *"[/bold]", "enter")
+            await pilot.pause()
+            assert "[/bold]" in app.screen.query_one("#prompt-error").content.plain
     _run(scenario())

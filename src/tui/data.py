@@ -17,9 +17,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .. import config, db, dream, reconcile, research
-from .presets import ALL, COLD, HOT, NEVER, PRESETS
+from .presets import ALL, COLD, HOT, PRESETS
 
-ALL_CAP = 500        # the `all` view holds ~15k discovered rows; search narrows it, never scroll
+ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
 EVENTS_SHOWN = 5
 DESC_PREFIX = "d:"   # in the `all` view, `d:kafka` also searches descriptions (spec decision 18)
 
@@ -150,35 +150,36 @@ def _like(term: str) -> str:
 
 def rows(preset: str = "board", status: str | None = None, query: str = "") -> list[JobRow]:
     """Rows for the jobs table. `status` is the left-pane pick: a hot status, `all`, or None
-    for the preset's own statuses. Never `irrelevant`/`expired`; `discovered` only under `all`,
-    which is capped at ALL_CAP. `query` matches title, company and notes inside that filter."""
+    for the preset's own statuses. Never `irrelevant`/`expired`. `query` matches title,
+    company and notes inside that filter.
+
+    `all` is how `discovered` is reached, and its left-pane number is the discovered count,
+    so the cold rows come FIRST and ALL_CAP limits only them; the hot rows follow, uncapped
+    (there are hundreds, not thousands). One score-sorted list under one cap would be 500
+    scored hot rows and not a single discovered one."""
     p = PRESETS[preset]
-    where: list[str] = []
-    args: list[object] = []
-    if status == ALL:
-        where.append(f"status NOT IN ({','.join('?' for _ in NEVER)})")
-        args += NEVER
-    else:
-        if status is not None and status not in HOT:
-            raise ValueError(f"{status!r} is not a status the TUI shows")
-        wanted = (status,) if status else p.statuses
-        where.append(f"status IN ({','.join('?' for _ in wanted)})")
-        args += wanted
+    if status is not None and status != ALL and status not in HOT:
+        raise ValueError(f"{status!r} is not a status the TUI shows")
 
     q = query.strip()
     fields = ["title", "company", "notes"]
     if status == ALL and q.lower().startswith(DESC_PREFIX):
         q = q[len(DESC_PREFIX):].strip()
         fields.append("description")
-    if q:
-        where.append("(" + " OR ".join(f"{f} LIKE ? ESCAPE '\\'" for f in fields) + ")")
-        args += [_like(q)] * len(fields)
+    match = "(" + " OR ".join(f"{f} LIKE ? ESCAPE '\\'" for f in fields) + ")" if q else ""
+    match_args: list[object] = [_like(q)] * len(fields) if q else []
 
-    sql = f"SELECT {_ROW_COLS} FROM jobs WHERE {' AND '.join(where)} ORDER BY {p.order_by}"
-    if status == ALL:
-        sql += f" LIMIT {ALL_CAP}"
+    def select(conn: sqlite3.Connection, statuses: tuple[str, ...], cap: int | None) -> list[JobRow]:
+        where = f"status IN ({','.join('?' for _ in statuses)})" + (f" AND {match}" if match else "")
+        sql = f"SELECT {_ROW_COLS} FROM jobs WHERE {where} ORDER BY {p.order_by}"
+        if cap is not None:
+            sql += f" LIMIT {int(cap)}"
+        return [_job_row(r) for r in conn.execute(sql, [*statuses, *match_args])]
+
     with _conn() as conn:
-        return [_job_row(r) for r in conn.execute(sql, args)]
+        if status == ALL:
+            return select(conn, COLD, ALL_CAP) + select(conn, HOT, None)
+        return select(conn, (status,) if status else p.statuses, None)
 
 
 def _strs(v: object) -> tuple[str, ...]:
