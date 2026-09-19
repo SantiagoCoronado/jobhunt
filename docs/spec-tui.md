@@ -11,25 +11,25 @@ read-mostly page with eleven kanban columns and no room for the description, the
 events log. The pipeline already has every write path it needs (`db.set_status`, `touch_contact`,
 `log_event`, `reconcile.sync_folder`, `pick`, `stats`); what is missing is one place to live in
 while running the hunt. That place is a terminal app, because the hunt itself runs in a terminal
-(Claude Code inside Herdr inside Ghostty).
+(Claude Code in a terminal).
 
 ## 2. Decisions (settled in the grilling, do not re-open without a reason)
 
 | # | Decision | Choice | Why |
 |---|----------|--------|-----|
-| 1 | Framework | Textual (Python), with `src/tui/data.py` as the only module touching SQLite so a ratatui front end could replace the view later | Same venv, imports the existing write paths, no second implementation of `set_status`. Herdr is ratatui 0.30 + crossterm + tokio + a persistent server; its speed comes from never blocking on I/O, staying alive between uses and drawing only dirty cells. Textual gives the last one, the first two are architecture and apply regardless of language. No Rust or Go toolchain on the machine. |
+| 1 | Framework | Textual (Python), with `src/tui/data.py` as the only module touching SQLite so a ratatui front end could replace the view later | Same venv, imports the existing write paths, no second implementation of `set_status`. A fast TUI never blocks on I/O, stays alive between uses and draws only dirty cells; Textual gives the last one, the first two are architecture and apply regardless of language. No Rust or Go toolchain on the machine. |
 | 2 | Notion | Full delete: `src/notion_pull.py`, its test, `/jh-notion-sync`, `query crm`, hints in run.sh, setup.sh, notify footer, docs wording. History docs keep past-tense mentions. Santiago disconnects the claude.ai Notion connector himself (it is not configured in the repo). | Half-killed code gets picked up by an agent one day. |
 | 3 | What it replaces | The Flask viewer and the Flask dependency. `report.html` stays as the offline, shareable dashboard. | A TUI cannot be opened on a phone or sent to someone. |
 | 4 | Sections | 1 board, 2 shortlist, 3 follow-ups, 4 apps, 5 stats (placeholder only), 6 run, 7 settings | Sections 1 to 3 are presets on one shared three-pane screen. |
-| 5 | Claude Code | The TUI runs no model itself. LLM stages run through the hunt orchestrator (`docs/spec-hunt-orchestrator.md`): `python -m src.hunt run --only <stage>` or a full `run`, as a subprocess exactly like a Python stage, stdout tailed in the log pane. The harness behind it is chosen in `config/hunt.toml`, never in the TUI code. Copy-to-clipboard of the slash command stays as the secondary verb. (Amended 2026-09-07; before that, v1 was copy-only and harness execution was deferred.) | Shelling an interactive agent out of Textual inside Herdr is a terminal-ownership rabbit hole; a headless orchestrator with log files is not. |
+| 5 | Claude Code | The TUI runs no model itself. LLM stages run through the hunt orchestrator (`docs/spec-hunt-orchestrator.md`): `python -m src.hunt run --only <stage>` or a full `run`, as a subprocess exactly like a Python stage, stdout tailed in the log pane. The harness behind it is chosen in `config/hunt.toml`, never in the TUI code. Copy-to-clipboard of the slash command stays as the secondary verb. (Amended 2026-09-07; before that, v1 was copy-only and harness execution was deferred.) | Shelling an interactive agent out of Textual is a terminal-ownership rabbit hole; a headless orchestrator with log files is not. |
 | 6 | Phone access | Lost, accepted. `textual serve` is the one-line escape hatch later. | The hunt stopped pushing to Notion on 2026-09-02 anyway. |
 | 7 | Process | Spec first, review in a separate session, one PR per phase, several commits per PR (one story each). | House workflow. |
-| 8 | Herdr plugin | Not in v1. Standalone `python -m src.tui`, opened in a Herdr tab by hand. A `herdr-plugin.toml` (placement `tab`) can be added later if the command gets typed a lot. | It buys one keybinding and an auto-start. |
+| 8 | Multiplexer integration | None. Standalone `python -m src.tui`, opened in any terminal or tmux pane by hand. | A multiplexer plugin would buy one keybinding and an auto-start; it over-complicates v1 (Santiago, 2026-09-19). |
 | 9 | Navigation | Sections 1 to 3 share one three-pane screen (status list, jobs table, detail pane). Sections 4 to 7 are their own screens. | Board, shortlist and follow-ups are the same rows with different filters. |
 | 10 | Board shape | Three-pane. Eleven kanban columns do not fit a terminal. | The status list is the counts strip turned vertical. |
 | 11 | Stars | Computed, never stored: a row is starred iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. | What the TUI shows starred is what a hunt would tailor. |
 | 12 | Runner scope | The stage list is the `src.hunt` registry (discover, triage, match, inbox, pick, research, tailor, report, plus the full hunt) and the extra Python stages (reconcile, stats). `enter` runs any of them as a subprocess with a streamed log; `c` still copies the slash command. A run list shows `data/hunt/*/state.json` with state and started time; selecting a run shows its stages and units and tails the selected unit's log. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. | One process at a time keeps SQLite writes serialized, and the orchestrator's lockfile enforces it for hunts. |
-| 13 | Settings | `config/tui.toml`, committed. Herdr-style modal opened with `,`: tabs `theme`, `sections`, `harness`, `follow-ups`, `editor`, a list, `enter` applies, `esc` closes. The `harness` tab edits `config/hunt.toml` (`harness.default` and one model per stage, picked from the harness's live catalog via `hunt models`), not `tui.toml`, and offers a `doctor` action. Plus a read-only view of `profile.yaml`, `sources.yaml`, `hunt.toml`, `tui.toml` with open-in-`$EDITOR`. No YAML editing through forms. | `profile.yaml` is the single authority for scoring and `hunt.toml` for how a hunt runs; open them in the editor rather than build forms. |
+| 13 | Settings | `config/tui.toml`, committed. Tabbed modal opened with `,`: tabs `theme`, `sections`, `harness`, `follow-ups`, `editor`, a list, `enter` applies, `esc` closes. The `harness` tab edits `config/hunt.toml` (`harness.default` and one model per stage, picked from the harness's live catalog via `hunt models`), not `tui.toml`, and offers a `doctor` action. Plus a read-only view of `profile.yaml`, `sources.yaml`, `hunt.toml`, `tui.toml` with open-in-`$EDITOR`. No YAML editing through forms. | `profile.yaml` is the single authority for scoring and `hunt.toml` for how a hunt runs; open them in the editor rather than build forms. |
 | 14 | Cold rows | `discovered` hidden behind a dimmed `all` entry that loads lazily with search. `irrelevant` and `expired` never shown (`stats drops` audits them). | 26k discovered, 10k irrelevant, 7k expired. |
 | 15 | Multi-select | `space` toggles, `v` selects all visible, `esc` clears. Bulk verbs: status change, backlog, copy commands. `C` copies one `/jh-tailor <id>` per line for every starred row. | Multi-line paste into a Claude Code prompt runs in order; `/jh-tailor` weaves the dossier in when one exists. |
 | 16 | Detail pane | Header (title, company, location, source, dream flag, salary when present), status line (score, status, dates, folder bucket), dossier path when one exists, verdict (strengths and missing skills from `match_verdict`), notes, last 5 events, description scrolling. | Events are the only memory of what happened when. |
@@ -37,7 +37,7 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 18 | Search | `/` searches title, company and notes inside the current filter. In the `all` view a `d:` prefix also searches descriptions. | The common path stays instant. |
 | 19 | Apps section | Every folder under `applications/{pending,applied,other}` joined to its DB row: bucket, company, title, DB status, files present, build verdict when `build.json` exists, drift flag when bucket and status disagree. Pending first. `o` opens posting and Finder folder together, `p` opens the resume PDF, `s` status picker, `R` runs reconcile. | Pending rows are the ones waiting on a human click. |
 | 20 | Live refresh | Poll the `jobs.db` mtime every 2 s, reload the current view on change, `r` forces it. `db.connect` gains `busy_timeout=5000` and `journal_mode=WAL`. | A hunt in another pane must show up without a keypress and must not hand the TUI "database is locked". |
-| 21 | Keybindings | Single keys, focus-based modes (while an input has focus, letters type; `esc` returns focus to the table). `?` opens a help overlay grouped by section. The footer always shows the bindings that apply right now, drawn from the same binding table so it cannot drift. No prefix key. Avoid `ctrl+b` and Herdr's `prefix+h/j/k/l`. | The TUI is a leaf, not a multiplexer: nothing underneath it needs the keys. |
+| 21 | Keybindings | Single keys, focus-based modes (while an input has focus, letters type; `esc` returns focus to the table). `?` opens a help overlay grouped by section. The footer always shows the bindings that apply right now, drawn from the same binding table so it cannot drift. No prefix key. Avoid `ctrl+b` (the tmux prefix). | The TUI is a leaf, not a multiplexer: nothing underneath it needs the keys. |
 
 Routine calls made without a question: notes edit the whole field in a text modal (events keep
 history); `f` takes a date or `+N`; `t` records contact, `T` records contact and bumps the
@@ -69,7 +69,7 @@ follow-ups pins `applied · screen · interview`, sorts by follow-up date, overd
 
 Under about 120 columns the detail pane collapses and `enter` opens it as an overlay.
 
-Settings modal (Herdr-style):
+Settings modal:
 
 ```
  settings
@@ -144,7 +144,7 @@ and folder moves stay consistent with `python -m src.query`.
 
 ```toml
 [theme]
-name = "kanagawa"           # any Textual built-in or "kanagawa" (custom, matches Herdr)
+name = "kanagawa"           # any Textual built-in or "kanagawa" (custom)
 
 [sections]
 default = "board"           # section opened on launch
@@ -164,7 +164,7 @@ command = "$EDITOR"
 ## 7. Non-goals for v1
 
 Running LLM stages from the TUI. Phone access. Editing `profile.yaml` or `sources.yaml`
-through forms. Kanban columns. Herdr plugin manifest. Showing `irrelevant` or `expired` rows.
+through forms. Kanban columns. Multiplexer plugins. Showing `irrelevant` or `expired` rows.
 
 ## 8. Phases, PRs and stories
 
@@ -223,6 +223,6 @@ any text the TUI renders or writes.
 ## 9. Later (not scheduled)
 
 Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
-`stats.py` (funnel, calibration, latency, comp, source health). Herdr plugin manifest.
+`stats.py` (funnel, calibration, latency, comp, source health).
 `textual serve` for phone access. (Harness execution moved into scope on 2026-09-07 through
 `docs/spec-hunt-orchestrator.md`.)

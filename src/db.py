@@ -140,6 +140,11 @@ def connect(db_path: Path = DB_PATH) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    # One writer (a hunt in another pane) plus readers (the TUI polling every 2 s):
+    # WAL lets reads proceed during a write, busy_timeout waits instead of raising
+    # "database is locked" when two writers do collide. WAL is persistent per file.
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     for n, migration in enumerate(MIGRATIONS[version:], start=version + 1):
@@ -206,12 +211,12 @@ def set_status(
     applied_at: str | None = None,
     followup_days: int = 7,
 ) -> dict:
-    """Single write path for status transitions (CLI + viewer both route here).
+    """Single write path for status transitions (CLI + TUI both route here).
 
     - Validates status against STATUSES and dates against YYYY-MM-DD.
     - First flip to 'applied' stamps applied_at (today unless given) and, when no
       explicit follow-up is supplied, schedules next_followup_at = applied_at + followup_days.
-    - `note` appends to existing notes; `notes` replaces them (viewer semantics).
+    - `note` appends to existing notes; `notes` replaces them (the TUI's notes editor).
     - Terminal statuses clear next_followup_at so closed roles drop out of /jh-followups.
 
     Returns a summary dict of what changed. Raises ValueError on bad input;

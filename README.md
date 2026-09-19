@@ -18,7 +18,7 @@ tracking**, and deliberately keeps a **human on the submit button**.
 | ④ Research | Cited company dossier, reused across applications | `/jh-research <company\|id>` → `company-researcher` agent |
 | ⑤ Tailor | Per-job resume + cover letter (truthful, ATS-clean) | `/jh-tailor <id>` → `resume-tailor` agent |
 | ⑥ Apply | You review the draft and submit | manual, always |
-| ⑦ Track | Local CRM, follow-up nudges, inbox sync | `python -m src.crm.viewer` · `/jh-followups` · `/jh-gmail-sync` |
+| ⑦ Track | Local CRM, follow-up nudges, inbox sync | `python -m src.tui` · `/jh-followups` · `/jh-gmail-sync` |
 
 `/jh-hunt` runs the whole loop end to end and tailors the top 5 shortlisted.
 
@@ -60,9 +60,10 @@ Record a submission (moves the folder AND schedules the follow-up):
 ```bash
 python -m src.query set-status 42 applied
 ```
-Local CRM (a Textual TUI replaces it, see `docs/spec-tui.md`):
+Local CRM, a terminal UI (`docs/spec-tui.md`): board, shortlist and follow-ups over one
+three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `?` every key:
 ```bash
-python -m src.crm.viewer      # http://localhost:5000
+python -m src.tui
 ```
 
 ## Run it on a second machine (macOS / Linux)
@@ -117,7 +118,7 @@ The two variants are mutually exclusive; installing one removes the other.
 config/        profile.yaml (incl. location_rule + shortlist_threshold) · sources.yaml · notify.yaml
 resume/        master_resume.yaml   (single source of truth)
 src/           discover · triage · match · notify · query · research · reconcile · pick
-               · maintain · render_docx · db · models · adapters/ · crm/
+               · maintain · render_docx · db · models · adapters/ · tui/
 .claude/       agents/ (job-matcher, resume-tailor, company-researcher)
                commands/ (/jh-hunt /jh-discover /jh-triage /jh-match /jh-research /jh-tailor …)
 research/      companies/<slug>.md   cited dossiers (committed, reusable)

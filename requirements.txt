@@ -1,11 +1,11 @@
-# Core (needed for discovery + DB + CRM viewer). Pinned to the versions the
+# Core (needed for discovery + DB + the TUI). Pinned to the versions the
 # project is developed against; bump deliberately, not by accident.
 requests==2.34.2
 feedparser==6.0.12
 PyYAML==6.0.3
-flask==3.1.3
 python-docx==1.2.0    # canonical resume renderer (src/render_docx.py, house design docx)
 pypdf==6.14.2         # page count check in src/tailor_build.py (the two-page guard)
+textual==8.2.8        # the TUI (src/tui, docs/spec-tui.md)
 
 # Dev (lint/types/tests; CI runs all three, see .github/workflows/ci.yml)
 pytest==9.1.1

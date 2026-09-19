@@ -37,5 +37,5 @@ Next (in Claude Code, from this folder):
   /jh-followups          # draft follow-ups for due applications
 
 Fully scheduled alternative (scores BEFORE the digest): ./scripts/ai_pass.sh
-Or open the local CRM:  python -m src.crm.viewer  ->  http://localhost:5000
+Or open the local CRM:  python -m src.tui   (terminal UI, ? for the keys)
 EOF
