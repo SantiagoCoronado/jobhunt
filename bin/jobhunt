@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# jobhunt: open the TUI from any directory with one word.
+# Install it on your PATH with scripts/install_launcher.sh [name]; it is a symlink to this file,
+# so the script follows its own link back to the repo and uses the repo's .venv.
+set -euo pipefail
+
+self="${BASH_SOURCE[0]}"
+while [ -L "$self" ]; do                      # readlink -f is not on every macOS
+  dir="$(cd -P "$(dirname "$self")" && pwd)"
+  self="$(readlink "$self")"
+  [[ "$self" != /* ]] && self="$dir/$self"
+done
+root="$(cd -P "$(dirname "$self")/.." && pwd)"
+
+python="${JOBHUNT_PYTHON:-$root/.venv/bin/python}"
+if [ ! -x "$python" ]; then
+  echo "jobhunt: no interpreter at $python (run ./setup.sh in $root first)" >&2
+  exit 1
+fi
+cd "$root"                                    # `-m src.tui` resolves from the repo root
+exec "$python" -m src.tui "$@"

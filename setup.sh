@@ -24,3 +24,4 @@ echo "  ./run.sh --force        # first discovery run"
 echo "  # then, in Claude Code from this folder:  /jh-match  ->  /jh-tailor <id>  ->  /jh-followups"
 echo
 echo "To schedule the daily run on macOS:  ./mac/install-schedule.sh"
+echo "To open the TUI with one word:       scripts/install_launcher.sh   # then: jobhunt"

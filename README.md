@@ -61,9 +61,14 @@ Record a submission (moves the folder AND schedules the follow-up):
 python -m src.query set-status 42 applied
 ```
 Local CRM, a terminal UI (`docs/spec-tui.md`): board, shortlist and follow-ups over one
-three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `?` every key:
+three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `>` `<` `-` sort, `?` every key:
 ```bash
 python -m src.tui
+```
+One word from any directory (a symlink to `bin/jobhunt` in `~/.local/bin`; pass another name if
+you would rather type something else, `--uninstall` removes it):
+```bash
+scripts/install_launcher.sh          # then: jobhunt
 ```
 
 ## Run it on a second machine (macOS / Linux)
