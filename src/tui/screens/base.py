@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Footer, Static
+from textual.widgets import Static
 
+from ..widgets.footer import SectionFooter
 from ..widgets.section_bar import SectionBar
 
 
@@ -19,7 +20,7 @@ class SectionScreen(Screen):
     def compose(self) -> ComposeResult:
         yield SectionBar(self.mode)
         yield from self.body()
-        yield Footer()
+        yield SectionFooter()
 
     def body(self) -> ComposeResult:
         yield Static(self.placeholder, id="placeholder")

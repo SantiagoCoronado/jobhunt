@@ -5,6 +5,7 @@ from datetime import date
 
 from rich.text import Text
 from textual.binding import Binding
+from textual.message import Message
 from textual.widgets import DataTable
 
 from ..data import JobRow
@@ -12,9 +13,11 @@ from ..presets import LIVE, OVERDUE_STYLE, Sort
 
 NONE = "·"
 STAR = "★"
-# (key, label, width). The star column marks the rows `src.pick` would choose right now.
+MARK = "●"
+# (key, label, width). The first column carries the selection mark, then the star: the rows
+# `src.pick` would choose right now.
 COLUMNS: tuple[tuple[str, str, int], ...] = (
-    ("star", " ", 1),
+    ("star", " ", 2),
     ("score", "score", 7),
     ("company", "company", 20),
     ("title", "title", 38),
@@ -39,12 +42,21 @@ class JobsTable(DataTable):
         Binding("g", "top", "top", show=False),
         Binding("G", "bottom", "bottom", show=False),
         Binding("enter", "select_cursor", "detail: focus the pane, or the overlay when narrow", show=False),
+        Binding("space", "toggle_mark", "select"),
+        Binding("v", "mark_all", "select every row listed", show=False),
     ]
+
+    class SelectionChanged(Message):
+        def __init__(self, count: int) -> None:
+            super().__init__()
+            self.count = count
 
     def __init__(self, id: str | None = None) -> None:
         super().__init__(id=id, cursor_type="row", zebra_stripes=False, cell_padding=1)
         self.job_ids: list[int] = []
         self.rows_by_id: dict[int, JobRow] = {}
+        self.stars: set[int] | frozenset[int] = frozenset()
+        self.selected: set[int] = set()
 
     def on_mount(self) -> None:
         for key, label, width in COLUMNS:
@@ -59,13 +71,16 @@ class JobsTable(DataTable):
         loc = (clip(r.location, widths["loc"] - len(DREAM_TAG)) + DREAM_TAG if r.dream
                else clip(r.location, widths["loc"]))
         return (
-            Text(STAR if starred else "", style="yellow"),
+            self.lead_cell(r.id, starred),
             Text(NONE if r.score is None else str(r.score), justify="right"),
             Text(clip(r.company, widths["company"])),
             Text(clip(r.title, widths["title"])),
             Text(loc or NONE),
             self.followup_cell(r, today),
         )
+
+    def lead_cell(self, job_id: int, starred: bool) -> Text:
+        return Text.assemble(MARK if job_id in self.selected else " ", (STAR if starred else "", "yellow"))
 
     @staticmethod
     def followup_cell(r: JobRow, today: date | None) -> Text:
@@ -80,16 +95,43 @@ class JobsTable(DataTable):
              stars: set[int] | frozenset[int] = frozenset()) -> None:
         """Replace the rows. With `keep` (a reload of the same view) the cursor stays on the same
         job when it is still listed, else on the same line, where the row below slid up; a
-        status change must not throw the reader back to the top. A new filter starts at the top."""
+        status change must not throw the reader back to the top. A new filter starts at the top.
+        The selection follows the same rule: kept for the rows still listed, dropped by a new filter."""
         was_id, was_line = self.current_id, self.cursor_row
         self.clear()
         self.job_ids = [r.id for r in rows]
         self.rows_by_id = {r.id: r for r in rows}
+        self.stars = stars
+        self.set_selection(self.selected & set(self.job_ids) if keep else set(), redraw=False)
         for r in rows:
             self.add_row(*self.cells(r, today, r.id in stars), key=str(r.id))
         if keep and rows and was_id is not None:
             line = self.job_ids.index(was_id) if was_id in self.rows_by_id else min(was_line, len(rows) - 1)
             self.move_cursor(row=line)
+
+    # Selection: `space` marks the row under the cursor and steps down, so a run of rows is a
+    # run of spaces; `v` marks every row listed; the screen's `esc` clears.
+
+    def set_selection(self, ids: set[int], redraw: bool = True) -> None:
+        changed, self.selected = self.selected ^ ids, set(ids)
+        if redraw:
+            for job_id in changed & self.rows_by_id.keys():
+                self.update_cell(str(job_id), "star", self.lead_cell(job_id, job_id in self.stars))
+        if changed:
+            self.post_message(self.SelectionChanged(len(self.selected)))
+
+    @property
+    def selected_rows(self) -> list[JobRow]:
+        """In table order, so a bulk verb reads top to bottom."""
+        return [self.rows_by_id[i] for i in self.job_ids if i in self.selected]
+
+    def action_toggle_mark(self) -> None:
+        if self.current_id is not None:
+            self.set_selection(self.selected ^ {self.current_id})
+            self.action_cursor_down()
+
+    def action_mark_all(self) -> None:
+        self.set_selection(set(self.job_ids))
 
     def mark_sort(self, sort: Sort) -> None:
         """`▲` or `▼` on the header the rows are ordered by (the preset's own lead included)."""

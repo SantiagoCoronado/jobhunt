@@ -135,7 +135,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             assert [c.label.plain for c in table.columns.values()] == [
                 " ", "score ▼", "company", "title", "loc", "fup"]      # the board leads with score
             assert table.job_ids == by_score and table.current_id == by_score[0]
-            assert [table.get_row(str(i))[0].plain for i in by_score] == ["★"] * 3   # what a hunt would tailor
+            assert [table.get_row(str(i))[0].plain for i in by_score] == [" ★"] * 3   # what a hunt would tailor
             await pilot.press("j")
             assert table.current_id == by_score[1]
             await pilot.press("G")
@@ -897,7 +897,7 @@ def test_shortlist_leads_with_the_stars_and_a_chosen_sort_overrides_them():
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
             assert table.job_ids == [held, *ids, dream]
-            starred = [i for i in table.job_ids if table.get_row(str(i))[0].plain == "★"]
+            starred = [i for i in table.job_ids if table.get_row(str(i))[0].plain.strip() == "★"]
             assert starred == [*ids[:4], dream]          # a dream slot, Busy Co in play, five in all
             await pilot.press("2")
             await _settle(app, pilot)
@@ -909,4 +909,94 @@ def test_shortlist_leads_with_the_stars_and_a_chosen_sort_overrides_them():
             await pilot.press("equals_sign")
             await _settle(app, pilot)
             assert table.job_ids[:5] == [*ids[:4], dream]
+    _run(scenario())
+
+
+def test_space_v_and_esc_select_rows_and_the_footer_counts_them():
+    ids = [_add(match_score=s, company=f"Co{s}") for s in (90, 80, 70)]
+    from src.tui.widgets.footer import SectionFooter
+    from src.tui.widgets.jobs_table import JobsTable
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            footer = app.screen.query_one(SectionFooter)
+            assert footer.note == ""
+            await pilot.press("space")                       # marks the row, steps down
+            await pilot.pause()
+            assert table.selected == {ids[0]} and table.current_id == ids[1]
+            assert table.get_row(str(ids[0]))[0].plain == "●★"
+            assert table.get_row(str(ids[1]))[0].plain == " ★"
+            assert footer.note == "1 selected"
+            await pilot.pause()
+            assert footer.query_one("#footer-note").render().plain == "1 selected"
+            await pilot.press("k", "space")                  # a second space takes the mark off
+            await pilot.pause()
+            assert table.selected == set() and footer.note == ""
+            await pilot.press("v")
+            await pilot.pause()
+            assert table.selected == set(ids) and footer.note == "3 selected"
+            assert [r.id for r in table.selected_rows] == ids
+            await pilot.press("r")                           # a reload of the same view keeps it
+            await _settle(app, pilot)
+            assert table.selected == set(ids)
+            assert table.get_row(str(ids[2]))[0].plain == "●★"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert table.selected == set() and footer.note == ""
+            assert table.get_row(str(ids[2]))[0].plain == " ★"
+            await pilot.press("v")
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")                           # another filter: the selection goes
+            await _settle(app, pilot)
+            assert table.selected == set() and footer.note == ""
+    _run(scenario())
+
+
+def test_bulk_status_change_asks_once_and_writes_every_row():
+    live = [_add(status="applied", company=f"Live{i}", match_score=90 - i) for i in range(2)]
+    fresh = _add(status="shortlisted", company="Fresh", match_score=50)
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import Confirm, StatusPicker
+
+    def statuses():
+        conn = db.connect(db.DB_PATH)
+        got = dict(conn.execute("SELECT id, status FROM jobs").fetchall())
+        conn.close()
+        return got
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            app.screen.status_filter = None                  # every hot row in one table
+            app.screen.load_rows()
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            table.focus()
+            await pilot.press("v", "s")
+            await pilot.pause()
+            assert isinstance(app.screen, StatusPicker) and app.screen.heading == "3 selected"
+            await pilot.press("r", "e", "j", "enter")
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)           # one question for the batch
+            assert app.screen.question == "3 jobs to rejected: 2 of them leave applied?"
+            await pilot.press("n")
+            await _settle(app, pilot)
+            assert set(statuses().values()) == {"applied", "shortlisted"}
+            assert table.selected == {*live, fresh}          # backing out spends nothing
+            await pilot.press("s", "r", "e", "j", "enter", "y")
+            await _settle(app, pilot)
+            assert set(statuses().values()) == {"rejected"}
+            assert table.selected == set()
+            conn = db.connect(db.DB_PATH)
+            n = conn.execute("SELECT COUNT(*) FROM events WHERE kind='status_change'").fetchone()[0]
+            conn.close()
+            assert n == 3                                    # each row keeps its own event
+
+            await pilot.press("v", "b")                      # nothing live is left: no question
+            await _settle(app, pilot)
+            assert set(statuses().values()) == {"backlog"}
     _run(scenario())

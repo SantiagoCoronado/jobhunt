@@ -311,6 +311,23 @@ def set_status(job_id: int, status: str, note: str | None = None,
     return f"{line} · {moved}" if moved else line
 
 
+def set_status_many(job_ids: list[int], status: str) -> str:
+    """The bulk verb: one `set_status` per row, so every row gets its own event and folder
+    move. A row that fails does not stop the rest; the line counts both. CONFLICT (a folder
+    move that found the destination taken) is carried up for the toast."""
+    done, failed, conflicts = 0, [], 0
+    for job_id in job_ids:
+        try:
+            conflicts += "CONFLICT" in set_status(job_id, status)
+            done += 1
+        except ValueError as e:
+            failed.append(f"#{job_id}: {e}")
+    line = f"{done} job{'' if done == 1 else 's'} -> {status}"
+    if conflicts:
+        line += f" · {conflicts} folder CONFLICT, run reconcile"
+    return f"{line} · ERROR {'; '.join(failed)}" if failed else line
+
+
 def _current_status(conn: sqlite3.Connection, job_id: int) -> str:
     r = conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()
     if r is None:

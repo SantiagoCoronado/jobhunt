@@ -13,6 +13,7 @@ from textual.worker import get_current_worker
 from .. import commands, data
 from ..presets import PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
+from ..widgets.footer import SectionFooter
 from ..widgets.jobs_table import JobsTable
 from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
 from ..widgets.status_list import StatusList
@@ -39,7 +40,7 @@ class JobsScreen(SectionScreen):
         Binding("less_than_sign", "sort_move(-1)", "sort by previous column", key_display="<", show=False),
         Binding("minus", "sort_flip", "ascending / descending", key_display="-"),
         Binding("equals_sign", "sort_reset", "back to the section's own sort", key_display="=", show=False),
-        Binding("escape", "home", "home: back to the table, search cleared", show=False),
+        Binding("escape", "home", "home: back to the table, search and selection cleared", show=False),
         Binding("tab", "app.focus_next", "next pane: status list, table, detail", show=False),
         Binding("s", "status", "status"),
         Binding("b", "backlog", "backlog"),
@@ -142,42 +143,63 @@ class JobsScreen(SectionScreen):
         else:
             self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
 
-    # Status changes. One row: the table cursor. (Bulk verbs over a selection arrive in PR 4.)
+    # Status changes. The selection when there is one, else the row under the cursor.
 
     def current_row(self) -> data.JobRow | None:
         return self.query_one(JobsTable).current_row
 
+    def targets(self) -> list[data.JobRow]:
+        table = self.query_one(JobsTable)
+        return table.selected_rows or ([table.current_row] if table.current_row else [])
+
+    @staticmethod
+    def named(rows: list[data.JobRow]) -> str:
+        return f"#{rows[0].id} {rows[0].company}" if len(rows) == 1 else f"{len(rows)} selected"
+
     def action_status(self) -> None:
-        row = self.current_row()
-        if row is None:
+        rows = self.targets()
+        if not rows:
             return
 
         def picked(status: str | None) -> None:
             if status:
-                self.request_status(row, status)
+                self.request_status(rows, status)
 
-        self.app.push_screen(StatusPicker(f"#{row.id} {row.company}", row.status), picked)
+        current = rows[0].status if len({r.status for r in rows}) == 1 else ""
+        self.app.push_screen(StatusPicker(self.named(rows), current), picked)
 
     def action_backlog(self) -> None:
-        row = self.current_row()
-        if row is not None:
-            self.request_status(row, "backlog")
+        rows = self.targets()
+        if rows:
+            self.request_status(rows, "backlog")
 
-    def request_status(self, row: data.JobRow, status: str) -> None:
-        if status == row.status:
+    def request_status(self, rows: list[data.JobRow], status: str) -> None:
+        """One confirm for the whole batch, asked when any row in it leaves applied or later."""
+        moving = [r for r in rows if r.status != status]
+        leaving = [r for r in moving if data.needs_confirm(r.status, status)]
+        if not moving:
             return
-        if not data.needs_confirm(row.status, status):
-            self.write_status(row.id, status)
+        if not leaving:
+            self.write_status(moving, status)
             return
 
         def answered(yes: bool | None) -> None:
             if yes:
-                self.write_status(row.id, status)
+                self.write_status(moving, status)
 
-        self.app.push_screen(Confirm(f"#{row.id} {row.company}: leave {row.status} for {status}?"), answered)
+        if len(moving) == 1:
+            question = f"{self.named(moving)}: leave {moving[0].status} for {status}?"
+        else:
+            question = (f"{len(moving)} jobs to {status}: {len(leaving)} of them leave "
+                        f"{' / '.join(sorted({r.status for r in leaving}, key=data.PIPELINE.index))}?")
+        self.app.push_screen(Confirm(question), answered)
 
-    def write_status(self, job_id: int, status: str) -> None:
-        self.write(lambda: data.set_status(job_id, status))
+    def write_status(self, rows: list[data.JobRow], status: str) -> None:
+        if len(rows) == 1:
+            self.write(lambda: data.set_status(rows[0].id, status))
+        else:
+            self.query_one(JobsTable).set_selection(set())     # a bulk verb spends its selection
+            self.write(lambda: data.set_status_many([r.id for r in rows], status))
 
     @work(thread=True, group="write")
     def write(self, op: Callable[[], str]) -> None:
@@ -285,7 +307,12 @@ class JobsScreen(SectionScreen):
         box.remove_class("open")
         if box.value:
             box.value = ""          # fires Changed, which reloads the unfiltered rows
-        self.query_one(JobsTable).focus()
+        table = self.query_one(JobsTable)
+        table.set_selection(set())
+        table.focus()
+
+    def on_jobs_table_selection_changed(self, event: JobsTable.SelectionChanged) -> None:
+        self.query_one(SectionFooter).note = f"{event.count} selected" if event.count else ""
 
     # Sort. `>` `<` pick the column, `-` flips, `=` returns to the preset; a header click does
     # both (first click sorts by that column, the next one flips). The order is made in SQL.

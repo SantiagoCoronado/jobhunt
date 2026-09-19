@@ -380,3 +380,11 @@ def test_stars_first_keeps_each_half_in_order(env):
     rows = data.rows("shortlist")
     assert [r.id for r in data.stars_first(rows, {found[3], found[1]})] == [
         found[1], found[3], found[0], found[2]]
+
+
+def test_set_status_many_counts_rows_and_carries_failures(env):
+    a, b = env(company="A"), env(company="B")
+    assert data.set_status_many([a, b], "backlog") == "2 jobs -> backlog"
+    line = data.set_status_many([a, 9999], "applied")
+    assert line.startswith("1 job -> applied · ERROR #9999:")
+    assert {r.id: r.status for r in data.rows("board")} == {a: "applied", b: "backlog"}
