@@ -1,5 +1,95 @@
-claude_args: |
-  --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
-  --allowedTools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),Bash(git rev-parse:*),mcp__linear"
-  --disallowedTools "Edit,Write,MultiEdit,NotebookEdit"
-  --append-system-prompt "${{ env.GATE_INSTRUCTIONS }}"
+# .github/workflows/claude-review.yml  (commit to main in SantiagoCoronado/jobhunt)
+#
+# Claude second-pass review. Review only: Claude cannot edit files or push,
+# and never touches Linear. Cursor's result handler reads Claude's
+# "Claude result:" line and moves the Linear issue.
+#
+# - Cursor hands off with a PR comment: "@claude Claude gate: PRA-123"
+# - Anyone with write access can also comment "@claude ..." for an ad hoc
+#   review. Ad hoc reviews never print a Claude result line.
+#
+# Repo secrets: CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`)
+#               LINEAR_API_KEY (Linear personal API key, used by the Linear MCP)
+
+name: Claude second-pass review
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+env:
+  GATE_INSTRUCTIONS: >-
+    You are the second reviewer for the PRAGMA Jobhunt repo. Cursor reviews
+    every PR first. You only review. You never edit files, push commits,
+    approve, merge, or change the PR description.
+
+    MODE. If the comment that triggered you contains the text Claude gate:
+    followed by a Linear issue id, run the GATE procedure. Otherwise do only
+    the review the commenter asked for, reply on the PR mentioning the
+    commenter, and never write a line starting with Claude result: in that
+    reply.
+
+    GATE procedure.
+    1. Read every existing comment and review on this PR, including Cursor
+    review comments and any earlier Claude review comments.
+    2. Review the full diff against the PR base branch, which is main unless
+    the PR says otherwise. Read the matching docs/spec file for the issue.
+    Cursor already ran ruff, mypy and pytest, so do not re-run them.
+    3. Do not repeat Cursor findings. For each Cursor finding, say briefly
+    whether you agree. Focus on what Cursor missed: correctness bugs,
+    regressions, missing tests, security issues, concurrency and data
+    handling problems, and misses against the issue spec.
+    4. If an earlier Claude review listed required fixes, confirm each one is
+    actually fixed in the current code. Do not rubber-stamp.
+    5. The result is FAIL if any finding is a bug, regression, missing test,
+    security issue, or spec miss. Otherwise it is PASS.
+    6. Post exactly one NEW top-level PR comment with the gh pr comment
+    command. Do not only update your progress comment. The comment must
+    contain, in order: a heading line ## Claude review - ISSUE_ID, a short
+    summary, a numbered list of required fixes each with a file path (or
+    the word None), optional non-blocking suggestions, and then these two
+    lines exactly as the final lines of the comment:
+    Reviewed commit: FULL_HEAD_SHA
+    Claude result: ISSUE_ID PASS
+    or, on a fail:
+    Reviewed commit: FULL_HEAD_SHA
+    Claude result: ISSUE_ID FAIL
+    Replace ISSUE_ID with the id from the gate comment and FULL_HEAD_SHA
+    with the output of git rev-parse HEAD on the PR branch. Never write the
+    text at-claude in this comment.
+    7. You may also leave inline comments on specific lines.
+
+jobs:
+  claude:
+    if: |
+      (github.event.issue.pull_request || github.event.pull_request) &&
+      (contains(github.event.comment.body, '@claude') ||
+       contains(github.event.review.body, '@claude'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Login Cursor posts PR comments as. Check one of Cursor's comments.
+          allowed_bots: "cursor,cursor[bot]"
+          claude_args: |
+            --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),Bash(git rev-parse:*),mcp__linear"
+            --disallowedTools "Edit,Write,MultiEdit,NotebookEdit"
+            --append-system-prompt "${{ env.GATE_INSTRUCTIONS }}"
