@@ -63,6 +63,8 @@ class JobhuntApp(App):
         super().__init__()
         self.today = today or date.today()
         self.settings = settings_mod.load()
+        self.register_theme(settings_mod.KANAGAWA_THEME)
+        self.theme = self.settings.theme
 
     def on_mount(self) -> None:
         self.switch_mode(self.settings.default_section)
@@ -73,6 +75,8 @@ class JobhuntApp(App):
         """The one place a setting changes. Screens read `app.settings` when they draw, and the
         section under the modal picks the change up in its `on_screen_resume`."""
         self.settings = new
+        if new.theme != self.theme and new.theme in self.available_themes:
+            self.theme = new.theme                      # live: every widget restyles on the spot
         if save:
             try:
                 settings_mod.save(new)

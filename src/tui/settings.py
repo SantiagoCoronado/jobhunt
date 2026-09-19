@@ -17,7 +17,7 @@ from typing import Any
 
 from rich.errors import StyleSyntaxError
 from rich.style import Style
-from textual.theme import BUILTIN_THEMES
+from textual.theme import BUILTIN_THEMES, Theme
 
 from ..config import CONFIG_DIR
 from .presets import PRESETS
@@ -25,6 +25,27 @@ from .presets import PRESETS
 TUI_TOML = CONFIG_DIR / "tui.toml"
 
 KANAGAWA = "kanagawa"
+# Kanagawa "wave" (rebelot/kanagawa.nvim): sumiInk grounds, fujiWhite text, crystalBlue lead.
+KANAGAWA_THEME = Theme(
+    name=KANAGAWA, dark=True,
+    primary="#7E9CD8",        # crystalBlue
+    secondary="#957FB8",      # oniViolet
+    accent="#FFA066",         # surimiOrange
+    warning="#E6C384",        # carpYellow
+    error="#E82424",          # samuraiRed
+    success="#98BB6C",        # springGreen
+    foreground="#DCD7BA",     # fujiWhite
+    background="#1F1F28",     # sumiInk3
+    surface="#2A2A37",        # sumiInk4
+    panel="#363646",          # sumiInk5
+    variables={
+        "footer-key-foreground": "#7FB4CA",           # springBlue
+        "input-selection-background": "#2D4F67 60%",  # waveBlue2
+        "block-cursor-background": "#7E9CD8",
+        "block-cursor-foreground": "#1F1F28",
+        "border": "#54546D",                          # sumiInk6
+    },
+)
 THEMES: tuple[str, ...] = (*BUILTIN_THEMES, KANAGAWA)
 SECTIONS: tuple[str, ...] = tuple(PRESETS)           # a launch section is one of the three presets
 OVERDUE_STYLES: tuple[str, ...] = ("red", "bold red", "yellow", "magenta", "reverse")

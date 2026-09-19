@@ -164,3 +164,46 @@ def test_a_custom_editor_command_is_checked_before_it_is_saved():
             assert settings.load().editor == "nvim +1 {file}"
             assert "  nvim +1 {file} ✓" in _labels(modal)
     _run(scenario())
+
+
+def test_kanagawa_is_registered_and_is_the_theme_on_a_first_launch():
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 40)) as pilot:
+            await _settle(app, pilot)
+            assert app.theme == "kanagawa"
+            assert app.current_theme.background == "#1F1F28"
+            assert set(settings.THEMES) <= set(app.available_themes)
+    _run(scenario())
+
+
+def test_the_theme_tab_lists_the_builtins_plus_kanagawa_and_applies_live():
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 40)) as pilot:
+            modal = await _open(app, pilot)
+            lines = _labels(modal)
+            assert [ln.strip().removesuffix(" ✓") for ln in lines] == list(settings.THEMES)
+            ol = modal.query_one("#settings-list")
+            assert lines[ol.highlighted] == "  kanagawa ✓"      # the cursor opens on the current one
+            box = modal.query_one("#settings-box")
+            before = box.styles.background
+            ol.highlighted = lines.index("  nord")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.theme == "nord" and isinstance(app.screen, SettingsModal)
+            assert box.styles.background != before            # restyled on the spot, modal still open
+            assert "  nord ✓" in _labels(modal) and "  kanagawa" in _labels(modal)
+            assert settings.load().theme == "nord"
+    _run(scenario())
+
+
+def test_the_saved_theme_is_the_theme_of_the_next_launch(tmp_db):
+    settings.save(settings.Settings(theme="gruvbox"))
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            assert app.theme == "gruvbox"
+    _run(scenario())
