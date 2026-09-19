@@ -78,6 +78,15 @@ def capture(argv: Sequence[str], timeout: int = 600) -> tuple[int, str]:
     return cp.returncode, "\n".join(part.rstrip() for part in (cp.stdout, cp.stderr) if part.strip())
 
 
+def run_editor(argv: Sequence[str]) -> int:
+    """The editor in the foreground, on the real terminal (the caller suspended the TUI).
+    Returns its exit code, -1 when it could not start."""
+    try:
+        return subprocess.run(list(argv), cwd=ROOT, check=False).returncode
+    except OSError:
+        return -1
+
+
 def spawn(argv: Sequence[str]) -> subprocess.Popen[str]:
     """A stage as a child process, stdout and stderr on one pipe, line buffered so the log pane
     moves while it runs. Its own session: a hard stop can take the harness children with it."""

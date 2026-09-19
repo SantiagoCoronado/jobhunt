@@ -1,6 +1,7 @@
 """App shell: seven sections as Textual modes, a section bar, the footer, global keys."""
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date
 
 from textual.app import App
@@ -10,7 +11,7 @@ from textual.screen import Screen
 from . import settings as settings_mod
 from .presets import PRESETS
 from .screens.apps import AppsScreen
-from .screens.base import SectionScreen
+from .screens.config_view import ConfigScreen
 from .screens.jobs import JobsScreen
 from .screens.run import RunScreen
 from .screens.stats import StatsScreen
@@ -32,23 +33,19 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _screen(mode: str, label: str):
-    def make() -> Screen:
-        if mode in PRESETS:
-            return JobsScreen(mode)
-        if mode == "apps":
-            return AppsScreen()
-        if mode == "stats":
-            return StatsScreen()
-        if mode == "run":
-            return RunScreen()
-        return SectionScreen(mode, f"{label}: coming in a later story (docs/spec-tui.md)")
-    return make
+OWN_SCREENS: dict[str, Callable[[], Screen]] = {
+    "apps": AppsScreen, "stats": StatsScreen, "run": RunScreen, "settings": ConfigScreen,
+}
+
+
+def _screen(mode: str) -> Callable[[], Screen]:
+    """Sections 1 to 3 are presets on the one jobs screen; 4 to 7 are their own screens."""
+    return (lambda: JobsScreen(mode)) if mode in PRESETS else OWN_SCREENS[mode]
 
 
 class JobhuntApp(App):
     TITLE = "jobhunt"
-    MODES = {mode: _screen(mode, label) for mode, label in SECTIONS}
+    MODES = {mode: _screen(mode) for mode, _label in SECTIONS}
     # DEFAULT_MODE stays Textual's "_default" (a blank screen) and on_mount switches to
     # board. Naming board as DEFAULT_MODE crashed the real `run()` path: Textual runs
     # asyncio tasks eagerly there (not under run_test), so registering the first screen
@@ -115,6 +112,7 @@ class JobhuntApp(App):
         owners = (
             ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
             ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen), ("stats", StatsScreen), ("run", RunScreen),
+            ("config files (section 7)", ConfigScreen),
             ("status picker", StatusPicker), ("notes editor", NotesEditor), ("settings", SettingsModal),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.

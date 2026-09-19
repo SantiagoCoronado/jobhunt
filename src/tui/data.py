@@ -21,7 +21,7 @@ from ..hunt import config as hunt_config
 from ..hunt import doctor as hunt_doctor
 from ..hunt import harness as hunt_harness
 from ..hunt import ledger as hunt_ledger
-from . import commands
+from . import commands, settings
 from .presets import ALL, COLD, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
@@ -773,3 +773,34 @@ def source_runs() -> list[SourceRun]:
     out = [SourceRun(r["source"], r["ts"] or "", r["pulled"] or 0, r["new"] or 0, r["seen"] or 0,
                      bool(r["ok"]), r["error"] or "") for r in found]
     return sorted(out, key=lambda r: (r.ok, r.source))
+
+
+# The config view (spec decision 13): read-only, with open-in-editor. No forms over YAML.
+
+@dataclass(frozen=True)
+class ConfigFile:
+    name: str
+    path: Path
+    lexer: str                     # yaml | toml
+    role: str                      # one line: what the file decides
+
+
+def config_files() -> list[ConfigFile]:
+    """Resolved on every call: the profile and the local sources are user files that tests
+    (and one day a second profile) point somewhere else."""
+    return [
+        ConfigFile("profile.yaml", Path(config.USER_FILES["profile"]), "yaml", "what counts as a fit"),
+        ConfigFile("sources.yaml", config.CONFIG_DIR / "sources.yaml", "yaml", "adapter mechanics, tracked"),
+        ConfigFile("sources.local.yaml", Path(config.USER_FILES["sources_local"]), "yaml", "your targeting, git-ignored"),
+        ConfigFile("hunt.toml", hunt_config.HUNT_TOML, "toml", "how a hunt runs (the harness tab edits it)"),
+        ConfigFile("tui.toml", settings.TUI_TOML, "toml", "how this TUI looks (the settings modal edits it)"),
+    ]
+
+
+def read_config(f: ConfigFile) -> str:
+    try:
+        return f.path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+    except (OSError, UnicodeDecodeError) as e:
+        raise ValueError(f"{f.name}: {e}") from e
