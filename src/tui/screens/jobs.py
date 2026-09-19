@@ -1,8 +1,6 @@
 """Sections 1 to 3: one three-pane screen (status list, jobs table, detail) under a preset."""
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from textual import events, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -13,6 +11,7 @@ from textual.worker import get_current_worker
 from .. import commands, data
 from ..presets import PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
+from ..widgets.footer import SectionFooter
 from ..widgets.jobs_table import JobsTable
 from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
 from ..widgets.status_list import StatusList
@@ -39,12 +38,13 @@ class JobsScreen(SectionScreen):
         Binding("less_than_sign", "sort_move(-1)", "sort by previous column", key_display="<", show=False),
         Binding("minus", "sort_flip", "ascending / descending", key_display="-"),
         Binding("equals_sign", "sort_reset", "back to the section's own sort", key_display="=", show=False),
-        Binding("escape", "home", "home: back to the table, search cleared", show=False),
+        Binding("escape", "home", "home: back to the table, search and selection cleared", show=False),
         Binding("tab", "app.focus_next", "next pane: status list, table, detail", show=False),
         Binding("s", "status", "status"),
         Binding("b", "backlog", "backlog"),
         Binding("o", "open(False)", "open posting"),
         Binding("O", "open(True)", "open folder"),
+        Binding("c", "copy", "copy /jh-tailor"),
         Binding("n", "notes", "note"),
         Binding("f", "followup", "follow-up"),
         Binding("t", "touch(False)", "touch"),
@@ -108,9 +108,12 @@ class JobsScreen(SectionScreen):
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
         rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
+        picks = set(data.picks())
+        if PRESETS[self.preset].picks_first and self.sort is None:    # a chosen sort is obeyed as is
+            rows = data.picks_first(rows, picks)
         if not worker.is_cancelled:
             today = self.app.today  # type: ignore[attr-defined]
-            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep)
+            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep, picks)
 
     def on_status_list_picked(self, event: StatusList.Picked) -> None:
         # The head entry carries the preset's name and means "no pick": the preset's statuses.
@@ -139,58 +142,65 @@ class JobsScreen(SectionScreen):
         else:
             self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
 
-    # Status changes. One row: the table cursor. (Bulk verbs over a selection arrive in PR 4.)
+    # Status changes. The hand-made selection when there is one, else the row under the cursor;
+    # never the hunt's pre-selection, so a stray `b` cannot backlog five rows.
 
     def current_row(self) -> data.JobRow | None:
         return self.query_one(JobsTable).current_row
 
+    def targets(self) -> list[data.JobRow]:
+        table = self.query_one(JobsTable)
+        return table.selected_rows or ([table.current_row] if table.current_row else [])
+
+    @staticmethod
+    def named(rows: list[data.JobRow]) -> str:
+        return f"#{rows[0].id} {rows[0].company}" if len(rows) == 1 else f"{len(rows)} selected"
+
     def action_status(self) -> None:
-        row = self.current_row()
-        if row is None:
+        rows = self.targets()
+        if not rows:
             return
 
         def picked(status: str | None) -> None:
             if status:
-                self.request_status(row, status)
+                self.request_status(rows, status)
 
-        self.app.push_screen(StatusPicker(f"#{row.id} {row.company}", row.status), picked)
+        current = rows[0].status if len({r.status for r in rows}) == 1 else ""
+        self.app.push_screen(StatusPicker(self.named(rows), current), picked)
 
     def action_backlog(self) -> None:
-        row = self.current_row()
-        if row is not None:
-            self.request_status(row, "backlog")
+        rows = self.targets()
+        if rows:
+            self.request_status(rows, "backlog")
 
-    def request_status(self, row: data.JobRow, status: str) -> None:
-        if status == row.status:
+    def request_status(self, rows: list[data.JobRow], status: str) -> None:
+        """One confirm for the whole batch, asked when any row in it leaves applied or later."""
+        moving = [r for r in rows if r.status != status]
+        leaving = [r for r in moving if data.needs_confirm(r.status, status)]
+        if not moving:
             return
-        if not data.needs_confirm(row.status, status):
-            self.write_status(row.id, status)
+        if not leaving:
+            self.write_status(moving, status)
             return
 
         def answered(yes: bool | None) -> None:
             if yes:
-                self.write_status(row.id, status)
+                self.write_status(moving, status)
 
-        self.app.push_screen(Confirm(f"#{row.id} {row.company}: leave {row.status} for {status}?"), answered)
+        if len(moving) == 1:
+            question = f"{self.named(moving)}: leave {moving[0].status} for {status}?"
+        else:
+            question = (f"{len(moving)} jobs to {status}: {len(leaving)} of them leave "
+                        f"{' / '.join(sorted({r.status for r in leaving}, key=data.PIPELINE.index))}?")
+        self.app.push_screen(Confirm(question), answered)
 
-    def write_status(self, job_id: int, status: str) -> None:
-        self.write(lambda: data.set_status(job_id, status))
-
-    @work(thread=True, group="write")
-    def write(self, op: Callable[[], str]) -> None:
-        """Every write: run it off the UI thread, toast its one line, reload the view."""
-        try:
-            line = op()
-        except ValueError as e:
-            self.app.call_from_thread(self.toast, str(e), "error")
-            return
-        bad = "CONFLICT" in line or "ERROR" in line
-        self.app.call_from_thread(self.toast, line, "warning" if bad else "information")
-        self.app.call_from_thread(self.reload)
-
-    def toast(self, line: str, severity: str = "information") -> None:
-        """A toast line carries a company name or a typed value: never parse it as markup."""
-        self.app.notify(line, severity=severity, markup=False)  # type: ignore[arg-type]
+    def write_status(self, rows: list[data.JobRow], status: str) -> None:
+        if len(rows) == 1:
+            self.write(lambda: data.set_status(rows[0].id, status))
+        else:
+            table = self.query_one(JobsTable)
+            table.set_marks(set(), table.dismissed)            # a bulk verb spends its selection
+            self.write(lambda: data.set_status_many([r.id for r in rows], status))
 
     def reload(self) -> None:
         self.seen_mtime = data.db_mtime()
@@ -260,6 +270,24 @@ class JobsScreen(SectionScreen):
             return
         self.app.call_from_thread(self.toast, line)
 
+    # Copy: `c` every marked row listed (the hunt's picks arrive marked, so on a fresh shortlist
+    # that is what a hunt would tailor), else the row under the cursor. One `/jh-tailor <id>`
+    # per line, in table order; a multi-line paste runs in order.
+
+    def action_copy(self) -> None:
+        table = self.query_one(JobsTable)
+        rows = table.marked_rows or ([table.current_row] if table.current_row else [])
+        self.copy_commands([r.id for r in rows])
+
+    @work(thread=True, group="copy")
+    def copy_commands(self, ids: list[int]) -> None:
+        if not ids:
+            self.app.call_from_thread(self.toast, "no row to copy", "warning")
+            return
+        commands.copy(commands.tailor_commands(ids),
+                      lambda text: self.app.call_from_thread(self.app.copy_to_clipboard, text))
+        self.app.call_from_thread(self.toast, commands.copied_line(ids))
+
     # Search: live, inside the current filter. `enter` keeps the query and goes back to the
     # table; `esc` clears it from wherever the focus is.
 
@@ -282,7 +310,14 @@ class JobsScreen(SectionScreen):
         box.remove_class("open")
         if box.value:
             box.value = ""          # fires Changed, which reloads the unfiltered rows
-        self.query_one(JobsTable).focus()
+        table = self.query_one(JobsTable)
+        table.clear_marks()
+        table.focus()
+
+    def on_jobs_table_selection_changed(self, event: JobsTable.SelectionChanged) -> None:
+        parts = [f"{event.selected} selected" if event.selected else "",
+                 f"{event.picked} hunt pick{'' if event.picked == 1 else 's'}" if event.picked else ""]
+        self.query_one(SectionFooter).note = " · ".join(p for p in parts if p)
 
     # Sort. `>` `<` pick the column, `-` flips, `=` returns to the preset; a header click does
     # both (first click sorts by that column, the next one flips). The order is made in SQL.

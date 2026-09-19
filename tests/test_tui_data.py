@@ -353,3 +353,138 @@ def test_sort_keeps_the_query_and_the_cold_first_all_view(env, monkeypatch):
 
     got = data.rows("board", "all", "engineer", Sort("company", False))
     assert [r.id for r in got] == [cold[1], cold[2], hot[1], hot[0]]    # each half A to Z, cold capped at 2
+
+
+def test_picks_are_what_pick_would_choose(env):
+    """A dream row takes a slot below higher scores, a company already in play is skipped,
+    an unscored row is never picked, and the real applications tree is never read."""
+    top = [env(match_score=s, company=f"Co{s}") for s in (95, 90, 85, 80, 75)]
+    dream_row = env(match_score=60, company="Example Robotics", location="Berlin, Germany")
+    far_dream = env(match_score=99, company="Example Robotics", location="Austin, TX, USA")
+    busy = env(match_score=99, company="Busy Co")
+    env(status="applied", company="Busy Co")
+    foldered = env(match_score=98, company="Folder Co")
+    (env.tmp / "applications" / "pending" / f"folder-co-{foldered}").mkdir(parents=True)
+    env(match_score=None, company="Unscored")
+    got = data.picks()
+    assert got == [dream_row, *top[:4]]                 # pick order: the dream slot first
+    assert far_dream not in got and busy not in got and foldered not in got
+
+    # never stored: the pick goes the moment the row leaves shortlisted, the next one takes it
+    data.set_status(top[0], "backlog")
+    assert data.picks() == [dream_row, *top[1:5]]
+
+
+def test_picks_first_keeps_each_half_in_order(env):
+    found = [env(match_score=s, company=f"Co{s}") for s in (90, 80, 70, 60)]
+    rows = data.rows("shortlist")
+    assert [r.id for r in data.picks_first(rows, {found[3], found[1]})] == [
+        found[1], found[3], found[0], found[2]]
+
+
+def test_set_status_many_counts_rows_and_carries_failures(env):
+    a, b = env(company="A"), env(company="B")
+    assert data.set_status_many([a, b], "backlog") == "2 jobs -> backlog"
+    line = data.set_status_many([a, 9999], "applied")
+    assert line.startswith("1 job -> applied · ERROR #9999:")
+    assert {r.id: r.status for r in data.rows("board")} == {a: "applied", b: "backlog"}
+
+
+def _folder(env, bucket: str, name: str, files: tuple[str, ...] = (), age: int = 0):
+    path = env.tmp / "applications" / bucket / name
+    path.mkdir(parents=True)
+    for f in files:
+        (path / f).write_text("x", encoding="utf-8")
+    os.utime(path, (1_800_000_000 - age, 1_800_000_000 - age))
+    return path
+
+
+def test_apps_joins_folders_to_rows_pending_first_newest_first(env):
+    stem = data.config.resume_basename()
+    old = env(company="Old Pending", title="Backend", url="https://old.example/j")
+    new = env(company="New Pending")
+    sent = env(company="Sent Co", status="applied")
+    lost = env(company="Lost Co", status="rejected")
+    _folder(env, "other", f"lost-co-{lost}")
+    _folder(env, "applied", f"sent-co-{sent}", (f"{stem}.yaml", f"{stem}.pdf", "CoverLetter.pdf", "answers.md"))
+    _folder(env, "pending", f"old-pending-{old}", (f"{stem}.yaml",), age=500)
+    fresh = _folder(env, "pending", f"new-pending-{new}", ("OtherNameResume.pdf",))
+    (env.tmp / "applications" / "pending" / "stray.txt").write_text("not a folder", encoding="utf-8")
+
+    got = data.apps()
+    assert [(a.bucket, a.job_id) for a in got] == [
+        ("pending", new), ("pending", old), ("applied", sent), ("other", lost)]
+    assert all(a.drift == "" for a in got)
+    first, second, third, _last = got
+    assert (second.company, second.title, second.status, second.url) == (
+        "Old Pending", "Backend", "shortlisted", "https://old.example/j")
+    assert second.files == ("resume",) and second.resume_pdf is None
+    assert third.files == ("resume", "pdf", "letter", "answers")
+    assert third.resume_pdf == third.folder / f"{stem}.pdf"
+    # a stem left by an earlier profile name is still the resume PDF
+    assert first.files == ("pdf",) and first.resume_pdf == fresh / "OtherNameResume.pdf"
+
+
+def test_apps_reads_the_build_verdict(env):
+    ok, bad, broken, none = (env(company=c) for c in ("Ok", "Bad", "Broken", "None"))
+    for age, (jid, body) in enumerate(((ok, json.dumps({"ok": True, "failures": []})),
+                                       (bad, json.dumps({"ok": False, "failures": ["a", "b"]})),
+                                       (broken, "{not json"), (none, None))):
+        path = _folder(env, "pending", f"co-{jid}")
+        if body is not None:
+            (path / "build.json").write_text(body, encoding="utf-8")
+        os.utime(path, (1_800_000_000 - age, 1_800_000_000 - age))
+    assert [a.build for a in data.apps()] == ["ok", "fail 2", "unreadable", ""]
+
+
+def test_apps_flags_drift_the_way_reconcile_does(env):
+    flip = env(company="Flip", status="shortlisted")       # rule 1: folder in applied/, DB not yet
+    ahead = env(company="Ahead", status="rejected")        # rule 2: DB ahead, the folder moves
+    behind = env(company="Behind", status="applied")       # rule 3: folder ahead, a human decides
+    twice = env(company="Twice", status="applied")
+    _folder(env, "applied", f"flip-{flip}")
+    _folder(env, "applied", f"ahead-{ahead}")
+    _folder(env, "other", f"behind-{behind}")
+    _folder(env, "pending", f"twice-{twice}")
+    _folder(env, "applied", f"twice-{twice}")
+    _folder(env, "pending", "no-suffix")
+    _folder(env, "pending", "ghost-99999")
+    drift = {(a.bucket, a.folder.name): a.drift for a in data.apps()}
+    assert drift["applied", f"flip-{flip}"] == "DB still shortlisted: reconcile flips it to applied"
+    assert drift["applied", f"ahead-{ahead}"] == "DB says rejected: reconcile moves it to other/"
+    assert drift["other", f"behind-{behind}"] == "filed in other/ but DB says applied: record the outcome"
+    assert drift["pending", f"twice-{twice}"] == "also in applied/: resolve by hand"
+    assert drift["applied", f"twice-{twice}"] == "also in pending/: resolve by hand"
+    assert drift["pending", "no-suffix"].startswith("no -<id> suffix")
+    assert drift["pending", "ghost-99999"] == "no DB row with id 99999"
+    by_name = {a.folder.name: a for a in data.apps()}
+    assert by_name["no-suffix"].company == "no-suffix" and by_name["no-suffix"].job_id is None
+
+    # the same tree through reconcile itself: the rows it would touch are the rows flagged here
+    conn = db.connect(db.DB_PATH)
+    plan = reconcile.plan(conn, reconcile.APPS_DIR)
+    conn.close()
+    assert [u["id"] for u in plan["db_updates"]] == [flip]
+    assert [m["id"] for m in plan["folder_moves"]] == [ahead]
+    assert len(plan["unmatched"]) == 4
+
+
+def test_apps_with_no_tree_is_empty(env):
+    assert data.apps() == []
+
+
+def test_apps_skips_a_folder_that_moves_mid_scan(env, monkeypatch):
+    """A status change in another thread (or a hunt in another pane) can move a folder between
+    the scan and the read; that load leaves it out instead of failing."""
+    stay, gone = env(company="Stay"), env(company="Gone")
+    _folder(env, "pending", f"stay-{stay}")
+    moved = _folder(env, "pending", f"gone-{gone}")
+    real = reconcile.scan
+
+    def scan_then_move(apps_dir):
+        found = real(apps_dir)
+        moved.rename(env.tmp / "elsewhere")
+        return found
+
+    monkeypatch.setattr(reconcile, "scan", scan_then_move)
+    assert [a.job_id for a in data.apps()] == [stay]

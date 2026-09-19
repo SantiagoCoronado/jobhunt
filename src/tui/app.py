@@ -8,6 +8,7 @@ from textual.binding import Binding
 from textual.screen import Screen
 
 from .presets import PRESETS
+from .screens.apps import AppsScreen
 from .screens.base import SectionScreen
 from .screens.jobs import JobsScreen
 from .widgets.detail import DetailPane
@@ -31,6 +32,8 @@ def _screen(mode: str, label: str):
     def make() -> Screen:
         if mode in PRESETS:
             return JobsScreen(mode)
+        if mode == "apps":
+            return AppsScreen()
         return SectionScreen(mode, f"{label}: coming in a later story (docs/spec-tui.md)")
     return make
 
@@ -72,7 +75,7 @@ class JobhuntApp(App):
     def help_groups() -> list[HelpGroup]:
         owners = (
             ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
-            ("status list", StatusList), ("detail pane", DetailPane),
+            ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen),
             ("status picker", StatusPicker), ("notes editor", NotesEditor),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.

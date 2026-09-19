@@ -162,6 +162,17 @@ def legacy_resume_names(folders: list[tuple[str, Path]]) -> list[str]:
     return out
 
 
+def apply(conn: sqlite3.Connection, p: dict, apps_dir: Path = APPS_DIR) -> list[str]:
+    """Execute a `plan`: flip the rows, commit, then move the folders. Returns the notes
+    `sync_folder` gave back (a move, a CONFLICT, an ERROR), one per folder it touched."""
+    days = followup_days()
+    for u in p["db_updates"]:
+        set_status(conn, u["id"], "applied", applied_at=u["applied_at"], followup_days=days)
+    conn.commit()
+    notes = [sync_folder(m["id"], m["status"], apps_dir) for m in p["folder_moves"]]
+    return [n for n in notes if n]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--apply", action="store_true", help="execute the proposed fixes")
@@ -197,14 +208,8 @@ def main() -> None:
         print("\nDry run. Re-run with --apply to execute.")
         return
 
-    days = followup_days()
-    for u in p["db_updates"]:
-        set_status(conn, u["id"], "applied", applied_at=u["applied_at"], followup_days=days)
-    conn.commit()
-    for m in p["folder_moves"]:
-        note = sync_folder(m["id"], m["status"], APPS_DIR)
-        if note:
-            print(note)
+    for note in apply(conn, p, APPS_DIR):
+        print(note)
     print(f"\nApplied: {len(p['db_updates'])} DB updates, {len(p['folder_moves'])} folder moves.")
 
 

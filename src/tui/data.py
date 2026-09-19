@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
-from .. import config, db, dream, reconcile, research
+from .. import config, db, dream, pick, reconcile, research
 from .presets import ALL, COLD, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
@@ -184,6 +184,21 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
         return select(conn, (status,) if status else p.statuses, None)
 
 
+def picks() -> list[int]:
+    """The rows `src.pick` would choose right now, in the order a hunt would take them (spec
+    decision 11): computed on every load, never stored, so a pick is gone the moment its row
+    leaves `shortlisted` or its company goes into play. Same connection rules and the same
+    applications tree as everything here. The table shows them as a pre-selection."""
+    with _conn() as conn:
+        chosen, _skipped, _spares = pick.pick(conn=conn, apps_dir=reconcile.APPS_DIR)
+    return [p["id"] for p in chosen]
+
+
+def picks_first(found: list[JobRow], picked: set[int]) -> list[JobRow]:
+    """The hunt's picks on top, each half in the order it came in."""
+    return [r for r in found if r.id in picked] + [r for r in found if r.id not in picked]
+
+
 def _strs(v: object) -> tuple[str, ...]:
     if isinstance(v, str):
         return (v,) if v else ()
@@ -272,6 +287,148 @@ def detail(job_id: int) -> JobDetail | None:
     )
 
 
+# Applications (section 4): every folder under applications/{pending,applied,other} joined to
+# its DB row by the `-<id>` suffix.
+
+APP_FILES = ("resume", "pdf", "letter", "answers")   # the order the files column lists them in
+
+
+@dataclass(frozen=True)
+class AppRow:
+    bucket: str
+    folder: Path
+    job_id: int | None          # None: the folder name carries no -<id>
+    company: str                # from the DB row; the folder name when there is none
+    title: str
+    status: str                 # "" when no DB row matches
+    url: str
+    files: tuple[str, ...]      # which of APP_FILES are there
+    resume_pdf: Path | None
+    build: str                  # "ok", "fail N" (N failures), "unreadable", or "" with no build.json
+    drift: str                  # "" when folder and DB agree, else what `reconcile` would say
+
+
+def _app_files(folder: Path) -> tuple[tuple[str, ...], Path | None]:
+    stem = config.resume_basename()
+    names = {p.name for p in folder.iterdir() if p.is_file()}
+    # An earlier profile name leaves another stem behind (`reconcile` lists those): still a resume.
+    yamls = sorted(n for n in names if n.endswith("Resume.yaml"))
+    pdfs = sorted(n for n in names if n.endswith("Resume.pdf"))
+    pdf = f"{stem}.pdf" if f"{stem}.pdf" in names else (pdfs[0] if pdfs else None)
+    have = {"resume": bool(yamls), "pdf": pdf is not None,
+            "letter": bool(names & {"CoverLetter.pdf", "CoverLetter.docx", "CoverLetter.md"}),
+            "answers": "answers.md" in names}
+    return tuple(k for k in APP_FILES if have[k]), folder / pdf if pdf else None
+
+
+def _build_verdict(folder: Path) -> str:
+    try:
+        d = json.loads((folder / "build.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ""
+    except (OSError, ValueError):
+        return "unreadable"
+    if not isinstance(d, dict):
+        return "unreadable"
+    failures = d.get("failures")
+    return "ok" if d.get("ok") else f"fail {len(failures) if isinstance(failures, list) else '?'}"
+
+
+def _drift(bucket: str, status: str) -> str:
+    """The three rules of `reconcile.plan`, as one short line for the row they apply to."""
+    if bucket == "applied" and status in reconcile.PRE_SUBMISSION:
+        return f"DB still {status}: reconcile flips it to applied"
+    expected = reconcile.STATUS_BUCKET.get(status)
+    if not expected or expected == bucket:
+        return ""
+    if reconcile.BUCKET_ORDER[expected] > reconcile.BUCKET_ORDER[bucket]:
+        return f"DB says {status}: reconcile moves it to {expected}/"
+    return f"filed in {bucket}/ but DB says {status}: record the outcome"
+
+
+def apps() -> list[AppRow]:
+    """Pending first (those wait on a human click), then applied, then other; inside a
+    bucket the folder touched last leads."""
+    folders = reconcile.scan(reconcile.APPS_DIR)
+    ids = [reconcile.folder_job_id(p.name) for _b, p in folders]
+    seen: dict[int, list[str]] = {}
+    for (bucket, _p), job_id in zip(folders, ids, strict=True):
+        if job_id is not None:
+            seen.setdefault(job_id, []).append(bucket)
+    found: dict[int, sqlite3.Row] = {}
+    if seen:
+        with _conn() as conn:
+            marks = ",".join("?" for _ in seen)
+            found = {r["id"]: r for r in conn.execute(
+                f"SELECT id, company, title, status, url FROM jobs WHERE id IN ({marks})", list(seen))}
+
+    out: list[tuple[tuple[int, float, str], AppRow]] = []
+    for (bucket, path), job_id in zip(folders, ids, strict=True):
+        r = found.get(job_id) if job_id is not None else None
+        if job_id is None:
+            drift = "no -<id> suffix: map it by hand"
+        elif r is None:
+            drift = f"no DB row with id {job_id}"
+        elif len(seen[job_id]) > 1:
+            drift = "also in " + ", ".join(f"{b}/" for b in seen[job_id] if b != bucket) + ": resolve by hand"
+        else:
+            drift = _drift(bucket, r["status"] or "")
+        try:
+            files, pdf = _app_files(path)
+            build, mtime = _build_verdict(path), path.stat().st_mtime
+        except OSError:
+            continue    # moved between the scan and here (a status change, a hunt): the next load has it
+        row = AppRow(bucket=bucket, folder=path, job_id=job_id,
+                     company=(r["company"] or "") if r else path.name,
+                     title=(r["title"] or "") if r else "", status=(r["status"] or "") if r else "",
+                     url=(r["url"] or "") if r else "", files=files, resume_pdf=pdf,
+                     build=build, drift=drift)
+        out.append(((reconcile.BUCKET_ORDER[bucket], -mtime, path.name), row))
+    return [row for _key, row in sorted(out, key=lambda pair: pair[0])]
+
+
+@dataclass(frozen=True)
+class ReconcilePlan:
+    db_updates: int
+    folder_moves: int
+    unmatched: tuple[str, ...]      # what only a human can settle
+
+    @property
+    def fixes(self) -> int:
+        return self.db_updates + self.folder_moves
+
+    @property
+    def line(self) -> str:
+        if not self.fixes and not self.unmatched:
+            return "reconcile: no drift, folders and DB statuses agree"
+        parts = [f"{self.db_updates} DB update{'' if self.db_updates == 1 else 's'}",
+                 f"{self.folder_moves} folder move{'' if self.folder_moves == 1 else 's'}"]
+        if self.unmatched:
+            parts.append(f"{len(self.unmatched)} by hand")
+        return "reconcile: " + ", ".join(parts)
+
+
+def _plan(conn: sqlite3.Connection) -> tuple[dict, ReconcilePlan]:
+    p = reconcile.plan(conn, reconcile.APPS_DIR)
+    return p, ReconcilePlan(len(p["db_updates"]), len(p["folder_moves"]), tuple(p["unmatched"]))
+
+
+def reconcile_plan() -> ReconcilePlan:
+    """`python -m src.reconcile` as a dry run."""
+    with _conn() as conn:
+        return _plan(conn)[1]
+
+
+def reconcile_apply() -> str:
+    """`python -m src.reconcile --apply`. The plan is computed again here, so what runs is
+    the tree as it is now, not as it was when the question was asked."""
+    with _conn() as conn:
+        p, summary = _plan(conn)
+        notes = reconcile.apply(conn, p, reconcile.APPS_DIR)
+    bad = [n for n in notes if n.startswith(("CONFLICT", "ERROR"))]
+    return " · ".join([summary.line.replace("reconcile:", "reconciled:"), *bad, *summary.unmatched])
+
+
 # Writes. Each one goes through the same db function `python -m src.query` uses, so the events
 # table and the folder moves cannot drift between the two front ends.
 
@@ -295,6 +452,23 @@ def set_status(job_id: int, status: str, note: str | None = None,
     moved = reconcile.sync_folder(job_id, status, reconcile.APPS_DIR)
     line = f"#{job_id} {changed['company']}: {changed['old_status']} -> {status}"
     return f"{line} · {moved}" if moved else line
+
+
+def set_status_many(job_ids: list[int], status: str) -> str:
+    """The bulk verb: one `set_status` per row, so every row gets its own event and folder
+    move. A row that fails does not stop the rest; the line counts both. CONFLICT (a folder
+    move that found the destination taken) is carried up for the toast."""
+    done, failed, conflicts = 0, [], 0
+    for job_id in job_ids:
+        try:
+            conflicts += "CONFLICT" in set_status(job_id, status)
+            done += 1
+        except ValueError as e:
+            failed.append(f"#{job_id}: {e}")
+    line = f"{done} job{'' if done == 1 else 's'} -> {status}"
+    if conflicts:
+        line += f" · {conflicts} folder CONFLICT, run reconcile"
+    return f"{line} · ERROR {'; '.join(failed)}" if failed else line
 
 
 def _current_status(conn: sqlite3.Connection, job_id: int) -> str:

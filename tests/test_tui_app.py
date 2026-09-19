@@ -19,10 +19,13 @@ def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(research, "COMPANIES_DIR", tmp_path / "companies")
     OPENED.clear()
     monkeypatch.setattr(commands, "launch", OPENED.append)   # no test opens a browser or Finder
+    COPIED.clear()
+    monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
     return tmp_path
 
 
 OPENED: list[str] = []
+COPIED: list[str] = []
 
 
 def _add(**cols) -> int:
@@ -135,7 +138,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             assert [c.label.plain for c in table.columns.values()] == [
                 " ", "score ▼", "company", "title", "loc", "fup"]      # the board leads with score
             assert table.job_ids == by_score and table.current_id == by_score[0]
-            assert table.get_row(str(by_score[0]))[0].plain == ""      # star column reserved for PR 4
+            assert [table.get_row(str(i))[0].plain for i in by_score] == ["●"] * 3    # pre-selected: what a hunt would tailor
             await pilot.press("j")
             assert table.current_id == by_score[1]
             await pilot.press("G")
@@ -746,7 +749,7 @@ def test_feed_text_with_markup_loads_and_shows_literally(tmp_db):
             table = app.screen.query_one(JobsTable)
             assert table.job_ids == ids
             for jid, text in zip(ids, HOSTILE, strict=True):
-                _star, _score, company, title, loc, _fup = table.get_row(str(jid))
+                _mark, _score, company, title, loc, _fup = table.get_row(str(jid))
                 assert title.plain == text
                 assert company.plain == text[:20].strip() and loc.plain == text[:18].strip()
                 assert not title.spans and not company.spans and not loc.spans   # no link, no style
@@ -856,7 +859,7 @@ def test_sort_keys_and_header_click_order_the_table_and_mark_the_header():
             await pilot.click(JobsTable, offset=(title_x - 22, 0))
             await _settle(app, pilot)
             assert app.screen.sort == Sort("title", True) and labels()[3] == "title ▼"
-            await pilot.click(JobsTable, offset=(1, 0))                     # the star column: ignored
+            await pilot.click(JobsTable, offset=(1, 0))                     # the mark column: ignored
             await _settle(app, pilot)
             assert app.screen.sort == Sort("title", True)
     _run(scenario())
@@ -879,4 +882,322 @@ def test_followups_marks_its_own_lead_and_flips_from_it():
             await pilot.press("minus")
             await _settle(app, pilot)
             assert app.screen.sort == Sort("fup", True) and table.job_ids == [late, soon]
+    _run(scenario())
+
+
+def test_shortlist_leads_with_the_hunt_picks_and_a_chosen_sort_overrides_them():
+    """Seven scored companies: `pick` takes five, the dream row among them at 60, below two
+    rows it passed over. Shortlist lifts it above them; the board keeps plain score order."""
+    ids = [_add(match_score=s, company=f"Co{s}") for s in (95, 90, 85, 80, 75, 70)]
+    dream = _add(match_score=60, company="Example Robotics", location="Berlin, Germany")
+    held = _add(match_score=99, company="Busy Co")
+    _add(status="applied", company="Busy Co")
+    from src.tui.widgets.jobs_table import JobsTable
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert table.job_ids == [held, *ids, dream]
+            marked = [i for i in table.job_ids if table.get_row(str(i))[0].plain == "●"]
+            assert marked == [*ids[:4], dream]           # a dream slot, Busy Co in play, five in all
+            assert table.preselected == set(marked) and table.selected == set()
+            await pilot.press("2")
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert table.job_ids == [*ids[:4], dream, held, *ids[4:]]
+            await pilot.press("minus")                    # score ascending: the reader's sort wins
+            await _settle(app, pilot)
+            assert table.job_ids == [dream, *reversed(ids), held]
+            await pilot.press("equals_sign")
+            await _settle(app, pilot)
+            assert table.job_ids[:5] == [*ids[:4], dream]
+    _run(scenario())
+
+
+def test_space_v_and_esc_select_rows_and_the_footer_counts_them():
+    ids = [_add(company=f"Co{n}") for n in range(3)][::-1]   # unscored: no hunt picks, newest first
+    from src.tui.widgets.footer import SectionFooter
+    from src.tui.widgets.jobs_table import JobsTable
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            footer = app.screen.query_one(SectionFooter)
+            assert footer.note == ""
+            await pilot.press("space")                       # marks the row, steps down
+            await pilot.pause()
+            assert table.selected == {ids[0]} and table.current_id == ids[1]
+            assert table.get_row(str(ids[0]))[0].plain == "●"
+            assert table.get_row(str(ids[1]))[0].plain == ""
+            assert footer.note == "1 selected"
+            await pilot.pause()
+            assert footer.query_one("#footer-note").render().plain == "1 selected"
+            await pilot.press("k", "space")                  # a second space takes the mark off
+            await pilot.pause()
+            assert table.selected == set() and footer.note == ""
+            await pilot.press("v")
+            await pilot.pause()
+            assert table.selected == set(ids) and footer.note == "3 selected"
+            assert [r.id for r in table.selected_rows] == ids
+            await pilot.press("r")                           # a reload of the same view keeps it
+            await _settle(app, pilot)
+            assert table.selected == set(ids)
+            assert table.get_row(str(ids[2]))[0].plain == "●"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert table.selected == set() and footer.note == ""
+            assert table.get_row(str(ids[2]))[0].plain == ""
+            await pilot.press("v")
+            app.screen.query_one(StatusList).focus()
+            await pilot.press("j")                           # another filter: the selection goes
+            await _settle(app, pilot)
+            assert table.selected == set() and footer.note == ""
+    _run(scenario())
+
+
+def test_bulk_status_change_asks_once_and_writes_every_row():
+    live = [_add(status="applied", company=f"Live{i}", match_score=90 - i) for i in range(2)]
+    fresh = _add(status="shortlisted", company="Fresh", match_score=50)
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import Confirm, StatusPicker
+
+    def statuses():
+        conn = db.connect(db.DB_PATH)
+        got = dict(conn.execute("SELECT id, status FROM jobs").fetchall())
+        conn.close()
+        return got
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            app.screen.status_filter = None                  # every hot row in one table
+            app.screen.load_rows()
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            table.focus()
+            await pilot.press("v", "s")
+            await pilot.pause()
+            assert isinstance(app.screen, StatusPicker) and app.screen.heading == "3 selected"
+            await pilot.press("r", "e", "j", "enter")
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)           # one question for the batch
+            assert app.screen.question == "3 jobs to rejected: 2 of them leave applied?"
+            await pilot.press("n")
+            await _settle(app, pilot)
+            assert set(statuses().values()) == {"applied", "shortlisted"}
+            assert table.selected == {*live, fresh}          # backing out spends nothing
+            await pilot.press("s", "r", "e", "j", "enter", "y")
+            await _settle(app, pilot)
+            assert set(statuses().values()) == {"rejected"}
+            assert table.selected == set()
+            conn = db.connect(db.DB_PATH)
+            n = conn.execute("SELECT COUNT(*) FROM events WHERE kind='status_change'").fetchone()[0]
+            conn.close()
+            assert n == 3                                    # each row keeps its own event
+
+            await pilot.press("v", "b")                      # nothing live is left: no question
+            await _settle(app, pilot)
+            assert set(statuses().values()) == {"backlog"}
+    _run(scenario())
+
+
+def test_hunt_picks_arrive_preselected_feed_c_and_never_the_bulk_verbs(monkeypatch):
+    from src.tui.widgets.footer import SectionFooter
+    from src.tui.widgets.jobs_table import PICK_STYLE, JobsTable
+
+    ids = [_add(match_score=s, company=f"Co{s}") for s in (90, 80, 70)]
+    plain = _add(match_score=None, company="Unscored")       # listed, never a pick
+    toasts: list[str] = []
+
+    def statuses():
+        conn = db.connect(db.DB_PATH)
+        got = dict(conn.execute("SELECT id, status FROM jobs").fetchall())
+        conn.close()
+        return got
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            footer = app.screen.query_one(SectionFooter)
+            assert table.preselected == set(ids) and footer.note == "3 hunt picks"
+            mark = table.get_row(str(ids[0]))[0]
+            assert mark.plain == "●" and mark.style == PICK_STYLE
+            await pilot.press("c")                           # a fresh table: what a hunt would tailor
+            await _settle(app, pilot)
+            assert COPIED[-1] == "\n".join(f"/jh-tailor {i}" for i in ids)
+            assert toasts[-1] == f"copied 3 commands: /jh-tailor {', '.join(map(str, ids))}"
+
+            await pilot.press("b")                           # the pre-selection is not a bulk target
+            await _settle(app, pilot)
+            assert statuses() == {ids[0]: "backlog", ids[1]: "shortlisted", ids[2]: "shortlisted",
+                                  plain: "shortlisted"}
+            assert table.preselected == set(ids[1:]) and footer.note == "2 hunt picks"
+
+            await pilot.press("g", "space")                  # space takes a pick's mark off
+            await pilot.pause()
+            assert table.preselected == {ids[2]} and table.get_row(str(ids[1]))[0].plain == ""
+            await pilot.press("j", "space")                  # and marks a plain row by hand
+            await pilot.pause()
+            hand = table.get_row(str(plain))[0]
+            assert table.selected == {plain} and hand.plain == "●" and hand.style == ""
+            assert footer.note == "1 selected · 1 hunt pick"
+            await pilot.press("c")                           # both kinds, in table order
+            await _settle(app, pilot)
+            assert COPIED[-1] == f"/jh-tailor {ids[2]}\n/jh-tailor {plain}"
+            await pilot.press("r")                           # a reload keeps what was taken off
+            await _settle(app, pilot)
+            assert table.preselected == {ids[2]} and table.selected == {plain}
+
+            await pilot.press("escape", "g", "c")            # esc clears both: c is the row again
+            await _settle(app, pilot)
+            assert footer.note == "" and COPIED[-1] == f"/jh-tailor {ids[1]}"
+            await pilot.press("C")                           # the hunt's picks, back
+            await pilot.pause()
+            assert table.preselected == set(ids[1:]) and footer.note == "2 hunt picks"
+    _run(scenario())
+
+
+def test_copy_falls_back_to_the_terminal_clipboard_when_pbcopy_fails(monkeypatch):
+    def no_pbcopy(text):
+        raise FileNotFoundError("pbcopy")
+    monkeypatch.setattr(commands, "pbcopy", no_pbcopy)
+    got: list[str] = []
+    commands.copy("/jh-tailor 7", got.append)
+    assert got == ["/jh-tailor 7"]
+    assert commands.tailor_commands([3, 1]) == "/jh-tailor 3\n/jh-tailor 1"
+
+
+def _app_folder(tmp, bucket: str, name: str, files: tuple[str, ...] = (), age: int = 0):
+    import os
+    path = tmp / "applications" / bucket / name
+    path.mkdir(parents=True)
+    for f in files:
+        (path / f).write_text("x", encoding="utf-8")
+    os.utime(path, (1_800_000_000 - age, 1_800_000_000 - age))
+    return path
+
+
+def test_apps_lists_pending_first_and_opens_posting_folder_and_pdf(tmp_db, monkeypatch):
+    from src.tui.screens.apps import AppsScreen
+    from src.tui.widgets.apps_table import AppsTable
+
+    sent = _add(status="applied", company="Sent [bold]Co", title="Backend", url="https://sent.example/j")
+    wait = _add(company="Wait Co", url="ftp://nope")
+    _app_folder(tmp_db, "applied", f"sent-co-{sent}", ("AlexExampleResume.pdf", "CoverLetter.pdf"))
+    pending = _app_folder(tmp_db, "pending", f"wait-co-{wait}")
+    (pending / "build.json").write_text('{"ok": false, "failures": ["x"]}', encoding="utf-8")
+    toasts: list[str] = []
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(160, 30)) as pilot:
+            await pilot.press("4")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, AppsScreen)
+            table = app.screen.query_one(AppsTable)
+            assert app.focused is table
+            assert [a.job_id for a in table.apps] == [wait, sent]
+            bucket, company, _title, status, files, build, drift = (
+                c.plain for c in table.get_row(f"pending/wait-co-{wait}"))
+            assert (bucket, company, status, build, drift) == ("pending", "Wait Co", "shortlisted", "fail 1", "")
+            assert files == "······ ··· ······ ·······"
+            row = [c.plain for c in table.get_row(f"applied/sent-co-{sent}")]
+            assert row[1] == "Sent [bold]Co" and row[4] == "······ pdf letter ·······"   # never markup
+
+            await pilot.press("p")                           # pending row: nothing to open yet
+            assert OPENED == [] and "no resume PDF" in toasts[-1]
+            await pilot.press("o")                           # a bad URL still opens the folder
+            assert OPENED == [str(pending)] and "no posting URL" in toasts[-1]
+            await pilot.press("j", "o")
+            assert OPENED[1:] == ["https://sent.example/j", str(tmp_db / "applications" / "applied" / f"sent-co-{sent}")]
+            await pilot.press("p")
+            assert OPENED[-1].endswith("AlexExampleResume.pdf")
+    _run(scenario())
+
+
+def test_apps_status_change_moves_the_folder_and_keeps_the_cursor_on_it(tmp_db):
+    from src.tui.widgets.apps_table import AppsTable
+    from src.tui.widgets.modals import Confirm
+
+    first = _add(company="First Co")
+    second = _add(company="Second Co")
+    _app_folder(tmp_db, "pending", f"first-co-{first}")
+    _app_folder(tmp_db, "pending", f"second-co-{second}", age=100)
+    _app_folder(tmp_db, "pending", "no-suffix", age=200)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 30)) as pilot:
+            await pilot.press("4")
+            await _settle(app, pilot)
+            table = app.screen.query_one(AppsTable)
+            await pilot.press("s", "a", "p", "p", "enter")   # shortlisted -> applied: no question
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "applied" / f"first-co-{first}").is_dir()
+            assert [(a.bucket, a.job_id) for a in table.apps] == [
+                ("pending", second), ("pending", None), ("applied", first)]
+            assert table.current is not None and table.current.job_id == first
+            await pilot.press("s", "r", "e", "j", "enter")   # leaving applied asks
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)
+            await pilot.press("y")
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "other" / f"first-co-{first}").is_dir()
+            await pilot.press("g", "j", "s")                 # a folder with no row has no status to set
+            await pilot.pause()
+            assert not isinstance(app.screen, Confirm) and app.screen.query(AppsTable)
+    _run(scenario())
+
+
+def test_R_shows_the_plan_asks_once_and_applies_it(tmp_db, monkeypatch):
+    from src.tui.widgets.apps_table import AppsTable
+    from src.tui.widgets.modals import Confirm
+
+    flip = _add(company="Flip Co")                           # folder already in applied/
+    ahead = _add(company="Ahead Co", status="rejected")      # DB ahead of the folder
+    _app_folder(tmp_db, "applied", f"flip-co-{flip}")
+    _app_folder(tmp_db, "pending", f"ahead-co-{ahead}")
+    _app_folder(tmp_db, "pending", "no-suffix")
+    toasts: list[str] = []
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(160, 30)) as pilot:
+            await pilot.press("4")
+            await _settle(app, pilot)
+            table = app.screen.query_one(AppsTable)
+            assert sum(bool(a.drift) for a in table.apps) == 3
+            await pilot.press("R")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, Confirm)
+            assert app.screen.question == "reconcile: 1 DB update, 1 folder move, 1 by hand. apply?"
+            await pilot.press("n")
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "pending" / f"ahead-co-{ahead}").is_dir()
+            await pilot.press("R")
+            await _settle(app, pilot)
+            await pilot.press("y")
+            await _settle(app, pilot)
+            assert (tmp_db / "applications" / "other" / f"ahead-co-{ahead}").is_dir()
+            assert toasts[-1].startswith("reconciled: 1 DB update, 1 folder move, 1 by hand · ")
+            assert "no-suffix" in toasts[-1]
+            assert [a.drift for a in table.apps if a.job_id is not None] == ["", ""]
+            conn = db.connect(db.DB_PATH)
+            assert conn.execute("SELECT status FROM jobs WHERE id=?", (flip,)).fetchone()[0] == "applied"
+            conn.close()
+
+            await pilot.press("R")                           # only the hand-made case is left: no question
+            await _settle(app, pilot)
+            assert not isinstance(app.screen, Confirm)
+            assert toasts[-1].startswith("reconcile: 0 DB updates, 0 folder moves, 1 by hand")
     _run(scenario())
