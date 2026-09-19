@@ -1,0 +1,5 @@
+claude_args: |
+  --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
+  --allowedTools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),Bash(git rev-parse:*),mcp__linear"
+  --disallowedTools "Edit,Write,MultiEdit,NotebookEdit"
+  --append-system-prompt "${{ env.GATE_INSTRUCTIONS }}"
