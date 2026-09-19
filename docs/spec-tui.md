@@ -103,8 +103,18 @@ Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconci
 run first; one `y` applies it when there is something it can fix, and what only a human can
 settle stays in the toast).
 
-Run (6): `j`/`k` pick a stage, `enter` run (Python stage) or `c` copy (LLM stage),
-`ctrl+c` inside the log pane cancels the running stage.
+Run (6): `j`/`k` pick a stage, `enter` runs it (any stage, the full hunt included), `c` copies
+the slash command (the shell line when there is none), `R` resumes the highlighted run, `o` opens
+`report.html`, `tab` walks stages, runs, units and the log, `ctrl+c` stops the running stage
+(SIGTERM; a second one kills the process group). `q` asks first while a stage is running.
+
+Stats (5): `j`/`k`/`g` scroll, `r` runs the command again.
+
+Config files (7): `tab` / `h` / `l` walk the files, `j`/`k`/`g` scroll, `e` opens the file in
+the configured editor, `r` reads it again.
+
+Settings modal (`,`): `tab` / `shift+tab` walk the tabs, `j`/`k`/arrows move, `enter` applies
+and saves, `esc` closes.
 
 Status picker: type to filter, `↑`/`↓`, `enter` apply, `esc` cancel; confirm prompt `y` when
 leaving `applied` or later.
@@ -130,8 +140,10 @@ src/tui/
     status_list.py   left pane
     jobs_table.py    middle pane (DataTable subclass)
     detail.py        right pane
-    modals.py        status picker, notes editor, follow-up prompt, confirm, help, settings
-tests/test_tui_data.py, tests/test_tui_app.py (Textual pilot, headless)
+    modals.py        status picker, notes editor, follow-up prompt, confirm, help, picker, output
+    settings_modal.py  the tabbed settings modal
+tests/test_tui_data.py, tests/test_tui_app.py (Textual pilot, headless), tests/tui_fakes.py (the
+shared pilot fixture), one tests/test_tui_<area>.py per PR 5 area
 config/tui.toml
 ```
 
@@ -165,8 +177,11 @@ days = 7                    # display only; config.followup_days() stays the pip
 overdue_style = "red"
 
 [editor]
-command = "$EDITOR"
+command = "$EDITOR"         # $VARS expand; {file} marks where the path goes (appended when absent)
 ```
+
+Loading never raises: a value that does not pass falls back to its default and is toasted on
+launch. The modal rewrites the whole file (values kept, hand-written comments not).
 
 ## 7. Non-goals for v1
 
@@ -239,6 +254,23 @@ selection mark `●` then the star; the shortlist leads with the stars only unde
 6. **Runner screen**: stage list, run list, log pane tailing subprocess stdout or the selected unit's `logs/<stage>/<unit>.log`, one process at a time, `ctrl+c` kills the subprocess (the orchestrator marks running units failed so `--resume` picks them up), `report` opens the html afterwards.
 7. **Stats placeholder**: section 5 renders `python -m src.stats funnel` output in a scrollable pane with a note that real widgets come later.
 8. **Config view**: read-only tabs for `profile.yaml`, `sources.yaml`, `tui.toml`, `e` opens the file in the configured editor.
+
+As built (2026-09-19): `settings.load` never raises, each bad value is its default plus one
+warning; the "bad template" of story 1 is the editor command (`$VARS`, `{file}`, unset `$EDITOR`
+is `vi`), since `tui.toml` lost its harness template on 2026-09-07. `followups.days` is the hint
+in the `f` prompt. The modal lives in `widgets/settings_modal.py`, one list per tab, every line
+a value. `src.hunt.config` gained `write` / `set_default_harness` / `set_stage_model`: a one-line
+text edit that keeps every comment, validated by `parse` before an atomic replace; claude has
+no live catalog, so its picker lists the `--help` aliases and takes a typed full id. The runner
+also lists the selected run's units (the pane tails the highlighted one), resumes a run with `R`,
+shows the last discover run per source before anything has run, and the app asks before `q`
+takes a running stage down. Section 7 is the config view and adds `sources.local.yaml` and
+`hunt.toml` to the three files the story names. Every command the TUI captures or spawns goes
+through `commands.capture` / `spawn` / `run_editor`, which the pilot fixture fakes or the tests
+replace with tiny Python scripts, so no test reads the real DB or starts an agent CLI.
+Known cost: the harness tab and the modal write tracked files (`config/hunt.toml`,
+`config/tui.toml`), so a changed model or theme shows up in `git status`, and
+`tests/test_hunt_config.py::test_shipped_file_loads_with_the_spec_values` pins the shipped models.
 
 ## 9. Later (not scheduled)
 

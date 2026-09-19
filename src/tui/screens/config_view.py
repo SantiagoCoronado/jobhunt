@@ -93,7 +93,7 @@ class ConfigScreen(SectionScreen):
         else:
             # Syntax lexes the text, it never parses markup: a `[bold]` in a YAML value stays as typed
             body = Syntax(text, f.lexer, theme="ansi_dark", line_numbers=True, word_wrap=True,
-                          background_color="default") if text else Text(
+                          background_color=self.app.current_theme.background or "default") if text else Text(
                 f"{f.name} does not exist yet ({'python -m src.init makes it' if f.lexer == 'yaml' else 'defaults apply'}); e creates it",
                 style="dim")
         self.shown = body

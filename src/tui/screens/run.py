@@ -47,7 +47,7 @@ class RunScreen(SectionScreen):
     RunScreen #run-panes { height: 1fr; }
     RunScreen #run-left { width: 58; height: 1fr; border-right: solid $panel; }
     RunScreen .run-title { height: 1; padding: 0 1; color: $text-muted; text-style: bold; }
-    RunScreen RunList { border: none; padding: 0; height: auto; max-height: 14; }
+    RunScreen RunList, RunScreen RunList:focus { border: none; padding: 0; height: auto; max-height: 14; }
     RunScreen #run-runs { max-height: 8; }
     RunScreen #run-units { height: 1fr; max-height: 100%; }
     RunScreen #run-right { width: 1fr; height: 1fr; }

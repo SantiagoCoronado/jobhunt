@@ -48,7 +48,7 @@ class SettingsModal(ModalScreen[None]):
     SettingsModal #settings-box { width: 64; height: auto; max-height: 90%; border: round $primary;
                                   background: $surface; padding: 0 1; }
     SettingsModal #settings-tabs { height: 1; margin-bottom: 1; }
-    SettingsModal OptionList { height: auto; max-height: 22; border: none; background: $surface; }
+    SettingsModal OptionList, SettingsModal OptionList:focus { height: auto; max-height: 22; border: none; background: $surface; }
     SettingsModal #settings-keys { color: $text-muted; margin-top: 1; }
     """
     BINDINGS = [
@@ -162,7 +162,7 @@ class SettingsModal(ModalScreen[None]):
                    f"model={sm.stage}", partial(self.pick_model, sm)) 
               for sm in view.stages),
             heading("check"),
-            Line(Text("  run doctor (binary, catalog, every stage's model, the read tool)"), "doctor", self.run_doctor),
+            Line(Text("  run doctor (binary, catalog, models, read tool)"), "doctor", self.run_doctor),
         ]
 
     def followup_lines(self) -> list[Line]:

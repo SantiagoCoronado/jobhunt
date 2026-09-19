@@ -642,7 +642,7 @@ def stages() -> list[RunStage]:
         out.append(RunStage(name, stage.kind, tuple(commands.hunt_argv("run", "--only", name)),
                             note, SLASH.get(name, "")))
     out.append(RunStage("reconcile", "extra", tuple(commands.module_argv("src.reconcile")),
-                        "folders against statuses, dry run (apply it with R in section 4)"))
+                        "folders vs statuses, dry run"))
     out.append(RunStage("stats", "extra", tuple(commands.module_argv("src.stats", "funnel")),
                         "the conversion funnel"))
     return out
