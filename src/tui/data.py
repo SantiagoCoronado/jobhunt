@@ -634,7 +634,7 @@ def stages() -> list[RunStage]:
     except ValueError:
         cfg = hunt_config.defaults()      # the harness tab names the error; the list still draws
     out = [RunStage(HUNT, "hunt", tuple(commands.hunt_argv("run")),
-                    f"the whole loop on {cfg.harness}: {' > '.join(REGISTRY)}", SLASH[HUNT])]
+                    f"every stage in order, on {cfg.harness}", SLASH[HUNT])]
     for name, stage in REGISTRY.items():
         sc = cfg.stage(name)
         note = f"{sc.model or 'harness default'} on {cfg.harness_for(name)}, {sc.concurrency} at a time" \

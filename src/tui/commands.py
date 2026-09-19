@@ -2,6 +2,8 @@
 (later: hunt argv)."""
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -74,6 +76,29 @@ def capture(argv: Sequence[str], timeout: int = 600) -> tuple[int, str]:
     except OSError as e:
         return -1, str(e)
     return cp.returncode, "\n".join(part.rstrip() for part in (cp.stdout, cp.stderr) if part.strip())
+
+
+def spawn(argv: Sequence[str]) -> subprocess.Popen[str]:
+    """A stage as a child process, stdout and stderr on one pipe, line buffered so the log pane
+    moves while it runs. Its own session: a hard stop can take the harness children with it."""
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    return subprocess.Popen(list(argv), cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                            bufsize=1, start_new_session=True)
+
+
+def stop(proc: subprocess.Popen[str], hard: bool = False) -> None:
+    """SIGTERM first: the orchestrator closes its ledger on it (running units end failed, so
+    `--resume` picks them up). `hard` is the second ask: SIGKILL to the whole process group."""
+    if proc.poll() is not None:
+        return
+    try:
+        if hard:
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.terminate()
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def pbcopy(text: str) -> None:

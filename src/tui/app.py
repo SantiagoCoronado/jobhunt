@@ -12,9 +12,10 @@ from .presets import PRESETS
 from .screens.apps import AppsScreen
 from .screens.base import SectionScreen
 from .screens.jobs import JobsScreen
+from .screens.run import RunScreen
 from .widgets.detail import DetailPane
 from .widgets.jobs_table import JobsTable
-from .widgets.modals import HelpGroup, HelpOverlay, NotesEditor, StatusPicker
+from .widgets.modals import Confirm, HelpGroup, HelpOverlay, NotesEditor, StatusPicker
 from .widgets.settings_modal import SettingsModal
 from .widgets.status_list import StatusList
 
@@ -36,6 +37,8 @@ def _screen(mode: str, label: str):
             return JobsScreen(mode)
         if mode == "apps":
             return AppsScreen()
+        if mode == "run":
+            return RunScreen()
         return SectionScreen(mode, f"{label}: coming in a later story (docs/spec-tui.md)")
     return make
 
@@ -63,6 +66,7 @@ class JobhuntApp(App):
         super().__init__()
         self.today = today or date.today()
         self.settings = settings_mod.load()
+        self.running = ""                      # the runner's live process, by name
         self.register_theme(settings_mod.KANAGAWA_THEME)
         self.theme = self.settings.theme
 
@@ -87,6 +91,18 @@ class JobhuntApp(App):
         if mode != self.current_mode:
             self.switch_mode(mode)
 
+    async def action_quit(self) -> None:
+        """A stray `q` must not take a forty-minute hunt down with it."""
+        if not self.running:
+            self.exit()
+            return
+
+        def answered(yes: bool | None) -> None:
+            if yes:
+                self.exit()
+
+        self.push_screen(Confirm(f"{self.running} is still running: quit and stop it?"), answered)
+
     def action_home(self) -> None:
         """`esc` on a section with nothing to go home to. JobsScreen and every modal bind their
         own `escape`, which wins over this one."""
@@ -95,7 +111,7 @@ class JobhuntApp(App):
     def help_groups() -> list[HelpGroup]:
         owners = (
             ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
-            ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen),
+            ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen), ("run", RunScreen),
             ("status picker", StatusPicker), ("notes editor", NotesEditor), ("settings", SettingsModal),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.
