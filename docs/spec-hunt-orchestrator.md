@@ -66,7 +66,7 @@ that envelope. The Claude Workflow tool, the pi extension and Codex MultiAgentV2
 | 14 | `/jh-hunt` after | A thin skill: `python -m src.hunt run` in the background, `hunt status` while it runs, `hunt report` at the end. No Agent calls, no Workflow, no file reads. | The main session becomes a viewer, which is where its 17M went. |
 | 15 | `ai_pass.sh` after | Calls `python -m src.hunt run --to match --harness <default>` instead of `claude -p "run /jh-triage then /jh-match"`. | The scheduled pass gets the ledger, retries and coverage checks for free. |
 | 16 | Token accounting | Each adapter parses its envelope into `Usage(input, output, cache_read, cache_create, cost_usd)` where the harness reports it, nulls where it does not. `hunt report` sums per stage. `scripts/token_audit.py --hunt <run>` reads the ledger instead of Claude session JSONL. | The audit stops depending on one harness's transcript format. |
-| 17 | Herdr panes | Not used by the hunt. Logs plus `hunt status` are the view; the TUI run screen tails the same logs (section 10). The PreToolUse pane hook stays for ad-hoc Agent calls outside the hunt. | Panes are a multiplexer feature, the orchestrator must not depend on one. |
+| 17 | Multiplexer panes | Not used by the hunt. Logs plus `hunt status` are the view; the TUI run screen tails the same logs (section 10). | Panes are a multiplexer feature, the orchestrator must not depend on one. |
 | 18 | Quality gates | Deterministic only: coverage checks per stage, `tailor_build` verdict with one fix round, dossier `researched:` line. No critic agents. | Token discipline. A critic is a later stage if calibration data says it is needed. |
 
 Routine calls made without a question: the ledger is JSON not SQLite; unit logs are plain text;
@@ -303,7 +303,6 @@ the pick stage found nothing to tailor. A lockfile (`data/hunt/.lock`, mkdir-ato
 - `/jh-triage`, `/jh-match`, `/jh-research`, `/jh-tailor`, `/jh-gmail-sync` keep their prose flow
   for a single interactive use, and each gains one line: "for a batch, `python -m src.hunt run
   --only <stage>`". Their agent bodies come from `prompts/agents/` via `sync-agents`.
-- The Herdr pane hook is untouched.
 
 ## 10. TUI integration (amends `docs/spec-tui.md`)
 
