@@ -138,7 +138,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             assert [c.label.plain for c in table.columns.values()] == [
                 " ", "score ▼", "company", "title", "loc", "fup"]      # the board leads with score
             assert table.job_ids == by_score and table.current_id == by_score[0]
-            assert [table.get_row(str(i))[0].plain for i in by_score] == [" ★"] * 3   # what a hunt would tailor
+            assert [table.get_row(str(i))[0].plain for i in by_score] == ["●"] * 3    # pre-selected: what a hunt would tailor
             await pilot.press("j")
             assert table.current_id == by_score[1]
             await pilot.press("G")
@@ -749,7 +749,7 @@ def test_feed_text_with_markup_loads_and_shows_literally(tmp_db):
             table = app.screen.query_one(JobsTable)
             assert table.job_ids == ids
             for jid, text in zip(ids, HOSTILE, strict=True):
-                _star, _score, company, title, loc, _fup = table.get_row(str(jid))
+                _mark, _score, company, title, loc, _fup = table.get_row(str(jid))
                 assert title.plain == text
                 assert company.plain == text[:20].strip() and loc.plain == text[:18].strip()
                 assert not title.spans and not company.spans and not loc.spans   # no link, no style
@@ -859,7 +859,7 @@ def test_sort_keys_and_header_click_order_the_table_and_mark_the_header():
             await pilot.click(JobsTable, offset=(title_x - 22, 0))
             await _settle(app, pilot)
             assert app.screen.sort == Sort("title", True) and labels()[3] == "title ▼"
-            await pilot.click(JobsTable, offset=(1, 0))                     # the star column: ignored
+            await pilot.click(JobsTable, offset=(1, 0))                     # the mark column: ignored
             await _settle(app, pilot)
             assert app.screen.sort == Sort("title", True)
     _run(scenario())
@@ -885,9 +885,9 @@ def test_followups_marks_its_own_lead_and_flips_from_it():
     _run(scenario())
 
 
-def test_shortlist_leads_with_the_stars_and_a_chosen_sort_overrides_them():
-    """Seven scored companies: `pick` stars five, the dream row among them at 60, below two
-    unstarred rows. Shortlist lifts it above them; the board keeps plain score order."""
+def test_shortlist_leads_with_the_hunt_picks_and_a_chosen_sort_overrides_them():
+    """Seven scored companies: `pick` takes five, the dream row among them at 60, below two
+    rows it passed over. Shortlist lifts it above them; the board keeps plain score order."""
     ids = [_add(match_score=s, company=f"Co{s}") for s in (95, 90, 85, 80, 75, 70)]
     dream = _add(match_score=60, company="Example Robotics", location="Berlin, Germany")
     held = _add(match_score=99, company="Busy Co")
@@ -900,8 +900,9 @@ def test_shortlist_leads_with_the_stars_and_a_chosen_sort_overrides_them():
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
             assert table.job_ids == [held, *ids, dream]
-            starred = [i for i in table.job_ids if table.get_row(str(i))[0].plain.strip() == "★"]
-            assert starred == [*ids[:4], dream]          # a dream slot, Busy Co in play, five in all
+            marked = [i for i in table.job_ids if table.get_row(str(i))[0].plain == "●"]
+            assert marked == [*ids[:4], dream]           # a dream slot, Busy Co in play, five in all
+            assert table.preselected == set(marked) and table.selected == set()
             await pilot.press("2")
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
@@ -916,7 +917,7 @@ def test_shortlist_leads_with_the_stars_and_a_chosen_sort_overrides_them():
 
 
 def test_space_v_and_esc_select_rows_and_the_footer_counts_them():
-    ids = [_add(match_score=s, company=f"Co{s}") for s in (90, 80, 70)]
+    ids = [_add(company=f"Co{n}") for n in range(3)][::-1]   # unscored: no hunt picks, newest first
     from src.tui.widgets.footer import SectionFooter
     from src.tui.widgets.jobs_table import JobsTable
 
@@ -930,8 +931,8 @@ def test_space_v_and_esc_select_rows_and_the_footer_counts_them():
             await pilot.press("space")                       # marks the row, steps down
             await pilot.pause()
             assert table.selected == {ids[0]} and table.current_id == ids[1]
-            assert table.get_row(str(ids[0]))[0].plain == "●★"
-            assert table.get_row(str(ids[1]))[0].plain == " ★"
+            assert table.get_row(str(ids[0]))[0].plain == "●"
+            assert table.get_row(str(ids[1]))[0].plain == ""
             assert footer.note == "1 selected"
             await pilot.pause()
             assert footer.query_one("#footer-note").render().plain == "1 selected"
@@ -945,11 +946,11 @@ def test_space_v_and_esc_select_rows_and_the_footer_counts_them():
             await pilot.press("r")                           # a reload of the same view keeps it
             await _settle(app, pilot)
             assert table.selected == set(ids)
-            assert table.get_row(str(ids[2]))[0].plain == "●★"
+            assert table.get_row(str(ids[2]))[0].plain == "●"
             await pilot.press("escape")
             await pilot.pause()
             assert table.selected == set() and footer.note == ""
-            assert table.get_row(str(ids[2]))[0].plain == " ★"
+            assert table.get_row(str(ids[2]))[0].plain == ""
             await pilot.press("v")
             app.screen.query_one(StatusList).focus()
             await pilot.press("j")                           # another filter: the selection goes
@@ -1005,41 +1006,62 @@ def test_bulk_status_change_asks_once_and_writes_every_row():
     _run(scenario())
 
 
-def test_c_copies_the_row_or_the_selection_and_C_every_starred_role(monkeypatch):
+def test_hunt_picks_arrive_preselected_feed_c_and_never_the_bulk_verbs(monkeypatch):
+    from src.tui.widgets.footer import SectionFooter
+    from src.tui.widgets.jobs_table import PICK_STYLE, JobsTable
+
     ids = [_add(match_score=s, company=f"Co{s}") for s in (90, 80, 70)]
-    _add(match_score=None, company="Unscored")               # listed, never starred
+    plain = _add(match_score=None, company="Unscored")       # listed, never a pick
     toasts: list[str] = []
+
+    def statuses():
+        conn = db.connect(db.DB_PATH)
+        got = dict(conn.execute("SELECT id, status FROM jobs").fetchall())
+        conn.close()
+        return got
 
     async def scenario():
         app = JobhuntApp()
         monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
         async with app.run_test(size=(140, 30)) as pilot:
             await _settle(app, pilot)
-            await pilot.press("c")
-            await _settle(app, pilot)
-            assert COPIED == [f"/jh-tailor {ids[0]}"] and toasts[-1] == f"copied /jh-tailor {ids[0]}"
-            await pilot.press("j", "space", "space", "c")    # the selection, in table order
-            await _settle(app, pilot)
-            assert COPIED[-1] == f"/jh-tailor {ids[1]}\n/jh-tailor {ids[2]}"
-            assert toasts[-1] == f"copied 2 commands: /jh-tailor {ids[1]}, {ids[2]}"
-            await pilot.press("C")                           # the stars, whatever is selected
+            table = app.screen.query_one(JobsTable)
+            footer = app.screen.query_one(SectionFooter)
+            assert table.preselected == set(ids) and footer.note == "3 hunt picks"
+            mark = table.get_row(str(ids[0]))[0]
+            assert mark.plain == "●" and mark.style == PICK_STYLE
+            await pilot.press("c")                           # a fresh table: what a hunt would tailor
             await _settle(app, pilot)
             assert COPIED[-1] == "\n".join(f"/jh-tailor {i}" for i in ids)
-    _run(scenario())
+            assert toasts[-1] == f"copied 3 commands: /jh-tailor {', '.join(map(str, ids))}"
 
-
-def test_C_with_nothing_starred_warns_and_copies_nothing(monkeypatch):
-    _add(match_score=None)
-    toasts: list[str] = []
-
-    async def scenario():
-        app = JobhuntApp()
-        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
-        async with app.run_test(size=(140, 30)) as pilot:
+            await pilot.press("b")                           # the pre-selection is not a bulk target
             await _settle(app, pilot)
-            await pilot.press("C")
+            assert statuses() == {ids[0]: "backlog", ids[1]: "shortlisted", ids[2]: "shortlisted",
+                                  plain: "shortlisted"}
+            assert table.preselected == set(ids[1:]) and footer.note == "2 hunt picks"
+
+            await pilot.press("g", "space")                  # space takes a pick's mark off
+            await pilot.pause()
+            assert table.preselected == {ids[2]} and table.get_row(str(ids[1]))[0].plain == ""
+            await pilot.press("j", "space")                  # and marks a plain row by hand
+            await pilot.pause()
+            hand = table.get_row(str(plain))[0]
+            assert table.selected == {plain} and hand.plain == "●" and hand.style == ""
+            assert footer.note == "1 selected · 1 hunt pick"
+            await pilot.press("c")                           # both kinds, in table order
             await _settle(app, pilot)
-            assert COPIED == [] and toasts[-1].startswith("nothing starred")
+            assert COPIED[-1] == f"/jh-tailor {ids[2]}\n/jh-tailor {plain}"
+            await pilot.press("r")                           # a reload keeps what was taken off
+            await _settle(app, pilot)
+            assert table.preselected == {ids[2]} and table.selected == {plain}
+
+            await pilot.press("escape", "g", "c")            # esc clears both: c is the row again
+            await _settle(app, pilot)
+            assert footer.note == "" and COPIED[-1] == f"/jh-tailor {ids[1]}"
+            await pilot.press("C")                           # the hunt's picks, back
+            await pilot.pause()
+            assert table.preselected == set(ids[1:]) and footer.note == "2 hunt picks"
     _run(scenario())
 
 

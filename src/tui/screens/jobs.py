@@ -44,8 +44,7 @@ class JobsScreen(SectionScreen):
         Binding("b", "backlog", "backlog"),
         Binding("o", "open(False)", "open posting"),
         Binding("O", "open(True)", "open folder"),
-        Binding("c", "copy(False)", "copy /jh-tailor"),
-        Binding("C", "copy(True)", "copy /jh-tailor for every starred role", show=False),
+        Binding("c", "copy", "copy /jh-tailor"),
         Binding("n", "notes", "note"),
         Binding("f", "followup", "follow-up"),
         Binding("t", "touch(False)", "touch"),
@@ -109,12 +108,12 @@ class JobsScreen(SectionScreen):
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
         rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
-        stars = data.stars()
-        if PRESETS[self.preset].stars_first and self.sort is None:    # a chosen sort is obeyed as is
-            rows = data.stars_first(rows, stars)
+        picks = set(data.picks())
+        if PRESETS[self.preset].picks_first and self.sort is None:    # a chosen sort is obeyed as is
+            rows = data.picks_first(rows, picks)
         if not worker.is_cancelled:
             today = self.app.today  # type: ignore[attr-defined]
-            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep, stars)
+            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep, picks)
 
     def on_status_list_picked(self, event: StatusList.Picked) -> None:
         # The head entry carries the preset's name and means "no pick": the preset's statuses.
@@ -143,7 +142,8 @@ class JobsScreen(SectionScreen):
         else:
             self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
 
-    # Status changes. The selection when there is one, else the row under the cursor.
+    # Status changes. The hand-made selection when there is one, else the row under the cursor;
+    # never the hunt's pre-selection, so a stray `b` cannot backlog five rows.
 
     def current_row(self) -> data.JobRow | None:
         return self.query_one(JobsTable).current_row
@@ -198,7 +198,8 @@ class JobsScreen(SectionScreen):
         if len(rows) == 1:
             self.write(lambda: data.set_status(rows[0].id, status))
         else:
-            self.query_one(JobsTable).set_selection(set())     # a bulk verb spends its selection
+            table = self.query_one(JobsTable)
+            table.set_marks(set(), table.dismissed)            # a bulk verb spends its selection
             self.write(lambda: data.set_status_many([r.id for r in rows], status))
 
     def reload(self) -> None:
@@ -269,18 +270,19 @@ class JobsScreen(SectionScreen):
             return
         self.app.call_from_thread(self.toast, line)
 
-    # Copy: `c` the selection or the row under the cursor, `C` every starred role wherever the
-    # table is filtered to. One `/jh-tailor <id>` per line; a multi-line paste runs in order.
+    # Copy: `c` every marked row listed (the hunt's picks arrive marked, so on a fresh shortlist
+    # that is what a hunt would tailor), else the row under the cursor. One `/jh-tailor <id>`
+    # per line, in table order; a multi-line paste runs in order.
 
-    def action_copy(self, starred: bool) -> None:
-        self.copy_commands(None if starred else [r.id for r in self.targets()])
+    def action_copy(self) -> None:
+        table = self.query_one(JobsTable)
+        rows = table.marked_rows or ([table.current_row] if table.current_row else [])
+        self.copy_commands([r.id for r in rows])
 
     @work(thread=True, group="copy")
-    def copy_commands(self, job_ids: list[int] | None) -> None:
-        ids = data.star_order() if job_ids is None else job_ids
+    def copy_commands(self, ids: list[int]) -> None:
         if not ids:
-            self.app.call_from_thread(self.toast, "nothing starred: no scored shortlisted row is free to pick"
-                                      if job_ids is None else "no row to copy", "warning")
+            self.app.call_from_thread(self.toast, "no row to copy", "warning")
             return
         commands.copy(commands.tailor_commands(ids),
                       lambda text: self.app.call_from_thread(self.app.copy_to_clipboard, text))
@@ -309,11 +311,13 @@ class JobsScreen(SectionScreen):
         if box.value:
             box.value = ""          # fires Changed, which reloads the unfiltered rows
         table = self.query_one(JobsTable)
-        table.set_selection(set())
+        table.clear_marks()
         table.focus()
 
     def on_jobs_table_selection_changed(self, event: JobsTable.SelectionChanged) -> None:
-        self.query_one(SectionFooter).note = f"{event.count} selected" if event.count else ""
+        parts = [f"{event.selected} selected" if event.selected else "",
+                 f"{event.picked} hunt pick{'' if event.picked == 1 else 's'}" if event.picked else ""]
+        self.query_one(SectionFooter).note = " · ".join(p for p in parts if p)
 
     # Sort. `>` `<` pick the column, `-` flips, `=` returns to the preset; a header click does
     # both (first click sorts by that column, the next one flips). The order is made in SQL.

@@ -27,11 +27,11 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 8 | Multiplexer integration | None. Standalone `python -m src.tui`, opened in any terminal or tmux pane by hand. | A multiplexer plugin would buy one keybinding and an auto-start; it over-complicates v1 (Santiago, 2026-09-19). |
 | 9 | Navigation | Sections 1 to 3 share one three-pane screen (status list, jobs table, detail pane). Sections 4 to 7 are their own screens. | Board, shortlist and follow-ups are the same rows with different filters. |
 | 10 | Board shape | Three-pane. Eleven kanban columns do not fit a terminal. | The status list is the counts strip turned vertical. |
-| 11 | Stars | Computed, never stored: a row is starred iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. | What the TUI shows starred is what a hunt would tailor. |
+| 11 | Hunt picks (was: stars) | Computed, never stored: a row is a pick iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. There is no star mark (amended 2026-09-19): a mark nobody can set by hand reads as broken, so the picks arrive as a pre-selection, the same `●` as a hand-made one, in yellow. `space` takes one off, `esc` takes them all off, `C` brings them back. The pre-selection feeds `c` only; `s` and `b` act on hand-made marks, so a stray `b` never backlogs five rows. | What the TUI shows pre-selected is what a hunt would tailor. |
 | 12 | Runner scope | The stage list is the `src.hunt` registry (discover, triage, match, inbox, pick, research, tailor, report, plus the full hunt) and the extra Python stages (reconcile, stats). `enter` runs any of them as a subprocess with a streamed log; `c` still copies the slash command. A run list shows `data/hunt/*/state.json` with state and started time; selecting a run shows its stages and units and tails the selected unit's log. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. | One process at a time keeps SQLite writes serialized, and the orchestrator's lockfile enforces it for hunts. |
 | 13 | Settings | `config/tui.toml`, committed. Tabbed modal opened with `,`: tabs `theme`, `sections`, `harness`, `follow-ups`, `editor`, a list, `enter` applies, `esc` closes. The `harness` tab edits `config/hunt.toml` (`harness.default` and one model per stage, picked from the harness's live catalog via `hunt models`), not `tui.toml`, and offers a `doctor` action. Plus a read-only view of `profile.yaml`, `sources.yaml`, `hunt.toml`, `tui.toml` with open-in-`$EDITOR`. No YAML editing through forms. | `profile.yaml` is the single authority for scoring and `hunt.toml` for how a hunt runs; open them in the editor rather than build forms. |
 | 14 | Cold rows | `discovered` hidden behind a dimmed `all` entry that loads lazily with search. `irrelevant` and `expired` never shown (`stats drops` audits them). | 26k discovered, 10k irrelevant, 7k expired. |
-| 15 | Multi-select | `space` toggles, `v` selects all visible, `esc` clears. Bulk verbs: status change, backlog, copy commands. `C` copies one `/jh-tailor <id>` per line for every starred row. | Multi-line paste into a Claude Code prompt runs in order; `/jh-tailor` weaves the dossier in when one exists. |
+| 15 | Multi-select | `space` toggles, `v` selects all visible, `esc` clears. Bulk verbs: status change, backlog (hand-made marks only), copy commands (`c`: every marked row listed, pre-selected or hand-made, one `/jh-tailor <id>` per line, in table order). | Multi-line paste into a Claude Code prompt runs in order; `/jh-tailor` weaves the dossier in when one exists. |
 | 16 | Detail pane | Header (title, company, location, source, dream flag, salary when present), status line (score, status, dates, folder bucket), dossier path when one exists, verdict (strengths and missing skills from `match_verdict`), notes, last 5 events, description scrolling. | Events are the only memory of what happened when. |
 | 17 | Status keys | `s` opens a picker with a type-to-filter box, `enter` applies through `set_status` (folder moves with it). `b` is the one direct key (backlog: frequent and reversible). Any move that leaves `applied` or later asks for a one-key confirm. | Direct letters for terminal statuses are how a row gets fat-fingered into rejected. |
 | 18 | Search | `/` searches title, company and notes inside the current filter. In the `all` view a `d:` prefix also searches descriptions. | The common path stays instant. |
@@ -45,7 +45,7 @@ follow-up; mouse enabled; stats placeholder shows the plain output of `stats fun
 
 ## 3. Layout
 
-Sections 1 to 3 (board shown; shortlist pins `shortlisted` with the star column leading;
+Sections 1 to 3 (board shown; shortlist pins `shortlisted` with the hunt's picks leading;
 follow-ups pins `applied · screen · interview`, sorts by follow-up date, overdue in red):
 
 ```
@@ -91,8 +91,8 @@ Global: `1`..`7` sections, `?` help, `,` settings, `r` refresh, `q` quit, `esc` 
 Jobs table (sections 1 to 3): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` detail overlay
 (narrow) or focus detail (wide), `space` select, `v` select all visible, `s` status picker,
 `b` backlog, `n` notes, `f` follow-up date, `t` touch, `T` touch and bump, `o` open posting,
-`O` open folder (or dossier when no folder), `c` copy `/jh-tailor <id>` (selection when any),
-`C` copy every starred role, `/` search, `tab` cycle status list / table / detail.
+`O` open folder (or dossier when no folder), `c` copy `/jh-tailor <id>` (every marked row when any),
+`C` select the hunt's picks again, `/` search, `tab` cycle status list / table / detail.
 Sort (added 2026-09-19): `>` / `<` sort by the next / previous column (score, company, title,
 loc, fup), `-` flips ascending and descending, `=` returns to the section's own sort; a click
 on a column header sorts by it and a second click flips. The sorted header carries `▲` or `▼`.
@@ -140,7 +140,7 @@ config/tui.toml
 - `counts() -> dict[status, int]` (hot statuses only, `all` = discovered count)
 - `rows(preset, status, query) -> list[JobRow]` (never `irrelevant`/`expired`; `discovered` only for the `all` view, capped and searchable)
 - `detail(id) -> JobDetail` (row + parsed verdict + events + dossier path via `research.path` + folder via `reconcile`)
-- `stars() -> set[int]` (delegates to `pick`)
+- `picks() -> list[int]` (delegates to `pick`, in pick order)
 - `set_status(id, status, note, followup)`, `set_notes`, `set_followup`, `touch(id, bump)`: thin wrappers over `db` + `reconcile.sync_folder`
 - `apps() -> list[AppRow]`, `db_mtime() -> float`
 
@@ -221,7 +221,9 @@ any text the TUI renders or writes.
 4. **Apps data**: `data.apps()` scans the three buckets, joins by the `-<id>` suffix, reads `build.json` when present, flags drift the way `reconcile` does; tests on a temp tree.
 5. **Apps screen**: table pending-first, `o` posting + Finder, `p` PDF, `s` picker, `R` reconcile with its output in a toast.
 
-As built (2026-09-19): `pick.pick` takes the caller's connection and applications tree, so
+6. **Picks as a pre-selection** (added 2026-09-19 after Santiago tried the stars; decision 11 amended): no star mark; the rows `pick` would choose arrive pre-selected (`●`, yellow), `space` cycles a row, `esc` clears, `C` selects the picks again; `c` copies every marked row listed; `s` and `b` ignore the pre-selection; the footer names both counts.
+
+As built (2026-09-19, stories 1 to 5; story 6 replaces the star and `C` described here): `pick.pick` takes the caller's connection and applications tree, so
 `data.stars()` answers on the DB the TUI has open; the first column is two cells wide, the
 selection mark `●` then the star; the shortlist leads with the stars only under its own sort;
 `space` steps down after marking; a bulk verb spends its selection; `C` copies in pick order;

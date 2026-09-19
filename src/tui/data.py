@@ -184,23 +184,19 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
         return select(conn, (status,) if status else p.statuses, None)
 
 
-def stars() -> set[int]:
-    """The rows `src.pick` would choose right now (spec decision 11): computed on every load,
-    never stored, so a star is gone the moment its row leaves `shortlisted` or its company
-    goes into play. Same connection rules and the same applications tree as everything here."""
-    return set(star_order())
-
-
-def star_order() -> list[int]:
-    """The starred ids in the order a hunt would take them (dream slots first)."""
+def picks() -> list[int]:
+    """The rows `src.pick` would choose right now, in the order a hunt would take them (spec
+    decision 11): computed on every load, never stored, so a pick is gone the moment its row
+    leaves `shortlisted` or its company goes into play. Same connection rules and the same
+    applications tree as everything here. The table shows them as a pre-selection."""
     with _conn() as conn:
-        picks, _skipped, _spares = pick.pick(conn=conn, apps_dir=reconcile.APPS_DIR)
-    return [p["id"] for p in picks]
+        chosen, _skipped, _spares = pick.pick(conn=conn, apps_dir=reconcile.APPS_DIR)
+    return [p["id"] for p in chosen]
 
 
-def stars_first(found: list[JobRow], starred: set[int]) -> list[JobRow]:
-    """Starred rows on top, each half in the order it came in."""
-    return [r for r in found if r.id in starred] + [r for r in found if r.id not in starred]
+def picks_first(found: list[JobRow], picked: set[int]) -> list[JobRow]:
+    """The hunt's picks on top, each half in the order it came in."""
+    return [r for r in found if r.id in picked] + [r for r in found if r.id not in picked]
 
 
 def _strs(v: object) -> tuple[str, ...]:

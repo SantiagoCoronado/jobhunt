@@ -34,8 +34,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
    `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
    2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
-   detail); stars are `data.stars()` over `src.pick` (computed, never stored), `space`/`v` select for
-   bulk status and `c`/`C` copy `/jh-tailor` lines; section 4 lists `applications/` beside the DB
+   detail); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
+   stored, feeds `c` only), `space`/`v` select by hand for bulk status, `c` copies `/jh-tailor` lines; section 4 lists `applications/` beside the DB
    (`data.apps()`, `R` = reconcile through `reconcile.apply`). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
    `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
    Pilot tests patch `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `commands.launch` and `commands.pbcopy`.

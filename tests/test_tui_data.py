@@ -355,9 +355,9 @@ def test_sort_keeps_the_query_and_the_cold_first_all_view(env, monkeypatch):
     assert [r.id for r in got] == [cold[1], cold[2], hot[1], hot[0]]    # each half A to Z, cold capped at 2
 
 
-def test_stars_are_what_pick_would_choose(env):
+def test_picks_are_what_pick_would_choose(env):
     """A dream row takes a slot below higher scores, a company already in play is skipped,
-    an unscored row is never starred, and the real applications tree is never read."""
+    an unscored row is never picked, and the real applications tree is never read."""
     top = [env(match_score=s, company=f"Co{s}") for s in (95, 90, 85, 80, 75)]
     dream_row = env(match_score=60, company="Example Robotics", location="Berlin, Germany")
     far_dream = env(match_score=99, company="Example Robotics", location="Austin, TX, USA")
@@ -366,19 +366,19 @@ def test_stars_are_what_pick_would_choose(env):
     foldered = env(match_score=98, company="Folder Co")
     (env.tmp / "applications" / "pending" / f"folder-co-{foldered}").mkdir(parents=True)
     env(match_score=None, company="Unscored")
-    got = data.stars()
-    assert got == {*top[:4], dream_row}
+    got = data.picks()
+    assert got == [dream_row, *top[:4]]                 # pick order: the dream slot first
     assert far_dream not in got and busy not in got and foldered not in got
 
-    # never stored: the star goes the moment the row leaves shortlisted, the next one takes it
+    # never stored: the pick goes the moment the row leaves shortlisted, the next one takes it
     data.set_status(top[0], "backlog")
-    assert data.stars() == {*top[1:5], dream_row}
+    assert data.picks() == [dream_row, *top[1:5]]
 
 
-def test_stars_first_keeps_each_half_in_order(env):
+def test_picks_first_keeps_each_half_in_order(env):
     found = [env(match_score=s, company=f"Co{s}") for s in (90, 80, 70, 60)]
     rows = data.rows("shortlist")
-    assert [r.id for r in data.stars_first(rows, {found[3], found[1]})] == [
+    assert [r.id for r in data.picks_first(rows, {found[3], found[1]})] == [
         found[1], found[3], found[0], found[2]]
 
 
