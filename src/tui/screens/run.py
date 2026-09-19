@@ -105,11 +105,17 @@ class RunScreen(SectionScreen):
 
     def poll(self) -> None:
         if self.app.screen is self:
-            self.load_runs()
+            self.refresh_runs()
 
     def reload(self) -> None:
         self.load_stages()
-        self.load_runs()
+        self.refresh_runs()
+
+    def refresh_runs(self) -> None:
+        """The highlighted run is read here, on the UI thread: the worker must not touch a list
+        that `fill()` may be rebuilding under it."""
+        opt = self.query_one("#run-runs", RunList).highlighted_option
+        self.load_runs(opt.id if opt else None)
 
     # Loading: the registry import, the ledgers and the runs table are all read off the UI thread.
 
@@ -134,10 +140,9 @@ class RunScreen(SectionScreen):
                                  f"{s.name:<10}", (s.note, "dim")), id=s.name) for s in self.stages])
 
     @work(thread=True, group="run-runs", exclusive=True)
-    def load_runs(self) -> None:
+    def load_runs(self, highlighted: str | None) -> None:
         runs = data.hunt_runs()
-        opt = self.query_one("#run-runs", RunList).highlighted_option
-        wanted = opt.id if opt and opt.id in {r.run_id for r in runs} else (runs[0].run_id if runs else None)
+        wanted = highlighted if highlighted in {r.run_id for r in runs} else (runs[0].run_id if runs else None)
         status = data.hunt_status(wanted) if wanted else None
         self.app.call_from_thread(self.show_runs, runs, status)
 
@@ -296,9 +301,9 @@ class RunScreen(SectionScreen):
             self.toast(f"copied {stage.copy_text}")
 
     def action_report(self) -> None:
-        path = self.status.report_html if self.status else None
+        path = data.report_path()              # asked now: the stage that just exited may have written it
         try:
-            if path is None:
+            if not path.exists():
                 raise ValueError("no data/report.html yet (run the report stage)")
             self.toast(commands.open_path(path))
         except (ValueError, OSError) as e:

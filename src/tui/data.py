@@ -730,10 +730,16 @@ def hunt_status(run: str = "latest") -> HuntStatus | None:
                       for u in st.get("units") or [])
         found.append(HuntStage(name, str(st.get("state", "pending")), str(st.get("note") or ""),
                                _scalars(st.get("summary")), units))
-    html_path = db.DB_PATH.parent / "report.html"          # where the report stage writes it
+    html_path = report_path()
     return HuntStatus(path.name, hunt_ledger.run_state(state), str(state.get("started") or ""),
                       str(state.get("ended") or ""), str(state.get("harness") or ""), tuple(found),
                       hunt_ledger.render_status(state, path), html_path if html_path.exists() else None)
+
+
+def report_path() -> Path:
+    """Where the report stage writes the dashboard. Asked at the moment of use: a status loaded
+    before a run cannot know about the file that run wrote."""
+    return db.DB_PATH.parent / "report.html"
 
 
 TAIL_BYTES = 64_000

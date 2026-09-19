@@ -156,7 +156,36 @@ def test_q_asks_before_it_takes_a_running_stage_down(stages):
 def test_a_clean_report_opens_the_html(stages):
     (db.DB_PATH.parent / "report.html").write_text("<html>", encoding="utf-8")
     ledger.Ledger.create("20260919-1000", "claude", {}, ("report",), ledger.HUNT_DIR)
+    _report_opens()
 
+
+def test_the_first_report_ever_written_opens_too(stages):
+    """No report.html and no run ledger when the screen loads: the stage itself writes the
+    file, which is what a first `report` or `hunt` does (Cursor review of PR #28)."""
+    path = db.DB_PATH.parent / "report.html"
+    assert not path.exists()
+    writes = f"import pathlib; pathlib.Path({str(path)!r}).write_text('<html>'); print('report written')"
+    stages[3] = _stage("report", writes)
+    _report_opens()
+
+
+def test_a_failed_report_opens_nothing_and_o_says_there_is_no_report(stages):
+    stages[3] = _stage("report", "raise SystemExit(2)")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            screen = await _open(app, pilot)
+            _go(screen, "run-stages", "report")
+            await pilot.press("enter")
+            await _until(pilot, lambda: screen.proc is None and len(screen.lines) > 1)
+            await pilot.press("o")
+            await pilot.pause()
+            assert OPENED == [] and any("no data/report.html" in n.message for n in app._notifications)
+    _run(scenario())
+
+
+def _report_opens():
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(160, 40)) as pilot:
