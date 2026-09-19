@@ -1,8 +1,10 @@
-"""What the TUI hands to the outside world: things to open (later: slash commands, hunt argv)."""
+"""What the TUI hands to the outside world: things to open, slash commands for the clipboard
+(later: hunt argv)."""
 from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -30,3 +32,36 @@ def open_path(path: Path) -> str:
         raise ValueError(f"{path} is gone")
     launch(str(path))
     return f"opened {path.name}"
+
+
+# Slash commands. The TUI runs no model (spec decision 5): it puts the command on the clipboard
+# and the reader pastes it into the agent's prompt, where several lines run in order.
+
+def tailor_command(job_id: int) -> str:
+    return f"/jh-tailor {int(job_id)}"
+
+
+def tailor_commands(job_ids: Sequence[int]) -> str:
+    """One per line, in the order given."""
+    return "\n".join(tailor_command(i) for i in job_ids)
+
+
+def pbcopy(text: str) -> None:
+    subprocess.run(["pbcopy"], input=text.encode(), check=True, timeout=5,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def copy(text: str, fallback: Callable[[str], None]) -> None:
+    """`pbcopy` where there is one: it reaches the system clipboard whatever the terminal is.
+    `fallback` is Textual's clipboard (an OSC 52 escape, which some terminals ignore)."""
+    try:
+        pbcopy(text)
+    except (OSError, subprocess.SubprocessError):
+        fallback(text)
+
+
+def copied_line(job_ids: Sequence[int]) -> str:
+    """The toast: what is on the clipboard now."""
+    if len(job_ids) == 1:
+        return f"copied {tailor_command(job_ids[0])}"
+    return f"copied {len(job_ids)} commands: /jh-tailor {', '.join(str(i) for i in job_ids)}"

@@ -46,6 +46,8 @@ class JobsScreen(SectionScreen):
         Binding("b", "backlog", "backlog"),
         Binding("o", "open(False)", "open posting"),
         Binding("O", "open(True)", "open folder"),
+        Binding("c", "copy(False)", "copy /jh-tailor"),
+        Binding("C", "copy(True)", "copy /jh-tailor for every starred role", show=False),
         Binding("n", "notes", "note"),
         Binding("f", "followup", "follow-up"),
         Binding("t", "touch(False)", "touch"),
@@ -284,6 +286,23 @@ class JobsScreen(SectionScreen):
             self.app.call_from_thread(self.toast, str(e), "warning")
             return
         self.app.call_from_thread(self.toast, line)
+
+    # Copy: `c` the selection or the row under the cursor, `C` every starred role wherever the
+    # table is filtered to. One `/jh-tailor <id>` per line; a multi-line paste runs in order.
+
+    def action_copy(self, starred: bool) -> None:
+        self.copy_commands(None if starred else [r.id for r in self.targets()])
+
+    @work(thread=True, group="copy")
+    def copy_commands(self, job_ids: list[int] | None) -> None:
+        ids = data.star_order() if job_ids is None else job_ids
+        if not ids:
+            self.app.call_from_thread(self.toast, "nothing starred: no scored shortlisted row is free to pick"
+                                      if job_ids is None else "no row to copy", "warning")
+            return
+        commands.copy(commands.tailor_commands(ids),
+                      lambda text: self.app.call_from_thread(self.app.copy_to_clipboard, text))
+        self.app.call_from_thread(self.toast, commands.copied_line(ids))
 
     # Search: live, inside the current filter. `enter` keeps the query and goes back to the
     # table; `esc` clears it from wherever the focus is.

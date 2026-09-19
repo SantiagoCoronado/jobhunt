@@ -188,9 +188,14 @@ def stars() -> set[int]:
     """The rows `src.pick` would choose right now (spec decision 11): computed on every load,
     never stored, so a star is gone the moment its row leaves `shortlisted` or its company
     goes into play. Same connection rules and the same applications tree as everything here."""
+    return set(star_order())
+
+
+def star_order() -> list[int]:
+    """The starred ids in the order a hunt would take them (dream slots first)."""
     with _conn() as conn:
         picks, _skipped, _spares = pick.pick(conn=conn, apps_dir=reconcile.APPS_DIR)
-    return {p["id"] for p in picks}
+    return [p["id"] for p in picks]
 
 
 def stars_first(found: list[JobRow], starred: set[int]) -> list[JobRow]:

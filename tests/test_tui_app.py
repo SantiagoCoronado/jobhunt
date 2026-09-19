@@ -19,10 +19,13 @@ def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(research, "COMPANIES_DIR", tmp_path / "companies")
     OPENED.clear()
     monkeypatch.setattr(commands, "launch", OPENED.append)   # no test opens a browser or Finder
+    COPIED.clear()
+    monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
     return tmp_path
 
 
 OPENED: list[str] = []
+COPIED: list[str] = []
 
 
 def _add(**cols) -> int:
@@ -1000,3 +1003,51 @@ def test_bulk_status_change_asks_once_and_writes_every_row():
             await _settle(app, pilot)
             assert set(statuses().values()) == {"backlog"}
     _run(scenario())
+
+
+def test_c_copies_the_row_or_the_selection_and_C_every_starred_role(monkeypatch):
+    ids = [_add(match_score=s, company=f"Co{s}") for s in (90, 80, 70)]
+    _add(match_score=None, company="Unscored")               # listed, never starred
+    toasts: list[str] = []
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            await pilot.press("c")
+            await _settle(app, pilot)
+            assert COPIED == [f"/jh-tailor {ids[0]}"] and toasts[-1] == f"copied /jh-tailor {ids[0]}"
+            await pilot.press("j", "space", "space", "c")    # the selection, in table order
+            await _settle(app, pilot)
+            assert COPIED[-1] == f"/jh-tailor {ids[1]}\n/jh-tailor {ids[2]}"
+            assert toasts[-1] == f"copied 2 commands: /jh-tailor {ids[1]}, {ids[2]}"
+            await pilot.press("C")                           # the stars, whatever is selected
+            await _settle(app, pilot)
+            assert COPIED[-1] == "\n".join(f"/jh-tailor {i}" for i in ids)
+    _run(scenario())
+
+
+def test_C_with_nothing_starred_warns_and_copies_nothing(monkeypatch):
+    _add(match_score=None)
+    toasts: list[str] = []
+
+    async def scenario():
+        app = JobhuntApp()
+        monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            await pilot.press("C")
+            await _settle(app, pilot)
+            assert COPIED == [] and toasts[-1].startswith("nothing starred")
+    _run(scenario())
+
+
+def test_copy_falls_back_to_the_terminal_clipboard_when_pbcopy_fails(monkeypatch):
+    def no_pbcopy(text):
+        raise FileNotFoundError("pbcopy")
+    monkeypatch.setattr(commands, "pbcopy", no_pbcopy)
+    got: list[str] = []
+    commands.copy("/jh-tailor 7", got.append)
+    assert got == ["/jh-tailor 7"]
+    assert commands.tailor_commands([3, 1]) == "/jh-tailor 3\n/jh-tailor 1"
