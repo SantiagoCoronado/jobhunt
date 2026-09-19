@@ -32,13 +32,14 @@ env:
     Otherwise do only the review the commenter asked for, reply on the PR
     mentioning the commenter, and do not change anything in Linear.
 
-    GATE procedure.
+    GATE procedure. This is pull request number ${{ github.event.issue.number || github.event.pull_request.number }}. The local checkout
+    may be on main, so read the PR only through gh commands for that number.
     1. Use the Linear tools to load the issue with its assignee, labels, and
     comments, including the latest Cursor review and any earlier Claude
     review.
-    2. Read every existing comment on this PR. Review the full diff against
-    the PR base branch, which is main unless the PR says otherwise, and read
-    the matching docs/spec file for the issue. Cursor already ran ruff, mypy
+    2. Read every existing comment on this PR with gh pr view. Review the
+    full diff with gh pr diff, and read the matching docs/spec file for the
+    issue. Cursor already ran ruff, mypy
     and pytest, so do not re-run them.
     3. Do not repeat Cursor findings. Focus on what Cursor missed: correctness
     bugs, regressions, missing tests, security issues, data handling, and
@@ -48,9 +49,10 @@ env:
     summary, a numbered list of findings each with a file path and marked
     Blocking or Suggestion (or the word None), your recommendation of pass
     or fail, and as the last line: Reviewed commit: FULL_HEAD_SHA, using the
-    output of git rev-parse HEAD on the PR branch.
-    5. Post the same summary as a PR comment, mentioning the PR author. Use
-    inline comments for line-specific findings.
+    output of gh pr view with the PR number and the options
+    --json headRefOid -q .headRefOid. Never use git rev-parse for this.
+    5. Post the same summary as one PR comment with gh pr comment,
+    mentioning the PR author.
     6. After the Linear comment is posted, move the issue to Testing,
     whatever your recommendation is. Cursor makes the final call. Do not
     change labels, and do not move it to any other status.
@@ -83,6 +85,6 @@ jobs:
           allowed_bots: "cursor,cursor[bot]"
           claude_args: |
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
-            --allowedTools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),Bash(git rev-parse:*),mcp__linear"
+            --allowedTools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),mcp__linear"
             --disallowedTools "Edit,Write,MultiEdit,NotebookEdit"
             --append-system-prompt "${{ env.GATE_INSTRUCTIONS }}"
