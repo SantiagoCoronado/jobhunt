@@ -103,6 +103,110 @@ class StatusPicker(ModalScreen[str | None]):
         self.dismiss(event.option.id)
 
 
+class Picker(ModalScreen[str | None]):
+    """The status picker's shape for any short list: type to filter, arrows, `enter`. Dismisses
+    with the option's id. With `open_ended`, typed text that matches nothing is itself the
+    answer (a full model id the list does not carry)."""
+
+    DEFAULT_CSS = """
+    Picker { align: center middle; }
+    Picker #picker { width: 60; height: auto; border: round $primary; background: $surface; padding: 0 1; }
+    Picker OptionList { height: auto; max-height: 14; border: none; }
+    Picker Input { border: none; height: 1; padding: 0; }
+    Picker #picker-note { color: $text-muted; }
+    """
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "cancel"),
+        Binding("up", "move(-1)", "up", show=False),
+        Binding("down", "move(1)", "down", show=False),
+    ]
+
+    def __init__(self, title: str, options: Sequence[tuple[str, str]], current: str = "",
+                 note: str = "", open_ended: bool = False) -> None:
+        super().__init__()
+        self.heading = title
+        self.options = list(options)             # (id, label)
+        self.current = current
+        self.note = note
+        self.open_ended = open_ended
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="picker"):
+            yield Label(Text(self.heading, style="bold"))
+            yield Input(placeholder="type to filter" + (", or a full name" if self.open_ended else ""),
+                        id="picker-filter")
+            yield OptionList(id="picker-list")
+            if self.note:
+                yield Label(Text(self.note), id="picker-note")
+
+    def on_mount(self) -> None:
+        self.refill("")
+        self.query_one(Input).focus()
+
+    def matches(self, term: str) -> list[tuple[str, str]]:
+        term = term.strip().lower()
+        starts = [o for o in self.options if o[1].lower().startswith(term)]
+        return starts + [o for o in self.options if term in o[1].lower() and o not in starts]
+
+    def refill(self, term: str) -> None:
+        ol = self.query_one(OptionList)
+        ol.clear_options()
+        found = self.matches(term)
+        ol.add_options(Option(Text(label, style="bold" if oid == self.current else ""), id=oid or "-")
+                       for oid, label in found)
+        ids = [oid for oid, _label in found]
+        if found:
+            ol.highlighted = ids.index(self.current) if not term.strip() and self.current in ids else 0
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        self.refill(event.value)
+
+    def action_move(self, step: int) -> None:
+        ol = self.query_one(OptionList)
+        if ol.option_count:
+            ol.highlighted = ((ol.highlighted or 0) + step) % ol.option_count
+
+    def answer(self, option_id: str | None) -> str:
+        return "" if option_id == "-" else (option_id or "")      # "-" stands in for the empty id
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        opt = self.query_one(OptionList).highlighted_option
+        if opt is not None:
+            self.dismiss(self.answer(opt.id))
+        elif self.open_ended and event.value.strip():
+            self.dismiss(event.value.strip())
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(self.answer(event.option.id))
+
+
+class OutputModal(ModalScreen[None]):
+    """A command's printed report (`hunt doctor`), scrollable. Plain text, never markup."""
+
+    DEFAULT_CSS = """
+    OutputModal { align: center middle; }
+    OutputModal #output-box { width: 90%; max-width: 120; height: auto; max-height: 90%;
+                              border: round $primary; background: $surface; padding: 0 1; }
+    OutputModal #output-scroll { height: auto; max-height: 100%; }
+    """
+    BINDINGS = [
+        Binding("escape", "dismiss", "close"),
+        Binding("enter", "dismiss", "close", show=False),
+        Binding("q", "dismiss", "close", show=False),
+    ]
+
+    def __init__(self, title: str, text: str) -> None:
+        super().__init__()
+        self.heading = title
+        self.text = text
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="output-box"):
+            yield Label(Text.assemble((self.heading, "bold"), "  esc close"))
+            with VerticalScroll(id="output-scroll"):
+                yield Static(Text(self.text), id="output-text")
+
+
 class Confirm(ModalScreen[bool]):
     """One key: `y` goes ahead, anything else backs out."""
 

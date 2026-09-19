@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from functools import partial
 from typing import Any
 
 from rich.text import Text
+from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
@@ -14,9 +16,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from .. import settings
+from .. import commands, data, settings
 from ..settings import Settings
-from .modals import Prompt
+from .modals import OutputModal, Picker, Prompt
 
 TABS: tuple[tuple[str, str], ...] = (
     ("theme", "theme"), ("sections", "sections"), ("harness", "harness"),
@@ -32,7 +34,7 @@ class Line:
     """One line of a tab. A heading has no `pick`; a choice carries what `enter` does with it."""
     label: Text
     key: str = ""                                    # option id, unique inside the tab
-    pick: Callable[[], None] | None = None
+    pick: Callable[[], object] | None = None
     chosen: bool = False
 
 
@@ -145,7 +147,23 @@ class SettingsModal(ModalScreen[None]):
         ]
 
     def harness_lines(self) -> list[Line]:
-        return [heading("config/hunt.toml: the harness and one model per stage")]
+        """`config/hunt.toml`, not tui.toml: how a hunt runs is the orchestrator's file."""
+        view = data.harness_view()
+        if view.error:
+            return [heading("config/hunt.toml does not load; fix it in the editor (section 7)"),
+                    heading(view.error)]
+        return [
+            heading("harness (config/hunt.toml)"),
+            *(Line(Text(f"  {name}"), f"harness={name}", partial(self.set_harness, name),
+                   chosen=name == view.default) for name in view.harnesses),
+            heading("model per stage (enter picks from the live catalog)"),
+            *(Line(Text.assemble(f"  {sm.stage:<10}", (sm.model or "harness default", "" if sm.model else "dim"),
+                                 (f"  on {sm.harness}" if sm.harness != view.default else "", "dim")),
+                   f"model={sm.stage}", partial(self.pick_model, sm)) 
+              for sm in view.stages),
+            heading("check"),
+            Line(Text("  run doctor (binary, catalog, every stage's model, the read tool)"), "doctor", self.run_doctor),
+        ]
 
     def followup_lines(self) -> list[Line]:
         days = sorted({*FOLLOWUP_DAYS, self.current.followup_days})
@@ -184,6 +202,48 @@ class SettingsModal(ModalScreen[None]):
         """Apply and save in one step (spec: `enter` applies and saves)."""
         self.app.apply_settings(replace(self.current, **{field: value}), save=True)  # type: ignore[attr-defined]
         self.show_tab(self.tab, keep=True)
+
+    # Harness tab: every write goes through src.hunt.config, which validates before it lands.
+
+    def hunt_write(self, op: Callable[[], str]) -> None:
+        try:
+            line = op()
+        except (ValueError, OSError) as e:
+            self.app.notify(str(e), severity="error", markup=False)
+            return
+        self.app.notify(line, markup=False)
+        self.show_tab(self.tab, keep=True)
+
+    def set_harness(self, name: str) -> None:
+        self.hunt_write(lambda: data.set_harness(name))
+
+    @work(thread=True, group="models", exclusive=True)
+    def pick_model(self, sm: data.StageModel) -> None:
+        """The catalog is the harness CLI's answer, so it is asked off the UI thread."""
+        choices = data.harness_models(sm.harness)
+        self.app.call_from_thread(self.show_models, sm, choices)
+
+    def show_models(self, sm: data.StageModel, choices: data.ModelChoices) -> None:
+        if self.app.screen is not self:                  # closed while the catalog loaded
+            return
+        ids = list(dict.fromkeys([*choices.ids, *([sm.model] if sm.model else [])]))
+        options = [("", "harness default"), *((i, i) for i in ids)]
+
+        def picked(model: str | None) -> None:
+            if model is not None and model != (sm.model or ""):
+                self.hunt_write(lambda: data.set_stage_model(sm.stage, model or None))
+
+        self.app.push_screen(Picker(f"{sm.stage} model on {sm.harness}", options, sm.model or "",
+                                    choices.note, choices.open_ended), picked)
+
+    def run_doctor(self) -> None:
+        self.app.notify("running hunt doctor: a smoke prompt per model, up to a few minutes", markup=False)
+        self.doctor()
+
+    @work(thread=True, group="doctor", exclusive=True)
+    def doctor(self) -> None:
+        _rc, text = commands.capture(commands.hunt_argv("doctor"))
+        self.app.call_from_thread(self.app.push_screen, OutputModal("hunt doctor", text or "doctor printed nothing"))
 
     def ask_editor(self) -> None:
         def parse(text: str) -> str:

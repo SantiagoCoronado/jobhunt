@@ -8,6 +8,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from ..config import ROOT
+
 OPENER = "open" if sys.platform == "darwin" else "xdg-open"
 
 
@@ -44,6 +46,24 @@ def tailor_command(job_id: int) -> str:
 def tailor_commands(job_ids: Sequence[int]) -> str:
     """One per line, in the order given."""
     return "\n".join(tailor_command(i) for i in job_ids)
+
+
+# The hunt orchestrator as a subprocess (spec decision 5): the TUI runs no model itself.
+
+def hunt_argv(*args: str) -> list[str]:
+    return [sys.executable, "-m", "src.hunt", *args]
+
+
+def capture(argv: Sequence[str], timeout: int = 600) -> tuple[int, str]:
+    """(exit code, stdout then stderr) of a command that prints a report and exits."""
+    try:
+        cp = subprocess.run(list(argv), cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+                            errors="replace", timeout=timeout, stdin=subprocess.DEVNULL, check=False)
+    except subprocess.TimeoutExpired:
+        return -1, f"no answer after {timeout}s"
+    except OSError as e:
+        return -1, str(e)
+    return cp.returncode, "\n".join(part.rstrip() for part in (cp.stdout, cp.stderr) if part.strip())
 
 
 def pbcopy(text: str) -> None:

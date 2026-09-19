@@ -72,13 +72,16 @@ class Harness(Protocol):
     def models(self) -> list[Model] | None: ...
 
 
+SHIPPED: tuple[str, ...] = ("claude",)      # adapters `get` knows by name
+
+
 def get(name: str, **options: Any) -> Harness:
     """The adapter for a harness name; the shipped ones by name, anything else is PR 4's
     `[harness.<name>]` template (not yet) or unknown."""
     if name == "claude":
         from .claude import ClaudeHarness
         return ClaudeHarness(**options)
-    raise ValueError(f"unknown harness '{name}' (shipped: claude)")
+    raise ValueError(f"unknown harness '{name}' (shipped: {', '.join(SHIPPED)})")
 
 
 def check_tools(tools: frozenset[str] | set[str]) -> frozenset[str]:

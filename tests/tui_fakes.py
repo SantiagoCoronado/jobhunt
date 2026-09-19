@@ -9,6 +9,7 @@ import asyncio
 import pytest
 
 from src import db, reconcile, research
+from src.hunt import config as hunt_config
 from src.tui import commands, settings
 
 
@@ -24,6 +25,7 @@ def tmp_db(tmp_path, monkeypatch):
     COPIED.clear()
     monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
     monkeypatch.setattr(settings, "TUI_TOML", tmp_path / "config" / "tui.toml")   # nor the real settings
+    monkeypatch.setattr(hunt_config, "HUNT_TOML", tmp_path / "config" / "hunt.toml")   # nor how the hunt runs
     return tmp_path
 
 

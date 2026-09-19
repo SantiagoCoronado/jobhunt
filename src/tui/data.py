@@ -17,6 +17,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .. import config, db, dream, pick, reconcile, research
+from ..hunt import config as hunt_config
+from ..hunt import doctor as hunt_doctor
+from ..hunt import harness as hunt_harness
 from .presets import ALL, COLD, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
@@ -534,3 +537,65 @@ def touch(job_id: int, bump: bool = False) -> str:
         conn.commit()
     line = f"#{job_id} {changed['company']}: contact {changed['last_contact_at']}"
     return f"{line} · follow-up {changed['next_followup_at']}" if bump else line
+
+
+# How a hunt runs: `config/hunt.toml` through `src.hunt.config` (spec decision 13). The settings
+# modal's harness tab reads and writes here; what counts as a fit is never touched.
+
+@dataclass(frozen=True)
+class StageModel:
+    stage: str
+    harness: str               # the stage's own override, else the default
+    model: str | None          # None: the harness default
+
+
+@dataclass(frozen=True)
+class HarnessView:
+    default: str = ""
+    harnesses: tuple[str, ...] = ()        # shipped adapters plus the file's [harness.<name>] templates
+    stages: tuple[StageModel, ...] = ()    # fanned stages only: a Python stage runs no model
+    error: str = ""                        # hunt.toml does not load; nothing else is set
+
+
+def harness_view() -> HarnessView:
+    try:
+        cfg = hunt_config.load()
+    except ValueError as e:
+        return HarnessView(error=str(e))
+    names = tuple(dict.fromkeys([*hunt_harness.SHIPPED, *sorted(cfg.harness_templates), cfg.harness]))
+    stages = tuple(StageModel(s, cfg.harness_for(s), cfg.stage(s).model)
+                   for s in hunt_config.STAGES if cfg.stage(s).fanned)
+    return HarnessView(cfg.harness, names, stages)
+
+
+@dataclass(frozen=True)
+class ModelChoices:
+    harness: str
+    ids: tuple[str, ...]
+    note: str                  # where the list came from, or why there is none
+    open_ended: bool           # no live catalog: any full model id may be typed
+
+
+def harness_models(harness: str) -> ModelChoices:
+    """The harness's LIVE catalog, the list `hunt models` prints. Runs the harness CLI, so
+    call it from a worker. A harness with no catalog (claude) gives its `--help` aliases."""
+    try:
+        h = hunt_harness.get(harness)
+    except ValueError as e:
+        return ModelChoices(harness, (), str(e), True)
+    models, reason = hunt_doctor.catalog(h)
+    if models is not None:
+        return ModelChoices(harness, tuple(m.id for m in models), f"{len(models)} models in the {harness} catalog", False)
+    aliases = tuple(h.aliases()) if hasattr(h, "aliases") else ()
+    why = reason or f"{harness} has no model catalog"
+    return ModelChoices(harness, aliases, f"{why}: aliases from --help, or type a full model id", True)
+
+
+def set_harness(name: str) -> str:
+    hunt_config.set_default_harness(name)
+    return f"hunt.toml: harness.default = {name}"
+
+
+def set_stage_model(stage: str, model: str | None) -> str:
+    hunt_config.set_stage_model(stage, model)
+    return f"hunt.toml: {stage} runs on {model or 'the harness default'}"

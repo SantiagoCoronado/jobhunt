@@ -9,6 +9,8 @@ unknown stage names, unknown keys, a model on a Python stage, non-positive caps.
 """
 from __future__ import annotations
 
+import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -211,3 +213,80 @@ def load(path: Path | None = None) -> HuntConfig:
 
 def defaults() -> HuntConfig:
     return parse({}, None)
+
+
+# ---- writing (the TUI's harness tab, docs/spec-tui.md decision 13) -----------------------
+# Only two kinds of value are ever written: `[harness].default` and a fanned stage's `model`.
+# The file is edited as text, one line per value, so every comment and every other key stays
+# exactly as the human left it; the result must pass `parse` before it replaces the file.
+
+_TABLE_RE = re.compile(r"^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$")
+_STRING = r"""(?:"(?:[^"\\]|\\.)*"|'[^']*')"""
+
+
+def _toml_string(value: str) -> str:
+    if any(ord(c) < 0x20 or c == "\x7f" for c in value):
+        raise ValueError(f"control character in {value!r}")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def set_string(text: str, table: str, key: str, value: str) -> str:
+    """`text` with `[table] key` set to the string `value`. The line's trailing comment keeps
+    its column when the new value leaves room. A missing key goes in right under the table
+    header, a missing table at the end of the file."""
+    lines = text.splitlines()
+    new = f"{key} = {_toml_string(value)}"
+    start = next((i for i, ln in enumerate(lines)
+                  if (m := _TABLE_RE.match(ln)) and m.group(1) == table), None)
+    if start is None:
+        tail = [] if not lines or not lines[-1].strip() else [""]
+        return "\n".join([*lines, *tail, f"[{table}]", new]) + "\n"
+    end = next((i for i in range(start + 1, len(lines)) if _TABLE_RE.match(lines[i])), len(lines))
+    key_re = re.compile(rf"^(\s*){re.escape(key)}\s*=\s*(.*)$")
+    for i in range(start + 1, end):
+        m = key_re.match(lines[i])
+        if not m:
+            continue
+        rest = re.match(rf"^{_STRING}(\s*)(#.*)?$", m.group(2))
+        if rest is None:
+            raise ValueError(f"[{table}] {key} is not a plain string on one line; edit the file by hand")
+        line = m.group(1) + new
+        if rest.group(2):
+            column = len(lines[i]) - len(rest.group(2))
+            line = line.ljust(max(column, len(line) + 2)) + rest.group(2)
+        lines[i] = line
+        return "\n".join(lines) + "\n"
+    lines.insert(start + 1, new)
+    return "\n".join(lines) + "\n"
+
+
+def write(changes: dict[tuple[str, str], str], path: Path | None = None) -> HuntConfig:
+    """Apply {(table, key): string} to hunt.toml and return the config it now holds. Nothing
+    is written unless the edited text is a valid hunt config; the write is atomic."""
+    path = path or HUNT_TOML
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    for (table, key), value in changes.items():
+        text = set_string(text, table, key, value)
+    try:
+        cfg = parse(tomllib.loads(text), path)
+    except tomllib.TOMLDecodeError as e:
+        raise ValueError(f"{path}: the edit would not be valid TOML ({e}); nothing written") from e
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+    return cfg
+
+
+def set_default_harness(name: str, path: Path | None = None) -> HuntConfig:
+    if not name.strip():
+        raise ValueError("the default harness needs a name")
+    return write({("harness", "default"): name.strip()}, path)
+
+
+def set_stage_model(stage: str, model: str | None, path: Path | None = None) -> HuntConfig:
+    """One stage's model; None or "" writes `model = ""`, which `_name` reads as the harness
+    default. Only fanned stages take a model."""
+    if stage not in FANNED:
+        raise ValueError(f"'{stage}' runs no model (fanned stages: {', '.join(s for s in STAGES if s in FANNED)})")
+    return write({(f"stages.{stage}", "model"): (model or "").strip()}, path)
