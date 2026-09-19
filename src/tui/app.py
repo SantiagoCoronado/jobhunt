@@ -13,6 +13,7 @@ from .screens.apps import AppsScreen
 from .screens.base import SectionScreen
 from .screens.jobs import JobsScreen
 from .screens.run import RunScreen
+from .screens.stats import StatsScreen
 from .widgets.detail import DetailPane
 from .widgets.jobs_table import JobsTable
 from .widgets.modals import Confirm, HelpGroup, HelpOverlay, NotesEditor, StatusPicker
@@ -37,6 +38,8 @@ def _screen(mode: str, label: str):
             return JobsScreen(mode)
         if mode == "apps":
             return AppsScreen()
+        if mode == "stats":
+            return StatsScreen()
         if mode == "run":
             return RunScreen()
         return SectionScreen(mode, f"{label}: coming in a later story (docs/spec-tui.md)")
@@ -111,7 +114,7 @@ class JobhuntApp(App):
     def help_groups() -> list[HelpGroup]:
         owners = (
             ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
-            ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen), ("run", RunScreen),
+            ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen), ("stats", StatsScreen), ("run", RunScreen),
             ("status picker", StatusPicker), ("notes editor", NotesEditor), ("settings", SettingsModal),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.

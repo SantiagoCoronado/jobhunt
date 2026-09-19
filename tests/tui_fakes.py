@@ -24,6 +24,9 @@ def tmp_db(tmp_path, monkeypatch):
     OPENED.clear()
     monkeypatch.setattr(commands, "launch", OPENED.append)   # no test opens a browser or Finder
     COPIED.clear()
+    CAPTURED.clear()
+    # a captured command is a child process: it would not see these patches and would read the real DB
+    monkeypatch.setattr(commands, "capture", _capture)
     monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
     monkeypatch.setattr(settings, "TUI_TOML", tmp_path / "config" / "tui.toml")   # nor the real settings
     monkeypatch.setattr(hunt_config, "HUNT_TOML", tmp_path / "config" / "hunt.toml")   # nor how the hunt runs
@@ -32,6 +35,12 @@ def tmp_db(tmp_path, monkeypatch):
 
 
 OPENED: list[str] = []
+CAPTURED: list[list[str]] = []
+
+
+def _capture(argv, timeout: int = 600) -> tuple[int, str]:
+    CAPTURED.append(list(argv))
+    return 0, "captured: " + " ".join(argv[1:])
 COPIED: list[str] = []
 
 
