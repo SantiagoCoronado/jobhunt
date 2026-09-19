@@ -37,5 +37,6 @@ Next (in Claude Code, from this folder):
   /jh-followups          # draft follow-ups for due applications
 
 Fully scheduled alternative (scores BEFORE the digest): ./scripts/ai_pass.sh
-Or open the local CRM:  python -m src.tui   (terminal UI, ? for the keys)
+Or open the local CRM:  jobhunt   (terminal UI, ? for the keys; scripts/install_launcher.sh puts it on PATH,
+                        python -m src.tui works without it)
 EOF

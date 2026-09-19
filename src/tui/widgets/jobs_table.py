@@ -8,13 +8,13 @@ from textual.binding import Binding
 from textual.widgets import DataTable
 
 from ..data import JobRow
-from ..presets import LIVE, OVERDUE_STYLE
+from ..presets import LIVE, OVERDUE_STYLE, Sort
 
 NONE = "·"
 # (key, label, width). The star column stays empty until PR 4 computes stars from src.pick.
 COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("star", " ", 1),
-    ("score", "score", 5),
+    ("score", "score", 7),
     ("company", "company", 20),
     ("title", "title", 38),
     ("loc", "loc", 18),
@@ -88,6 +88,13 @@ class JobsTable(DataTable):
         if keep and rows and was_id is not None:
             line = self.job_ids.index(was_id) if was_id in self.rows_by_id else min(was_line, len(rows) - 1)
             self.move_cursor(row=line)
+
+    def mark_sort(self, sort: Sort) -> None:
+        """`▲` or `▼` on the header the rows are ordered by (the preset's own lead included)."""
+        for key, label, _width in COLUMNS:
+            arrow = (" ▼" if sort.desc else " ▲") if key == sort.column else ""
+            self.columns[key].label = Text(label + arrow)      # type: ignore[index]
+        self.refresh()
 
     @property
     def current_id(self) -> int | None:

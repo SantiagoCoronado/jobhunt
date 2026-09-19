@@ -31,7 +31,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
-6. **Track** (`python -m src.tui`, a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
+6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
+   `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
    2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
    detail); `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
    `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
