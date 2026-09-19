@@ -291,6 +291,102 @@ def detail(job_id: int) -> JobDetail | None:
     )
 
 
+# Applications (section 4): every folder under applications/{pending,applied,other} joined to
+# its DB row by the `-<id>` suffix.
+
+APP_FILES = ("resume", "pdf", "letter", "answers")   # the order the files column lists them in
+
+
+@dataclass(frozen=True)
+class AppRow:
+    bucket: str
+    folder: Path
+    job_id: int | None          # None: the folder name carries no -<id>
+    company: str                # from the DB row; the folder name when there is none
+    title: str
+    status: str                 # "" when no DB row matches
+    url: str
+    files: tuple[str, ...]      # which of APP_FILES are there
+    resume_pdf: Path | None
+    build: str                  # "ok", "fail N" (N failures), "unreadable", or "" with no build.json
+    drift: str                  # "" when folder and DB agree, else what `reconcile` would say
+
+
+def _app_files(folder: Path) -> tuple[tuple[str, ...], Path | None]:
+    stem = config.resume_basename()
+    names = {p.name for p in folder.iterdir() if p.is_file()}
+    # An earlier profile name leaves another stem behind (`reconcile` lists those): still a resume.
+    yamls = sorted(n for n in names if n.endswith("Resume.yaml"))
+    pdfs = sorted(n for n in names if n.endswith("Resume.pdf"))
+    pdf = f"{stem}.pdf" if f"{stem}.pdf" in names else (pdfs[0] if pdfs else None)
+    have = {"resume": bool(yamls), "pdf": pdf is not None,
+            "letter": bool(names & {"CoverLetter.pdf", "CoverLetter.docx", "CoverLetter.md"}),
+            "answers": "answers.md" in names}
+    return tuple(k for k in APP_FILES if have[k]), folder / pdf if pdf else None
+
+
+def _build_verdict(folder: Path) -> str:
+    try:
+        d = json.loads((folder / "build.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return ""
+    except (OSError, ValueError):
+        return "unreadable"
+    if not isinstance(d, dict):
+        return "unreadable"
+    failures = d.get("failures")
+    return "ok" if d.get("ok") else f"fail {len(failures) if isinstance(failures, list) else '?'}"
+
+
+def _drift(bucket: str, status: str) -> str:
+    """The three rules of `reconcile.plan`, as one short line for the row they apply to."""
+    if bucket == "applied" and status in reconcile.PRE_SUBMISSION:
+        return f"DB still {status}: reconcile flips it to applied"
+    expected = reconcile.STATUS_BUCKET.get(status)
+    if not expected or expected == bucket:
+        return ""
+    if reconcile.BUCKET_ORDER[expected] > reconcile.BUCKET_ORDER[bucket]:
+        return f"DB says {status}: reconcile moves it to {expected}/"
+    return f"filed in {bucket}/ but DB says {status}: record the outcome"
+
+
+def apps() -> list[AppRow]:
+    """Pending first (those wait on a human click), then applied, then other; inside a
+    bucket the folder touched last leads."""
+    folders = reconcile.scan(reconcile.APPS_DIR)
+    ids = [reconcile.folder_job_id(p.name) for _b, p in folders]
+    seen: dict[int, list[str]] = {}
+    for (bucket, _p), job_id in zip(folders, ids, strict=True):
+        if job_id is not None:
+            seen.setdefault(job_id, []).append(bucket)
+    found: dict[int, sqlite3.Row] = {}
+    if seen:
+        with _conn() as conn:
+            marks = ",".join("?" for _ in seen)
+            found = {r["id"]: r for r in conn.execute(
+                f"SELECT id, company, title, status, url FROM jobs WHERE id IN ({marks})", list(seen))}
+
+    out: list[tuple[tuple[int, float, str], AppRow]] = []
+    for (bucket, path), job_id in zip(folders, ids, strict=True):
+        r = found.get(job_id) if job_id is not None else None
+        if job_id is None:
+            drift = "no -<id> suffix: map it by hand"
+        elif r is None:
+            drift = f"no DB row with id {job_id}"
+        elif len(seen[job_id]) > 1:
+            drift = "also in " + ", ".join(f"{b}/" for b in seen[job_id] if b != bucket) + ": resolve by hand"
+        else:
+            drift = _drift(bucket, r["status"] or "")
+        files, pdf = _app_files(path)
+        row = AppRow(bucket=bucket, folder=path, job_id=job_id,
+                     company=(r["company"] or "") if r else path.name,
+                     title=(r["title"] or "") if r else "", status=(r["status"] or "") if r else "",
+                     url=(r["url"] or "") if r else "", files=files, resume_pdf=pdf,
+                     build=_build_verdict(path), drift=drift)
+        out.append(((reconcile.BUCKET_ORDER[bucket], -path.stat().st_mtime, path.name), row))
+    return [row for _key, row in sorted(out, key=lambda pair: pair[0])]
+
+
 # Writes. Each one goes through the same db function `python -m src.query` uses, so the events
 # table and the folder moves cannot drift between the two front ends.
 
