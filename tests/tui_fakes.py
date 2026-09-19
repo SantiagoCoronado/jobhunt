@@ -10,6 +10,7 @@ import pytest
 
 from src import db, reconcile, research
 from src.hunt import config as hunt_config
+from src.hunt import ledger as hunt_ledger
 from src.tui import commands, settings
 
 
@@ -26,6 +27,7 @@ def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
     monkeypatch.setattr(settings, "TUI_TOML", tmp_path / "config" / "tui.toml")   # nor the real settings
     monkeypatch.setattr(hunt_config, "HUNT_TOML", tmp_path / "config" / "hunt.toml")   # nor how the hunt runs
+    monkeypatch.setattr(hunt_ledger, "HUNT_DIR", tmp_path / "hunt")                    # nor a real run's ledger
     return tmp_path
 
 

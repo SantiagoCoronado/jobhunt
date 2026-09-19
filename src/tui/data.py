@@ -20,6 +20,8 @@ from .. import config, db, dream, pick, reconcile, research
 from ..hunt import config as hunt_config
 from ..hunt import doctor as hunt_doctor
 from ..hunt import harness as hunt_harness
+from ..hunt import ledger as hunt_ledger
+from . import commands
 from .presets import ALL, COLD, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
@@ -599,3 +601,175 @@ def set_harness(name: str) -> str:
 def set_stage_model(stage: str, model: str | None) -> str:
     hunt_config.set_stage_model(stage, model)
     return f"hunt.toml: {stage} runs on {model or 'the harness default'}"
+
+
+# The runner (spec decision 12): what can be run, what has run. The stage list is the `src.hunt`
+# registry plus the full hunt and the two Python extras; a run is a ledger folder under
+# `data/hunt/`. Nothing here starts a process: a stage carries its argv, the screen runs it.
+
+HUNT = "hunt"                                   # the whole loop, `python -m src.hunt run`
+SLASH = {HUNT: "/jh-hunt", "discover": "/jh-discover", "triage": "/jh-triage", "match": "/jh-match",
+         "inbox": "/jh-gmail-sync", "report": "/jh-report"}   # research and tailor need an id: `c` on a job
+
+
+@dataclass(frozen=True)
+class RunStage:
+    name: str
+    kind: str                      # hunt | python | fanned | extra
+    argv: tuple[str, ...]
+    note: str                      # what it is, or the model it runs on
+    slash: str = ""                # the slash command that does the same inside an agent session
+
+    @property
+    def copy_text(self) -> str:
+        """What `c` puts on the clipboard: the slash command, else the shell line."""
+        return self.slash or commands.shell_line(self.argv)
+
+
+def stages() -> list[RunStage]:
+    from ..hunt.stages import REGISTRY    # imports every stage module: only when the runner opens
+
+    try:
+        cfg = hunt_config.load()
+    except ValueError:
+        cfg = hunt_config.defaults()      # the harness tab names the error; the list still draws
+    out = [RunStage(HUNT, "hunt", tuple(commands.hunt_argv("run")),
+                    f"the whole loop on {cfg.harness}: {' > '.join(REGISTRY)}", SLASH[HUNT])]
+    for name, stage in REGISTRY.items():
+        sc = cfg.stage(name)
+        note = f"{sc.model or 'harness default'} on {cfg.harness_for(name)}, {sc.concurrency} at a time" \
+            if sc.fanned else "python, in process"
+        out.append(RunStage(name, stage.kind, tuple(commands.hunt_argv("run", "--only", name)),
+                            note, SLASH.get(name, "")))
+    out.append(RunStage("reconcile", "extra", tuple(commands.module_argv("src.reconcile")),
+                        "folders against statuses, dry run (apply it with R in section 4)"))
+    out.append(RunStage("stats", "extra", tuple(commands.module_argv("src.stats", "funnel")),
+                        "the conversion funnel"))
+    return out
+
+
+@dataclass(frozen=True)
+class HuntRun:
+    run_id: str
+    state: str                     # pending | running | done | failed | unreadable
+    started: str
+    harness: str
+    path: Path
+
+
+def hunt_runs() -> list[HuntRun]:
+    """Every ledger under data/hunt/, newest first; an unreadable one is listed, not hidden."""
+    return [HuntRun(r.run_id, r.state, r.started or "", r.harness or "", r.path)
+            for r in hunt_ledger.list_runs(hunt_ledger.HUNT_DIR)]
+
+
+@dataclass(frozen=True)
+class HuntUnit:
+    stage: str
+    id: str
+    state: str
+    attempts: int
+    verdict: str
+    log: Path | None               # logs/<stage>/<unit>.log, whether or not it exists yet
+
+
+@dataclass(frozen=True)
+class HuntStage:
+    name: str
+    state: str
+    note: str
+    summary: str                   # the scalar fields of the stage's summary, `k=v k=v`
+    units: tuple[HuntUnit, ...]
+
+    @property
+    def progress(self) -> str:
+        if not self.units:
+            return ""
+        done = sum(1 for u in self.units if u.state == "done")
+        failed = sum(1 for u in self.units if u.state == "failed")
+        return f"{done}/{len(self.units)}" + (f", {failed} failed" if failed else "")
+
+
+@dataclass(frozen=True)
+class HuntStatus:
+    run_id: str
+    state: str
+    started: str = ""
+    ended: str = ""
+    harness: str = ""
+    stages: tuple[HuntStage, ...] = ()
+    tree: str = ""                 # what `hunt status` prints
+    report_html: Path | None = None
+    error: str = ""
+
+    def units(self) -> list[HuntUnit]:
+        return [u for s in self.stages for u in s.units]
+
+
+def _scalars(summary: object) -> str:
+    if not isinstance(summary, dict):
+        return ""
+    return " ".join(f"{k}={v}" for k, v in summary.items()
+                    if isinstance(v, (int, float, str)) and not isinstance(v, bool))
+
+
+def hunt_status(run: str = "latest") -> HuntStatus | None:
+    """One run's ledger as the runner draws it. None when there is no such run."""
+    path = hunt_ledger.resolve(run, hunt_ledger.HUNT_DIR)
+    if path is None:
+        return None
+    try:
+        state = hunt_ledger.load_state(path)
+    except (FileNotFoundError, ValueError) as e:
+        return HuntStatus(path.name, "unreadable", error=str(e))
+    found = []
+    for st in state.get("stages", []):
+        name = str(st.get("name"))
+        units = tuple(HuntUnit(name, str(u.get("id")), str(u.get("state", "pending")), int(u.get("attempts") or 0),
+                               str(u.get("verdict") or ""), path / str(u["log"]) if u.get("log") else None)
+                      for u in st.get("units") or [])
+        found.append(HuntStage(name, str(st.get("state", "pending")), str(st.get("note") or ""),
+                               _scalars(st.get("summary")), units))
+    html_path = db.DB_PATH.parent / "report.html"          # where the report stage writes it
+    return HuntStatus(path.name, hunt_ledger.run_state(state), str(state.get("started") or ""),
+                      str(state.get("ended") or ""), str(state.get("harness") or ""), tuple(found),
+                      hunt_ledger.render_status(state, path), html_path if html_path.exists() else None)
+
+
+TAIL_BYTES = 64_000
+
+
+def tail(path: Path, max_bytes: int = TAIL_BYTES) -> str:
+    """The end of a log file, cut at a line start. A log that is not there yet is empty."""
+    try:
+        with path.open("rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes))
+            blob = f.read()
+    except OSError:
+        return ""
+    text = blob.decode("utf-8", errors="replace")
+    return text.split("\n", 1)[-1] if size > max_bytes and "\n" in text else text
+
+
+@dataclass(frozen=True)
+class SourceRun:
+    source: str
+    ts: str
+    pulled: int
+    new: int
+    seen: int
+    ok: bool
+    error: str
+
+
+def source_runs() -> list[SourceRun]:
+    """The last discover run of every source from the `runs` table, failures first, then by name."""
+    with _conn() as conn:
+        found = conn.execute(
+            "SELECT source, ts, pulled, new, seen, ok, error FROM runs "
+            "WHERE id IN (SELECT MAX(id) FROM runs GROUP BY source)").fetchall()
+    out = [SourceRun(r["source"], r["ts"] or "", r["pulled"] or 0, r["new"] or 0, r["seen"] or 0,
+                     bool(r["ok"]), r["error"] or "") for r in found]
+    return sorted(out, key=lambda r: (r.ok, r.source))

@@ -54,6 +54,16 @@ def hunt_argv(*args: str) -> list[str]:
     return [sys.executable, "-m", "src.hunt", *args]
 
 
+def module_argv(module: str, *args: str) -> list[str]:
+    return [sys.executable, "-m", module, *args]
+
+
+def shell_line(argv: Sequence[str]) -> str:
+    """An argv the way a human would type it: `python` for this interpreter."""
+    import shlex
+    return shlex.join(["python" if a == sys.executable else a for a in argv])
+
+
 def capture(argv: Sequence[str], timeout: int = 600) -> tuple[int, str]:
     """(exit code, stdout then stderr) of a command that prints a report and exits."""
     try:
