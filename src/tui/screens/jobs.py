@@ -70,6 +70,7 @@ class JobsScreen(SectionScreen):
 
     def on_mount(self) -> None:
         self.query_one(JobsTable).focus()
+        self.query_one(JobsTable).overdue_style = self.app.settings.overdue_style  # type: ignore[attr-defined]
         self.call_after_refresh(self.set_sort, None)      # the arrow on the preset's lead column
         self.seen_mtime = data.db_mtime()
         self.load_counts()
@@ -83,17 +84,29 @@ class JobsScreen(SectionScreen):
             self.reload()
 
     def on_screen_resume(self) -> None:
+        """Back from a modal or another section: the settings may have changed meanwhile."""
+        self.apply_settings()
         self.poll()
+
+    def apply_settings(self) -> None:
+        s = self.app.settings  # type: ignore[attr-defined]
+        self.query_one("#detail", DetailPane).display = self.wide
+        table = self.query_one(JobsTable)
+        if table.overdue_style != s.overdue_style:
+            table.overdue_style = s.overdue_style
+            self.reload()
 
     def action_refresh(self) -> None:
         self.reload()
 
     @property
     def wide(self) -> bool:
-        return self.size.width >= WIDE
+        """The detail pane sits beside the table: a wide terminal, and the setting allows it."""
+        return self.size.width >= WIDE and self.app.settings.detail_pane  # type: ignore[attr-defined]
 
     def on_resize(self, event: events.Resize) -> None:
-        self.query_one("#detail", DetailPane).display = event.size.width >= WIDE
+        self.query_one("#detail", DetailPane).display = (
+            event.size.width >= WIDE and self.app.settings.detail_pane)  # type: ignore[attr-defined]
 
     @work(thread=True, group="counts", exclusive=True)
     def load_counts(self) -> None:
@@ -236,7 +249,9 @@ class JobsScreen(SectionScreen):
             if when is not None and when != (row.followup or ""):
                 self.write(lambda: data.set_followup(row.id, when))
 
-        self.app.push_screen(Prompt(f"#{row.id} {row.company} follow-up", "YYYY-MM-DD, +N, t; empty clears",
+        days = self.app.settings.followup_days  # type: ignore[attr-defined]
+        self.app.push_screen(Prompt(f"#{row.id} {row.company} follow-up",
+                                    f"YYYY-MM-DD, +N (+{days}), t; empty clears",
                                     lambda text: data.parse_followup(text, today),
                                     row.followup or ""), entered)
 

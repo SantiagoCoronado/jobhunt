@@ -36,9 +36,17 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
    detail); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
    stored, feeds `c` only), `space`/`v` select by hand for bulk status, `c` copies `/jh-tailor` lines; section 4 lists `applications/` beside the DB
-   (`data.apps()`, `R` = reconcile through `reconcile.apply`). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
+   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 5 prints `stats funnel`; section 6 is the
+   runner (`data.stages()` = the full hunt, the `src.hunt` registry, reconcile, stats; `enter` spawns the stage
+   through `commands.spawn`, one at a time, `ctrl+c` = SIGTERM so `--resume` works, `R` resumes a run; runs and
+   units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 7 shows the config files
+   read-only (`e` = the editor template in `config/tui.toml`); `,` is the settings modal (`src/tui/settings.py`
+   loads and rewrites `config/tui.toml`, never raises; its harness tab writes `config/hunt.toml` only through
+   `src.hunt.config.set_default_harness` / `set_stage_model`, a comment-keeping one-line edit). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
    `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
-   Pilot tests patch `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `commands.launch` and `commands.pbcopy`.
+   Pilot tests opt into the `tmp_db` fixture (`tests/tui_fakes.py`, `pytestmark = pytest.mark.usefixtures("tmp_db")`), which patches
+   `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `settings.TUI_TOML`, `hunt.config.HUNT_TOML`, `ledger.HUNT_DIR`,
+   `commands.launch`, `commands.pbcopy` and `commands.capture` (a captured command is a child process and would read the real DB).
    Notion is gone since 2026-09-04 (pull script and command deleted; its MCP push had cost
    25M to 65M context tokens per hunt, `docs/token-efficiency.md`). The hunt picks its 5 targets with
    `python -m src.pick` (star rule, dream slots, skips companies already in play).

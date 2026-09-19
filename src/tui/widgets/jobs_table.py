@@ -59,6 +59,7 @@ class JobsTable(DataTable):
         self.picks: set[int] | frozenset[int] = frozenset()   # what `src.pick` would choose
         self.dismissed: set[int] = set()                       # picks the reader took the mark off
         self.selected: set[int] = set()                        # marked by hand
+        self.overdue_style = OVERDUE_STYLE                     # the screen sets it from the settings
 
     def on_mount(self) -> None:
         for key, label, width in COLUMNS:
@@ -78,7 +79,7 @@ class JobsTable(DataTable):
             Text(clip(r.company, widths["company"])),
             Text(clip(r.title, widths["title"])),
             Text(loc or NONE),
-            self.followup_cell(r, today),
+            self.followup_cell(r, today, self.overdue_style),
         )
 
     def mark_cell(self, job_id: int) -> Text:
@@ -87,13 +88,13 @@ class JobsTable(DataTable):
         return Text(MARK, style=PICK_STYLE) if job_id in self.preselected else Text("")
 
     @staticmethod
-    def followup_cell(r: JobRow, today: date | None) -> Text:
-        """Red once the date has passed, and only while the application is live: a stale date
+    def followup_cell(r: JobRow, today: date | None, overdue_style: str = OVERDUE_STYLE) -> Text:
+        """Red (or the style `config/tui.toml` names) once the date has passed, and only while the application is live: a stale date
         on a rejected row is history, not something to chase."""
         if not r.followup:
             return Text(NONE)
         overdue = today is not None and r.status in LIVE and r.followup < today.isoformat()
-        return Text(r.followup, style=OVERDUE_STYLE if overdue else "")
+        return Text(r.followup, style=overdue_style if overdue else "")
 
     def load(self, rows: list[JobRow], today: date | None = None, keep: bool = False,
              picks: set[int] | frozenset[int] = frozenset()) -> None:

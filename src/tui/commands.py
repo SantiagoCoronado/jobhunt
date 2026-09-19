@@ -2,11 +2,15 @@
 (later: hunt argv)."""
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from ..config import ROOT
 
 OPENER = "open" if sys.platform == "darwin" else "xdg-open"
 
@@ -44,6 +48,66 @@ def tailor_command(job_id: int) -> str:
 def tailor_commands(job_ids: Sequence[int]) -> str:
     """One per line, in the order given."""
     return "\n".join(tailor_command(i) for i in job_ids)
+
+
+# The hunt orchestrator as a subprocess (spec decision 5): the TUI runs no model itself.
+
+def hunt_argv(*args: str) -> list[str]:
+    return [sys.executable, "-m", "src.hunt", *args]
+
+
+def module_argv(module: str, *args: str) -> list[str]:
+    return [sys.executable, "-m", module, *args]
+
+
+def shell_line(argv: Sequence[str]) -> str:
+    """An argv the way a human would type it: `python` for this interpreter."""
+    import shlex
+    return shlex.join(["python" if a == sys.executable else a for a in argv])
+
+
+def capture(argv: Sequence[str], timeout: int = 600) -> tuple[int, str]:
+    """(exit code, stdout then stderr) of a command that prints a report and exits."""
+    try:
+        cp = subprocess.run(list(argv), cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+                            errors="replace", timeout=timeout, stdin=subprocess.DEVNULL, check=False)
+    except subprocess.TimeoutExpired:
+        return -1, f"no answer after {timeout}s"
+    except OSError as e:
+        return -1, str(e)
+    return cp.returncode, "\n".join(part.rstrip() for part in (cp.stdout, cp.stderr) if part.strip())
+
+
+def run_editor(argv: Sequence[str]) -> int:
+    """The editor in the foreground, on the real terminal (the caller suspended the TUI).
+    Returns its exit code, -1 when it could not start."""
+    try:
+        return subprocess.run(list(argv), cwd=ROOT, check=False).returncode
+    except OSError:
+        return -1
+
+
+def spawn(argv: Sequence[str]) -> subprocess.Popen[str]:
+    """A stage as a child process, stdout and stderr on one pipe, line buffered so the log pane
+    moves while it runs. Its own session: a hard stop can take the harness children with it."""
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    return subprocess.Popen(list(argv), cwd=ROOT, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                            bufsize=1, start_new_session=True)
+
+
+def stop(proc: subprocess.Popen[str], hard: bool = False) -> None:
+    """SIGTERM first: the orchestrator closes its ledger on it (running units end failed, so
+    `--resume` picks them up). `hard` is the second ask: SIGKILL to the whole process group."""
+    if proc.poll() is not None:
+        return
+    try:
+        if hard:
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.terminate()
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def pbcopy(text: str) -> None:

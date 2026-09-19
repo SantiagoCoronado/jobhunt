@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tui_fakes import tmp_db  # noqa: F401  (the TUI pilot fixture, see tui_fakes.py)
 
 from src import adapters, config, dream, match, render_docx, stats
 
