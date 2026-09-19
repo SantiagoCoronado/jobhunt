@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
-from .. import config, db, dream, reconcile, research
+from .. import config, db, dream, pick, reconcile, research
 from .presets import ALL, COLD, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
@@ -182,6 +182,20 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
         if status == ALL:
             return select(conn, COLD, ALL_CAP) + select(conn, HOT, None)
         return select(conn, (status,) if status else p.statuses, None)
+
+
+def stars() -> set[int]:
+    """The rows `src.pick` would choose right now (spec decision 11): computed on every load,
+    never stored, so a star is gone the moment its row leaves `shortlisted` or its company
+    goes into play. Same connection rules and the same applications tree as everything here."""
+    with _conn() as conn:
+        picks, _skipped, _spares = pick.pick(conn=conn, apps_dir=reconcile.APPS_DIR)
+    return {p["id"] for p in picks}
+
+
+def stars_first(found: list[JobRow], starred: set[int]) -> list[JobRow]:
+    """Starred rows on top, each half in the order it came in."""
+    return [r for r in found if r.id in starred] + [r for r in found if r.id not in starred]
 
 
 def _strs(v: object) -> tuple[str, ...]:

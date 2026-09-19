@@ -60,6 +60,7 @@ class Preset:
     order_by: str
     listed: tuple[str, ...] = ()   # the left pane's entries; empty = the same as `statuses`
     leads: Sort = Sort("score", True)   # the column and direction `order_by` leads with
+    stars_first: bool = False           # the rows `src.pick` would choose lead the preset's own order
 
     @property
     def entries(self) -> tuple[str, ...]:
@@ -68,7 +69,7 @@ class Preset:
 
 PRESETS: dict[str, Preset] = {
     "board": Preset("board", HOT, BY_SCORE, listed=(*HOT, ALL)),
-    "shortlist": Preset("shortlist", ("shortlisted",), BY_SCORE),
+    "shortlist": Preset("shortlist", ("shortlisted",), BY_SCORE, stars_first=True),
     # The head entry (the preset's own name) is every live application at once, soonest
     # follow-up first: that is the view the section exists for.
     "followups": Preset("followups", LIVE, BY_FOLLOWUP, listed=("followups", *LIVE),

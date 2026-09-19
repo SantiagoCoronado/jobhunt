@@ -31,7 +31,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from datetime import date, timedelta
+from pathlib import Path
 
 from .config import ROOT
 from .db import connect
@@ -50,8 +52,10 @@ def _norm(company: str) -> str:
     return " ".join((company or "").lower().replace(",", " ").replace(".", " ").split())
 
 
-def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None = None) -> dict[str, str]:
+def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None = None,
+                   apps_dir: Path | None = None) -> dict[str, str]:
     """{normalised company: reason} for every company the hunt must not pick right now."""
+    apps = apps_dir or ROOT / "applications"
     busy: dict[str, str] = {}
     for r in conn.execute(f"SELECT company FROM jobs WHERE status IN ({','.join('?' * len(LIVE))})", LIVE):
         busy.setdefault(_norm(r["company"]), "company already has a live application")
@@ -70,7 +74,7 @@ def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None 
             busy.setdefault(_norm(r["company"]), f"{r['status']} on {when}, within the {cooldown_days}-day cooldown")
     busy_ids: set[int] = set()
     for bucket in ("applied", "pending"):
-        for p in (ROOT / "applications" / bucket).glob("*-*"):
+        for p in (apps / bucket).glob("*-*"):
             tail = p.name.rsplit("-", 1)[-1]
             if tail.isdigit():
                 busy_ids.add(int(tail))
@@ -82,11 +86,14 @@ def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None 
 
 
 def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
-         today: date | None = None, spares: int = SPARES) -> tuple[list[dict], list[dict], list[dict]]:
-    """(picks, skipped, spares). Spares are the next candidates after the n picks."""
+         today: date | None = None, spares: int = SPARES, conn: sqlite3.Connection | None = None,
+         apps_dir: Path | None = None) -> tuple[list[dict], list[dict], list[dict]]:
+    """(picks, skipped, spares). Spares are the next candidates after the n picks. `conn` and
+    `apps_dir` let a caller that owns its own connection and tree (the TUI) get the same answer
+    a hunt would; the connection needs `sqlite3.Row` rows."""
     scope = relocation_scope()            # once, not once per dream row
-    conn = connect()
-    busy = busy_companies(conn, cooldown_days, today)
+    conn = conn or connect()
+    busy = busy_companies(conn, cooldown_days, today, apps_dir)
 
     rows = conn.execute(
         "SELECT id, company, title, location, match_score, match_verdict, first_seen "

@@ -11,7 +11,8 @@ from ..data import JobRow
 from ..presets import LIVE, OVERDUE_STYLE, Sort
 
 NONE = "·"
-# (key, label, width). The star column stays empty until PR 4 computes stars from src.pick.
+STAR = "★"
+# (key, label, width). The star column marks the rows `src.pick` would choose right now.
 COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("star", " ", 1),
     ("score", "score", 7),
@@ -49,7 +50,7 @@ class JobsTable(DataTable):
         for key, label, width in COLUMNS:
             self.add_column(label, key=key, width=width)
 
-    def cells(self, r: JobRow, today: date | None = None) -> tuple[Text, ...]:
+    def cells(self, r: JobRow, today: date | None = None, starred: bool = False) -> tuple[Text, ...]:
         """Every cell is a `Text`. DataTable runs `Text.from_markup` on a `str` cell, and these
         strings come from scraped postings: `[on-site]` would vanish, `[/bold]` would raise
         MarkupError and kill the table, `[link=file:///...]` would plant a link that never
@@ -58,7 +59,7 @@ class JobsTable(DataTable):
         loc = (clip(r.location, widths["loc"] - len(DREAM_TAG)) + DREAM_TAG if r.dream
                else clip(r.location, widths["loc"]))
         return (
-            Text(""),
+            Text(STAR if starred else "", style="yellow"),
             Text(NONE if r.score is None else str(r.score), justify="right"),
             Text(clip(r.company, widths["company"])),
             Text(clip(r.title, widths["title"])),
@@ -75,7 +76,8 @@ class JobsTable(DataTable):
         overdue = today is not None and r.status in LIVE and r.followup < today.isoformat()
         return Text(r.followup, style=OVERDUE_STYLE if overdue else "")
 
-    def load(self, rows: list[JobRow], today: date | None = None, keep: bool = False) -> None:
+    def load(self, rows: list[JobRow], today: date | None = None, keep: bool = False,
+             stars: set[int] | frozenset[int] = frozenset()) -> None:
         """Replace the rows. With `keep` (a reload of the same view) the cursor stays on the same
         job when it is still listed, else on the same line, where the row below slid up; a
         status change must not throw the reader back to the top. A new filter starts at the top."""
@@ -84,7 +86,7 @@ class JobsTable(DataTable):
         self.job_ids = [r.id for r in rows]
         self.rows_by_id = {r.id: r for r in rows}
         for r in rows:
-            self.add_row(*self.cells(r, today), key=str(r.id))
+            self.add_row(*self.cells(r, today, r.id in stars), key=str(r.id))
         if keep and rows and was_id is not None:
             line = self.job_ids.index(was_id) if was_id in self.rows_by_id else min(was_line, len(rows) - 1)
             self.move_cursor(row=line)

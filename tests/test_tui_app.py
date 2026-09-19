@@ -135,7 +135,7 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
             assert [c.label.plain for c in table.columns.values()] == [
                 " ", "score ▼", "company", "title", "loc", "fup"]      # the board leads with score
             assert table.job_ids == by_score and table.current_id == by_score[0]
-            assert table.get_row(str(by_score[0]))[0].plain == ""      # star column reserved for PR 4
+            assert [table.get_row(str(i))[0].plain for i in by_score] == ["★"] * 3   # what a hunt would tailor
             await pilot.press("j")
             assert table.current_id == by_score[1]
             await pilot.press("G")
@@ -879,4 +879,34 @@ def test_followups_marks_its_own_lead_and_flips_from_it():
             await pilot.press("minus")
             await _settle(app, pilot)
             assert app.screen.sort == Sort("fup", True) and table.job_ids == [late, soon]
+    _run(scenario())
+
+
+def test_shortlist_leads_with_the_stars_and_a_chosen_sort_overrides_them():
+    """Seven scored companies: `pick` stars five, the dream row among them at 60, below two
+    unstarred rows. Shortlist lifts it above them; the board keeps plain score order."""
+    ids = [_add(match_score=s, company=f"Co{s}") for s in (95, 90, 85, 80, 75, 70)]
+    dream = _add(match_score=60, company="Example Robotics", location="Berlin, Germany")
+    held = _add(match_score=99, company="Busy Co")
+    _add(status="applied", company="Busy Co")
+    from src.tui.widgets.jobs_table import JobsTable
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert table.job_ids == [held, *ids, dream]
+            starred = [i for i in table.job_ids if table.get_row(str(i))[0].plain == "★"]
+            assert starred == [*ids[:4], dream]          # a dream slot, Busy Co in play, five in all
+            await pilot.press("2")
+            await _settle(app, pilot)
+            table = app.screen.query_one(JobsTable)
+            assert table.job_ids == [*ids[:4], dream, held, *ids[4:]]
+            await pilot.press("minus")                    # score ascending: the reader's sort wins
+            await _settle(app, pilot)
+            assert table.job_ids == [dream, *reversed(ids), held]
+            await pilot.press("equals_sign")
+            await _settle(app, pilot)
+            assert table.job_ids[:5] == [*ids[:4], dream]
     _run(scenario())

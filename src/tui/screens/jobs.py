@@ -108,9 +108,12 @@ class JobsScreen(SectionScreen):
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
         rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
+        stars = data.stars()
+        if PRESETS[self.preset].stars_first and self.sort is None:    # a chosen sort is obeyed as is
+            rows = data.stars_first(rows, stars)
         if not worker.is_cancelled:
             today = self.app.today  # type: ignore[attr-defined]
-            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep)
+            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep, stars)
 
     def on_status_list_picked(self, event: StatusList.Picked) -> None:
         # The head entry carries the preset's name and means "no pick": the preset's statuses.
