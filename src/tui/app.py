@@ -7,6 +7,7 @@ from textual.app import App
 from textual.binding import Binding
 from textual.screen import Screen
 
+from . import settings as settings_mod
 from .presets import PRESETS
 from .screens.apps import AppsScreen
 from .screens.base import SectionScreen
@@ -14,6 +15,7 @@ from .screens.jobs import JobsScreen
 from .widgets.detail import DetailPane
 from .widgets.jobs_table import JobsTable
 from .widgets.modals import HelpGroup, HelpOverlay, NotesEditor, StatusPicker
+from .widgets.settings_modal import SettingsModal
 from .widgets.status_list import StatusList
 
 # (mode, label). Order is the key order: `1` is the first entry.
@@ -52,6 +54,7 @@ class JobhuntApp(App):
         *(Binding(str(i), f"section('{mode}')", label, show=False)
           for i, (mode, label) in enumerate(SECTIONS, start=1)),
         Binding("question_mark", "help", "help"),
+        Binding("comma", "settings", "settings", key_display=","),
         Binding("escape", "home", "home: back to the table, search cleared, modal closed", show=False),
         Binding("q", "quit", "quit"),
     ]
@@ -59,9 +62,22 @@ class JobhuntApp(App):
     def __init__(self, today: date | None = None) -> None:
         super().__init__()
         self.today = today or date.today()
+        self.settings = settings_mod.load()
 
     def on_mount(self) -> None:
-        self.switch_mode("board")
+        self.switch_mode(self.settings.default_section)
+        for line in self.settings.warnings:
+            self.notify(f"config/tui.toml: {line}", severity="warning", markup=False, timeout=10)
+
+    def apply_settings(self, new: settings_mod.Settings, save: bool = False) -> None:
+        """The one place a setting changes. Screens read `app.settings` when they draw, and the
+        section under the modal picks the change up in its `on_screen_resume`."""
+        self.settings = new
+        if save:
+            try:
+                settings_mod.save(new)
+            except OSError as e:
+                self.notify(f"config/tui.toml not saved: {e}", severity="error", markup=False)
 
     def action_section(self, mode: str) -> None:
         if mode != self.current_mode:
@@ -76,10 +92,14 @@ class JobhuntApp(App):
         owners = (
             ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
             ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen),
-            ("status picker", StatusPicker), ("notes editor", NotesEditor),
+            ("status picker", StatusPicker), ("notes editor", NotesEditor), ("settings", SettingsModal),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.
         return [(title, [b for b in cls.BINDINGS if isinstance(b, Binding)]) for title, cls in owners]
+
+    def action_settings(self) -> None:
+        if not isinstance(self.screen, SettingsModal):
+            self.push_screen(SettingsModal())
 
     def action_help(self) -> None:
         if not isinstance(self.screen, HelpOverlay):

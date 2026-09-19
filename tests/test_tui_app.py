@@ -1,62 +1,14 @@
 """Headless pilot tests for the TUI shell (Textual's run_test; no terminal needed)."""
-import asyncio
-
 import pytest
+from tui_fakes import COPIED, OPENED, _add, _run, _settle
 
-from src import db, reconcile, research
+from src import db
 from src.tui import commands
 from src.tui.app import SECTIONS, JobhuntApp
 from src.tui.presets import HOT
 from src.tui.widgets.status_list import StatusList
 
-
-@pytest.fixture(autouse=True)
-def tmp_db(tmp_path, monkeypatch):
-    """The app reads through src.tui.data, which resolves these at call time. Without this a
-    pilot test would open the real jobs.db."""
-    monkeypatch.setattr(db, "DB_PATH", tmp_path / "jobs.db")
-    monkeypatch.setattr(reconcile, "APPS_DIR", tmp_path / "applications")
-    monkeypatch.setattr(research, "COMPANIES_DIR", tmp_path / "companies")
-    OPENED.clear()
-    monkeypatch.setattr(commands, "launch", OPENED.append)   # no test opens a browser or Finder
-    COPIED.clear()
-    monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
-    return tmp_path
-
-
-OPENED: list[str] = []
-COPIED: list[str] = []
-
-
-def _add(**cols) -> int:
-    conn = db.connect(db.DB_PATH)
-    n = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] + 1
-    row = {"source": "t", "external_id": f"x{n}", "canonical_key": f"k{n}",
-           "company": "Acme", "title": "Engineer", "status": "shortlisted", **cols}
-    cur = conn.execute(f"INSERT INTO jobs ({','.join(row)}) VALUES ({','.join('?' for _ in row)})",
-                       list(row.values()))
-    conn.commit()
-    conn.close()
-    return int(cur.lastrowid or 0)
-
-
-def _run(coro):
-    return asyncio.run(coro)
-
-
-async def _settle(app, pilot):
-    """Wait for the workers. An exclusive worker that a newer one replaced counts as cancelled
-    and `wait_for_complete` raises for it; that is the app working as designed, so wait again
-    for the one that replaced it."""
-    from textual.worker import WorkerCancelled
-
-    for _ in range(5):
-        try:
-            await app.workers.wait_for_complete()
-            break
-        except WorkerCancelled:
-            continue
-    await pilot.pause()
+pytestmark = pytest.mark.usefixtures("tmp_db")
 
 
 def test_boots_on_board_and_number_keys_switch_sections():
