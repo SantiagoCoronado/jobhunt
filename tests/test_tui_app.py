@@ -774,3 +774,22 @@ def test_feed_text_with_markup_loads_and_shows_literally(tmp_db):
             await pilot.pause()
             assert "[/bold]" in app.screen.query_one("#prompt-error").content.plain
     _run(scenario())
+
+
+def test_real_run_path_boots_board_without_a_screen_stack_error():
+    """`App.run()` turns on asyncio's eager task factory (run_test does not), which composes the
+    first screen synchronously during registration. With board as DEFAULT_MODE that raised
+    "No screens on stack" from the search Input's mount on every real launch (2026-09-19)."""
+    app = JobhuntApp()
+    seen: dict = {}
+
+    async def auto_pilot(pilot):
+        await pilot.pause()
+        seen["mode"] = app.current_mode
+        seen["screen"] = type(app.screen).__name__
+        await pilot.press("q")
+
+    app.run(headless=True, auto_pilot=auto_pilot, size=(140, 40))
+    assert app._exception is None
+    assert app.return_code == 0
+    assert seen == {"mode": "board", "screen": "JobsScreen"}

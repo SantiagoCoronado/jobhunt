@@ -38,7 +38,13 @@ def _screen(mode: str, label: str):
 class JobhuntApp(App):
     TITLE = "jobhunt"
     MODES = {mode: _screen(mode, label) for mode, label in SECTIONS}
-    DEFAULT_MODE = "board"
+    # DEFAULT_MODE stays Textual's "_default" (a blank screen) and on_mount switches to
+    # board. Naming board as DEFAULT_MODE crashed the real `run()` path: Textual runs
+    # asyncio tasks eagerly there (not under run_test), so registering the first screen
+    # composes it on the spot, and `_init_mode` registers a MODES screen BEFORE pushing
+    # it on the mode's stack. The search Input's mount then asks for `app.screen` and
+    # finds an empty stack ("No screens on stack"). Switching from "_default" keeps
+    # that blank screen on top until board is fully on its own stack.
     BINDINGS = [
         *(Binding(str(i), f"section('{mode}')", label, show=False)
           for i, (mode, label) in enumerate(SECTIONS, start=1)),
@@ -50,6 +56,9 @@ class JobhuntApp(App):
     def __init__(self, today: date | None = None) -> None:
         super().__init__()
         self.today = today or date.today()
+
+    def on_mount(self) -> None:
+        self.switch_mode("board")
 
     def action_section(self, mode: str) -> None:
         if mode != self.current_mode:
