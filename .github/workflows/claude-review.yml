@@ -1,4 +1,4 @@
-# .github/workflows/claude-review.yml  (commit to main in SantiagoCoronado/jobhunt)
+# .github/workflows/claude-review.yml (lives on the default branch: issue_comment workflows run from there)
 #
 # Claude second-pass review. Review only: Claude cannot edit files or push.
 # On a Cursor handoff, Claude posts findings in Linear and moves the issue
