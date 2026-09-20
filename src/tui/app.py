@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date
+from time import monotonic
 
+from textual import events
 from textual.app import App
 from textual.binding import Binding
 from textual.screen import Screen
@@ -34,6 +36,9 @@ def _screen(mode: str) -> Callable[[], Screen]:
     return (lambda: JobsScreen(mode)) if mode in PRESETS else OWN_SCREENS[mode]
 
 
+DEAF_SECONDS = 0.3   # after an editor round trip: long for a terminal's late reply, short for a hand
+
+
 class JobhuntApp(App):
     TITLE = "jobhunt"
     MODES = {mode: _screen(mode) for mode, _label in SECTIONS}
@@ -61,6 +66,7 @@ class JobhuntApp(App):
         self.selection = Selection()           # the marked rows, one set for every section
         self.selection.on_change = self.selection_changed
         self.jump_to: int | None = None        # a row the board should land on when it next shows
+        self.deaf_until = 0.0                  # monotonic; input before it is dropped (see `deafen`)
         self.register_theme(settings_mod.KANAGAWA_THEME)
         self.theme = self.settings.theme
 
@@ -80,6 +86,18 @@ class JobhuntApp(App):
                 settings_mod.save(new)
             except OSError as e:
                 self.notify(f"config/tui.toml not saved: {e}", severity="error", markup=False)
+
+    def deafen(self, seconds: float = DEAF_SECONDS) -> None:
+        """Ignore keys, clicks and pastes for a moment. After an editor gave the terminal back,
+        the replies it asked the terminal for can still arrive and would be read as keys (one
+        of them ends in `q`); `commands.flush_terminal_input` drops what came before the TUI
+        resumed, this drops what comes just after. A human `q` a moment later still quits."""
+        self.deaf_until = monotonic() + seconds
+
+    async def on_event(self, event: events.Event) -> None:
+        if isinstance(event, events.InputEvent) and monotonic() < self.deaf_until:
+            return
+        await super().on_event(event)
 
     def selection_changed(self) -> None:
         for screen in self.screen_stack:

@@ -129,3 +129,24 @@ def test_an_editor_that_fails_is_a_toast_not_a_crash(monkeypatch):
             assert any("did not start" in n.message for n in app._notifications)
             assert isinstance(app.screen, ConfigScreen)
     _run(scenario())
+
+
+def test_input_is_dropped_for_a_moment_after_an_editor_round_trip_and_q_quits_after_it():
+    """PRA-116: a terminal's late reply to the editor's queries must not be read as `q`."""
+    from src.tui import app as app_mod
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 40)) as pilot:
+            await pilot.press(_key("settings"))
+            await _settle(app, pilot)
+            app.deafen(60)                                   # as the round trip leaves it, only longer
+            await pilot.press("q", "1")
+            await pilot.pause()
+            assert app.is_running and app.current_mode == "settings"
+            app.deafen(0)
+            await pilot.press("1")
+            await pilot.pause()
+            assert app.current_mode == "board"
+        assert app_mod.DEAF_SECONDS <= 0.5                   # never long enough to eat a human key
+    _run(scenario())

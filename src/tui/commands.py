@@ -87,6 +87,22 @@ def run_editor(argv: Sequence[str]) -> int:
         return -1
 
 
+def flush_terminal_input() -> None:
+    """Drop what is waiting on the terminal's input. An editor like nvim asks the terminal
+    questions on its way in and out (cursor style, colours, keyboard protocol) and the answers
+    that come back after it is gone sit in the queue the TUI reads next; the cursor-style
+    answer ends in ` q`, and `q` quits. Called after the editor exits and BEFORE the TUI takes
+    the terminal back. A no-op where there is no terminal (tests, a pipe, Windows)."""
+    stdin = sys.__stdin__                                # the stream Textual's driver reads
+    if stdin is None:
+        return
+    try:
+        import termios
+        termios.tcflush(stdin.fileno(), termios.TCIFLUSH)
+    except (ImportError, OSError, ValueError):
+        pass
+
+
 def spawn(argv: Sequence[str]) -> subprocess.Popen[str]:
     """A stage as a child process, stdout and stderr on one pipe, line buffered so the log pane
     moves while it runs. Its own session: a hard stop can take the harness children with it."""

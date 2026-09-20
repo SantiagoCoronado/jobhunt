@@ -109,6 +109,8 @@ class ConfigScreen(SectionScreen):
         try:
             with self.app.suspend():                 # a terminal editor needs the terminal back
                 rc = commands.run_editor(argv)
+                commands.flush_terminal_input()      # its late terminal replies are not keys
+            self.app.deafen()  # type: ignore[attr-defined]   # nor what still trickles in after the flush
         except SuspendNotSupported:                  # headless, or a terminal that cannot: a GUI editor still works
             rc = commands.run_editor(argv)
         if rc != 0:

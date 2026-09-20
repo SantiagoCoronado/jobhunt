@@ -273,6 +273,30 @@ Known cost: the harness tab and the modal write tracked files (`config/hunt.toml
 `config/tui.toml`), so a changed model or theme shows up in `git status`, and
 `tests/test_hunt_config.py::test_shipped_file_loads_with_the_spec_values` pins the shipped models.
 
+### PR 5b: `feat/tui-polish` (added 2026-09-20, after Santiago used PR 5; Linear PRA-108)
+
+Built in the order 6, 3, 8, then the rest; the numbers are the stories' own.
+
+3. **The selection follows you into the runner**: the marks are held on the app, the runner shows them in a `selection` block and `enter` on `tailor` or `research` runs `hunt run --only <stage> --ids ...` on them (decisions 11, 12, 15; hunt spec section 8).
+6. **Remove the shortlist section**: six sections; the board's `shortlisted` view leads with the hunt's picks under its own sort (decisions 4, 9).
+8. **An editor round trip never quits the TUI**: `e` with nvim closed the app.
+
+As built, story 8: `e` builds the argv from the template (`settings.editor_argv`), suspends the
+app (`App.suspend`: the driver leaves application mode and stops reading input), runs the editor
+in the foreground on the real terminal (`commands.run_editor`), and resumes. An editor like nvim
+asks the terminal questions on its way in and out (cursor style, colours, keyboard protocol); an
+answer that arrives after the editor is gone waits in the terminal's input queue and the resumed
+TUI read it as keys. The cursor-style answer is `ESC P 1 $ r 2 SP q ESC \`, and `q` quits, which
+is what "nvim closes the TUI" was; nano asks nothing, so it never showed. Two guards, both in the
+round trip and nowhere else: `commands.flush_terminal_input` (`tcflush(TCIFLUSH)` on the fd the
+driver reads) runs after the editor exits and BEFORE `resume_application_mode`, and
+`JobhuntApp.deafen` drops every input event for `DEAF_SECONDS` (0.3 s) after the resume, for
+what trickles in later; a `q` typed after that quits as ever. `tests/test_tui_pty.py` (marker
+`pty`, skipped where there is no pty) runs the real `run()` path in a child on a
+pseudo-terminal, with a fake terminal editor that reads nothing while the test injects that
+answer plus a bare `q`: the TUI must be alive afterwards and a later `q` must exit 0. With the
+two guards removed the test fails on "the late reply was read as `q`".
+
 ## 9. Later (not scheduled)
 
 Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
