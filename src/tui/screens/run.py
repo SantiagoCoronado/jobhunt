@@ -51,6 +51,17 @@ class StageList(RunList):
     BINDINGS = [Binding("enter", "select", "run", key_display="enter", tooltip="run the stage (tailor and research: on the selection)")]
 
 
+class SelectionList(RunList):
+    """The rows a run of tailor or research would take, as a checklist: `space` takes a row off
+    and puts it back, so the reader settles the list here, right before `enter` on the stage."""
+    BINDINGS = [
+        Binding("space", "screen.toggle_row", "deselect", tooltip="take the row off the selection, or put it back"),
+        Binding("backspace", "screen.toggle_row", "take the row off the selection, or put it back", show=False),
+        Binding("enter", "select", "go to row", key_display="enter", tooltip="land on the row in the board"),
+        Binding("x", "screen.clear_selection", "clear", tooltip="take every row off the selection"),
+    ]
+
+
 class RunScreen(SectionScreen):
     POLL_SECONDS = 2.0
 
@@ -67,8 +78,6 @@ class RunScreen(SectionScreen):
     """
     BINDINGS = [
         Binding("enter", "run", "run the stage (tailor and research: on the selection)", show=False),
-        Binding("space", "drop", "take the row off the selection", show=False),
-        Binding("backspace", "drop", "take the row off the selection", show=False),
         Binding("ctrl+c", "cancel", "stop", tooltip="stop the running stage (again: kill it)", priority=True),
         Binding("R", "resume", "resume", tooltip="resume the highlighted run"),
         Binding("c", "copy", "copy the command", show=False),
@@ -89,6 +98,9 @@ class RunScreen(SectionScreen):
         self.shown = ""
         self.sources = ""
         self.ran_on: list[int] = []                      # the rows the live process was started on
+        # Every row the block has listed since the section came up, with the kind of mark it
+        # had: a row taken off stays on the list, unmarked, so `space` can put it back.
+        self.offered: dict[int, tuple[data.JobRow, bool]] = {}
 
     def body(self) -> ComposeResult:
         with Horizontal(id="run-panes"):
@@ -96,7 +108,7 @@ class RunScreen(SectionScreen):
                 yield Label("stages", classes="run-title")
                 yield StageList(id="run-stages")
                 yield Label("selection", classes="run-title", id="run-selection-title")
-                yield RunList(id="run-selection")
+                yield SelectionList(id="run-selection")
                 yield Label("runs", classes="run-title")
                 yield RunList(id="run-runs")
                 yield Label("units", classes="run-title")
@@ -116,6 +128,7 @@ class RunScreen(SectionScreen):
     def on_screen_resume(self) -> None:
         if not self.busy.running("stages"):             # ScreenResume comes twice on the first show
             self.reload()
+        self.offered = {}                               # what was taken off elsewhere is simply gone
         self.draw_selection()
 
     def sync_selection(self) -> None:
@@ -125,22 +138,45 @@ class RunScreen(SectionScreen):
     # The selection: the rows marked in the jobs sections, the same set `c` copies there.
 
     def draw_selection(self) -> None:
-        rows = self.app.selection.marked_rows  # type: ignore[attr-defined]
-        picked = self.app.selection.preselected  # type: ignore[attr-defined]
-        self.query_one("#run-selection-title", Label).update(Text(f"selection ({len(rows)})"))
+        sel = self.app.selection  # type: ignore[attr-defined]
+        marked, picked = sel.marked, sel.preselected
+        for r in sel.marked_rows:
+            self.offered.setdefault(r.id, (r, r.id in picked))
+        n = len(marked)
+        off = len(self.offered) - n
+        title = f"selection ({n})" + (f" · {off} off" if off else "") + ("   tab here: space deselects" if self.offered else "")
+        self.query_one("#run-selection-title", Label).update(Text(title))
         jobs = f"sections {number('board')} and {number('followups')}"
+
+        def line(r: data.JobRow, pick: bool) -> Text:
+            name = clip(f"#{r.id} {r.company}, {r.title}", NOTE_WIDTH + 8)
+            if r.id in marked:
+                return Text.assemble((f"{MARK} ", PICK_STYLE if pick else ""), name)
+            return Text.assemble(("○ ", "dim"), (name, "dim strike"))
+
         self.query_one("#run-selection", RunList).fill([
-            Option(Text.assemble((f"{MARK} ", PICK_STYLE if r.id in picked else ""),
-                                 clip(f"#{r.id} {r.company}, {r.title}", NOTE_WIDTH + 8)), id=str(r.id))
-            for r in rows] or [Option(Text(f"  nothing marked: space marks a row in {jobs}", style="dim"),
-                                      id=NO_SELECTION, disabled=True)])
+            Option(line(r, pick), id=str(r.id)) for r, pick in self.offered.values()]
+            or [Option(Text(f"  nothing marked: space marks a row in {jobs}", style="dim"),
+                       id=NO_SELECTION, disabled=True)])
         self.draw_stages()
 
-    def action_drop(self) -> None:
+    def run_ids(self) -> list[int]:
+        """What a run takes: the marked rows in the order the block lists them, so the run is
+        the list the reader just settled (a row put back keeps its place)."""
+        marked = self.app.selection.marked  # type: ignore[attr-defined]
+        return [job_id for job_id in self.offered if job_id in marked]
+
+    def action_toggle_row(self) -> None:
         block = self.query_one("#run-selection", RunList)
         opt = block.highlighted_option
         if self.focused is block and opt is not None and opt.id and opt.id != NO_SELECTION:
-            self.app.selection.drop(int(opt.id))  # type: ignore[attr-defined]
+            row, pick = self.offered[int(opt.id)]
+            self.app.selection.toggle(row, pick)  # type: ignore[attr-defined]
+            block.action_cursor_down()                   # a run of spaces walks the list, as in the table
+
+    def action_clear_selection(self) -> None:
+        sel = self.app.selection  # type: ignore[attr-defined]
+        sel.set(set(), set(sel.picks))
 
     def action_refresh(self) -> None:
         self.reload()
@@ -294,7 +330,7 @@ class RunScreen(SectionScreen):
         stage = self.current_stage()
         if stage is None or self.focused is not self.query_one("#run-stages", RunList):
             return
-        ids = [r.id for r in self.app.selection.marked_rows] if stage.takes_selection else []  # type: ignore[attr-defined]
+        ids = self.run_ids() if stage.takes_selection else []
         if stage.takes_selection and not ids:            # never a run that can only fail
             self.toast(f"nothing selected: mark rows in sections {number('board')} and "
                        f"{number('followups')}, or run from pick", "warning")
@@ -356,6 +392,8 @@ class RunScreen(SectionScreen):
         self.draw_note()
         self.toast(f"{name}: exit {rc}", "information" if rc == 0 else "warning")
         if rc == 0 and self.ran_on:                      # spent only by a run that went through
+            for job_id in self.ran_on:                   # run, not taken off: they leave the block
+                self.offered.pop(job_id, None)
             self.app.selection.spend(self.ran_on)  # type: ignore[attr-defined]
         self.ran_on = []
         self.reload()
@@ -375,7 +413,7 @@ class RunScreen(SectionScreen):
         stage = self.current_stage()
         if stage is None:
             return
-        ids = [r.id for r in self.app.selection.marked_rows] if stage.takes_selection else []  # type: ignore[attr-defined]
+        ids = self.run_ids() if stage.takes_selection else []
         text = commands.shell_line(stage.argv_for(ids)) if ids else stage.copy_text
         commands.copy(text, self.app.copy_to_clipboard)
         self.toast(f"copied {text}")

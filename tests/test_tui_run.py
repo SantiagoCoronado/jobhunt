@@ -296,7 +296,7 @@ def test_marked_rows_show_in_the_runner_and_enter_runs_tailor_on_them(selection_
             await pilot.press("space", "space")                                     # the two top rows of the board
             screen = await _open(app, pilot)
             assert _lines(screen, "run-selection") == [f"● #{ids[0]} Co2, Role 2", f"● #{ids[1]} Co1, Role 1"]
-            assert str(screen.query_one("#run-selection-title").render()) == "selection (2)"
+            assert str(screen.query_one("#run-selection-title").render()).startswith("selection (2)")
             stage_lines = dict(zip([s.name for s in selection_stages], _lines(screen, "run-stages"), strict=True))
             assert "2 selected · tailor note" in stage_lines["tailor"] and "2 selected" in stage_lines["research"]
             assert stage_lines["hunt"].endswith("ignores selection")
@@ -351,12 +351,58 @@ def test_a_failed_run_keeps_the_selection_and_the_block_drops_and_jumps(selectio
             _go(screen, "run-selection", str(ids[0]))
             await pilot.press("backspace")
             await pilot.pause()
-            assert app.selection.selected == set(ids[1:]) and len(_lines(screen, "run-selection")) == 2
+            assert app.selection.selected == set(ids[1:])
             assert screen.query_one("SectionFooter").note == "2 selected"
+            lines = _lines(screen, "run-selection")                                 # off, not gone: it can come back
+            assert len(lines) == 3 and lines[0].startswith("○ ") and lines[1].startswith("● ")
             _go(screen, "run-selection", str(ids[2]))
             await pilot.press("enter")                                              # jumps to the row in section 1
             await _settle(app, pilot)
             assert isinstance(app.screen, JobsScreen) and app.current_mode == "board"
             table = app.screen.query_one(JobsTable)
             assert table.current_id == ids[2] and table.get_row(str(ids[0]))[0].plain == ""
+    _run(scenario())
+
+
+def test_the_selection_block_is_a_checklist_settled_before_the_run(selection_stages):
+    """Santiago, 2026-09-20: deselect in the run section before running. `space` takes a row off
+    and puts it back, the stage line counts what is left, and `enter` runs exactly that."""
+    from tui_fakes import _add
+    ids = [_add(match_score=90 - n, company=f"Co{n}", title=f"Role {n}") for n in range(3)]   # scored: hunt picks
+    extra = _add(company="Hand Co", title="Marked by hand")
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            assert app.selection.preselected == set(ids)
+            await pilot.press("G", "space")                                         # plus one by hand
+            screen = await _open(app, pilot)
+            assert "4 selected" in _lines(screen, "run-stages")[2]
+            await pilot.press("tab")                                                # stages -> the selection block
+            block = screen.query_one("#run-selection")
+            assert block.has_focus
+            keys = {(k.key_display, k.description) for k in screen.query_one("SectionFooter").query("FooterKey")}
+            assert {("space", "deselect"), ("enter", "go to row"), ("x", "clear")} <= keys
+
+            await pilot.press("space", "space")                                     # two picks off, walking down
+            await pilot.pause()
+            assert app.selection.marked == {ids[2], extra} and app.selection.dismissed == set(ids[:2])
+            lines = _lines(screen, "run-selection")
+            assert [ln[0] for ln in lines] == ["○", "○", "●", "●"]
+            assert str(screen.query_one("#run-selection-title").render()).startswith("selection (2) · 2 off")
+            assert "2 selected" in _lines(screen, "run-stages")[2]
+            await pilot.press("k", "space")                                         # the second one back on, as a pick
+            await pilot.pause()
+            assert app.selection.preselected == {ids[1], ids[2]} and app.selection.selected == {extra}
+
+            _go(screen, "run-stages", "tailor")
+            await pilot.press("enter")
+            await _until(pilot, lambda: screen.proc is None and any("exited" in ln for ln in screen.lines))
+            assert f"argv --ids {ids[1]},{ids[2]},{extra}" in _pane(screen)      # never the row taken off
+
+            _go(screen, "run-selection", str(ids[0]))
+            await pilot.press("space", "x")                                         # back on, then clear them all
+            await pilot.pause()
+            assert app.selection.marked == set()
     _run(scenario())

@@ -305,6 +305,17 @@ pseudo-terminal, with a fake terminal editor that reads nothing while the test i
 answer plus a bare `q`: the TUI must be alive afterwards and a later `q` must exit 0. With the
 two guards removed the test fails on "the late reply was read as `q`".
 
+After Santiago tried the branch (2026-09-20): nvim was fine, `code -w` and `cursor -w` did not
+launch. Neither CLI was on PATH: a GUI editor's command lives inside its app bundle on macOS and
+reaches PATH only through the editor's own "install shell command" action. `commands.find_program`
+looks on PATH, then in the bundles under `/Applications` and `~/Applications` (globbed, a second
+install is "Visual Studio Code 2.app"); `resolve_editor` runs before the terminal is given away,
+an editor nothing can find is an error toast that says what to do, and the settings modal's editor
+tab marks it `not installed`. The runner's selection block became a checklist the same day:
+`space` takes a row off and puts it back (it stays listed, `○` and struck through), `x` clears,
+the title counts what is on and off, the footer names the keys while the block has the focus, and
+a run takes the marked rows in the block's order.
+
 As built, the rest: decisions 4, 9, 11, 12, 15 and 21 carry their amendments inline. The
 selection (story 3) outlives a filter as well as a section, which the story left open: the
 footer counts it everywhere, so a bulk `s` or `b` acts on every hand-made mark, listed in the

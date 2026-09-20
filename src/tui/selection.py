@@ -99,6 +99,16 @@ class Selection:
         elif job_id in self.preselected:
             self.set(self.selected, self.dismissed | {job_id}, ())
 
+    def toggle(self, row: JobRow, pick: bool) -> None:
+        """The runner's checklist: take a row's mark off, or put back the one it had. `pick`
+        says which kind it was, since an unmarked row no longer tells."""
+        if row.id in self.marked:
+            self.drop(row.id)
+        elif pick and row.id in self.picks:
+            self.set(self.selected, self.dismissed - {row.id}, (), {row.id: row})
+        else:
+            self.set(self.selected | {row.id}, self.dismissed, (), {row.id: row})
+
     def spend(self, ids: Iterable[int]) -> None:
         """A verb ran on these rows: their marks go, a pick among them stays off."""
         ids = set(ids)
