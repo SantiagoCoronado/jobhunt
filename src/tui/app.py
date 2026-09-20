@@ -41,6 +41,9 @@ DEAF_SECONDS = 0.3   # after an editor round trip: long for a terminal's late re
 
 class JobhuntApp(App):
     TITLE = "jobhunt"
+    # No command palette: every verb has a single key and `?` lists them (spec decision 21), and
+    # its "Change theme" switched the theme without saving it, so tui.toml stopped being the record.
+    ENABLE_COMMAND_PALETTE = False
     MODES = {mode: _screen(mode) for mode, _label in SECTIONS}
     # DEFAULT_MODE stays Textual's "_default" (a blank screen) and on_mount switches to
     # board. Naming board as DEFAULT_MODE crashed the real `run()` path: Textual runs

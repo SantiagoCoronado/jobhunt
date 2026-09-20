@@ -1263,10 +1263,30 @@ def test_the_footer_carries_the_necessary_keys_only_and_fits_120_columns_with_a_
                 await _settle(app, pilot)
                 footer = app.screen.query_one(Footer)
                 assert app.screen.query_one(SectionFooter).note == "3 selected"
-                keys = [k for k in footer.query("FooterKey") if k.key != "ctrl+p"]
+                keys = list(footer.query("FooterKey"))
                 shown = [(k.key_display, k.description) for k in keys]
                 assert sorted(shown) == sorted(want[mode]), mode
                 assert all(len(k.description.split()) <= 2 for k in keys)
                 for k in keys:                                        # nothing cut, nothing wrapped
                     assert k.region.right <= footer.region.right and k.region.height == 1, (mode, k.key)
+    _run(scenario())
+
+
+def test_there_is_no_command_palette():
+    from textual.widgets import Footer
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            jobs, theme = app.screen, app.theme
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            assert app.screen is jobs and len(app.screen_stack) == 1            # no screen pushed
+            for mode, _label in SECTIONS:
+                await pilot.press(_key(mode))
+                await _settle(app, pilot)
+                keys = [(k.key, k.description) for k in app.screen.query_one(Footer).query("FooterKey")]
+                assert not any("palette" in d or key == "ctrl+p" for key, d in keys), mode
+            assert app.theme == theme                                           # only the settings modal changes it
     _run(scenario())
