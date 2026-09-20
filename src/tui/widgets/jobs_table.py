@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from rich.text import Text
+from textual import events
 from textual.binding import Binding
 from textual.widgets import DataTable
 
@@ -24,6 +25,7 @@ COLUMNS: tuple[tuple[str, str, int], ...] = (
     ("fup", "fup", 10),
 )
 DREAM_TAG = " (dream)"
+TITLE_MIN = 16          # the title column takes the table's slack and never gets narrower than this
 
 
 def clip(s: str, width: int) -> str:
@@ -53,17 +55,33 @@ class JobsTable(DataTable):
         self.marks = Selection()                               # the screen hands it the app's one
         self.drawn: dict[int, str] = {}                        # the kind of mark each row shows now
         self.overdue_style = OVERDUE_STYLE                     # the screen sets it from the settings
+        self.widths = {key: w for key, _label, w in COLUMNS}   # `title` follows the table's width
 
     def on_mount(self) -> None:
         for key, label, width in COLUMNS:
             self.add_column(label, key=key, width=width)
+
+    def on_resize(self, event: events.Resize) -> None:
+        """The columns are fixed except the title, which takes what is left: the table fits its
+        pane, so no horizontal scrollbar, until the pane is too narrow even for TITLE_MIN."""
+        fixed = sum(w for key, w in self.widths.items() if key != "title") + 2 * self.cell_padding * len(COLUMNS)
+        width = max(TITLE_MIN, event.size.width - fixed - 1)             # 1: the vertical scrollbar
+        if width != self.widths["title"] and any(k.value == "title" for k in self.columns):
+            self.widths["title"] = width
+            self.columns["title"].width = width                          # type: ignore[index]
+            for r in self.rows_by_id.values():
+                self.update_cell(str(r.id), "title", Text(clip(r.title, width)))
+            # DataTable measures its virtual size when a cell or a row changes, not when a
+            # column's width is set by hand; without this the old width keeps the scrollbar.
+            self._require_update_dimensions = True
+            self.refresh(layout=True)
 
     def cells(self, r: JobRow, today: date | None = None) -> tuple[Text, ...]:
         """Every cell is a `Text`. DataTable runs `Text.from_markup` on a `str` cell, and these
         strings come from scraped postings: `[on-site]` would vanish, `[/bold]` would raise
         MarkupError and kill the table, `[link=file:///...]` would plant a link that never
         passed the http(s) check in `commands.open_posting`."""
-        widths = {key: w for key, _label, w in COLUMNS}
+        widths = self.widths
         loc = (clip(r.location, widths["loc"] - len(DREAM_TAG)) + DREAM_TAG if r.dream
                else clip(r.location, widths["loc"]))
         return (

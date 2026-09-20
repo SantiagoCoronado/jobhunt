@@ -689,7 +689,7 @@ def test_feed_text_with_markup_loads_and_shows_literally(tmp_db):
     scraped postings: a tag would vanish, a stray closing tag would raise and kill the table,
     a [link=...] would plant a link that never passed the http(s) check on `o`."""
     from src.tui.widgets.detail import DetailPane
-    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.jobs_table import JobsTable, clip
 
     ids = [_add(match_score=90 - i, title=text, company=text[:20], location=text[:18])
            for i, text in enumerate(HOSTILE)]
@@ -703,7 +703,7 @@ def test_feed_text_with_markup_loads_and_shows_literally(tmp_db):
             assert table.job_ids == ids
             for jid, text in zip(ids, HOSTILE, strict=True):
                 _mark, _score, company, title, loc, _fup = table.get_row(str(jid))
-                assert title.plain == text
+                assert title.plain == clip(text, table.widths["title"])      # the title takes the table's slack
                 assert company.plain == text[:20].strip() and loc.plain == text[:18].strip()
                 assert not title.spans and not company.spans and not loc.spans   # no link, no style
             for _ in ids:
@@ -1289,4 +1289,39 @@ def test_there_is_no_command_palette():
                 keys = [(k.key, k.description) for k in app.screen.query_one(Footer).query("FooterKey")]
                 assert not any("palette" in d or key == "ctrl+p" for key, d in keys), mode
             assert app.theme == theme                                           # only the settings modal changes it
+    _run(scenario())
+
+
+def test_scrollbars_are_one_cell_in_the_theme_colours_and_the_title_column_takes_the_slack():
+    from textual.color import Color
+
+    from src.tui.widgets.detail import DetailPane
+    from src.tui.widgets.jobs_table import TITLE_MIN, JobsTable
+    ids = [_add(company=f"Co{n}", title="Senior Staff Principal Forward Deployed Engineer, Platform " + "x" * 40,
+                description="line\n" * 200) for n in range(60)]
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 30)) as pilot:
+            await _settle(app, pilot)
+            table, pane = app.screen.query_one(JobsTable), app.screen.query_one("#detail", DetailPane)
+            for widget in (table, pane, app.screen.query_one(StatusList)):
+                assert widget.styles.scrollbar_size_vertical == 1 and widget.styles.scrollbar_size_horizontal == 1
+            assert table.show_vertical_scrollbar and not table.show_horizontal_scrollbar    # 60 rows, columns that fit
+            assert table.virtual_size.width <= table.size.width
+            wide = table.widths["title"]
+            assert len(table.get_row(str(ids[0]))[3].plain) == wide
+
+            for theme in ("kanagawa", "textual-light"):                   # the bar colours are the theme's
+                app.theme = theme
+                await pilot.pause()
+                assert table.styles.scrollbar_color == Color.parse(app.get_css_variables()["scrollbar"]), theme
+
+            await pilot.resize_terminal(157, 30)                          # narrower: the title gives way, not a bar
+            await _settle(app, pilot)
+            assert TITLE_MIN <= table.widths["title"] < wide and not table.show_horizontal_scrollbar
+            assert len(table.get_row(str(ids[0]))[3].plain) == table.widths["title"]
+            await pilot.press("j", "G")                                   # keys scroll as before
+            await pilot.pause()
+            assert table.current_id == ids[0] and table.scroll_y > 0
     _run(scenario())
