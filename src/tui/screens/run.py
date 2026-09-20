@@ -1,6 +1,7 @@
-"""Section 6, the runner (spec decision 12): a stage list, a run list with the selected run's
-units, and a log pane. `enter` runs the highlighted stage as a subprocess, one at a time, its
-output streamed; a run shows its `hunt status` tree, a unit the tail of its log."""
+"""The runner (spec decision 12): a stage list, the app's selection, a run list with the
+selected run's units, and a log pane. `enter` runs the highlighted stage as a subprocess, one at
+a time, its output streamed; `tailor` and `research` run on the selection (`hunt run --ids`). A
+run shows its `hunt status` tree, a unit the tail of its log."""
 from __future__ import annotations
 
 import subprocess
@@ -15,13 +16,17 @@ from textual.widgets import Label, Log, OptionList
 from textual.widgets.option_list import Option
 
 from .. import commands, data
-from ..widgets.footer import SectionFooter
+from ..sections import number
+from ..widgets.jobs_table import MARK, PICK_STYLE, clip
 from .base import SectionScreen
 
 KEPT_LINES = 5000
 STATE_STYLE = {"done": "green", "failed": "red", "running": "yellow", "unreadable": "red",
                "pending": "dim", "skipped": "dim"}
 OPENS_REPORT = ("report", data.HUNT)      # a clean exit of these opens data/report.html
+IGNORES = " · ignores selection"          # on every stage that does not run on the marked rows
+NOTE_WIDTH = 50                           # what is left of the left column after mark and name
+NO_SELECTION = "selection-empty"
 
 
 class RunList(OptionList):
@@ -45,22 +50,25 @@ class RunScreen(SectionScreen):
 
     DEFAULT_CSS = """
     RunScreen #run-panes { height: 1fr; }
-    RunScreen #run-left { width: 58; height: 1fr; border-right: solid $panel; }
+    RunScreen #run-left { width: 64; height: 1fr; border-right: solid $panel; }
     RunScreen .run-title { height: 1; padding: 0 1; color: $text-muted; text-style: bold; }
     RunScreen RunList, RunScreen RunList:focus { border: none; padding: 0; height: auto; max-height: 14; }
     RunScreen #run-runs { max-height: 8; }
+    RunScreen #run-selection { max-height: 7; }
     RunScreen #run-units { height: 1fr; max-height: 100%; }
     RunScreen #run-right { width: 1fr; height: 1fr; }
     RunScreen Log { height: 1fr; padding: 0 1; }
     """
     BINDINGS = [
-        Binding("enter", "run", "run the stage"),
+        Binding("enter", "run", "run the stage (tailor and research: on the selection)"),
+        Binding("space", "drop", "take the row off the selection", show=False),
+        Binding("backspace", "drop", "take the row off the selection", show=False),
         Binding("c", "copy", "copy the command"),
         Binding("R", "resume", "resume the run"),
         Binding("o", "report", "open report.html"),
         Binding("ctrl+c", "cancel", "stop the running stage", priority=True),
         Binding("r", "refresh", "refresh"),
-        Binding("tab", "app.focus_next", "next list: stages, runs, units, log", show=False),
+        Binding("tab", "app.focus_next", "next list: stages, selection, runs, units, log", show=False),
     ]
 
     def __init__(self) -> None:
@@ -74,12 +82,15 @@ class RunScreen(SectionScreen):
         self.view = "process"                            # process | run | unit
         self.shown = ""
         self.sources = ""
+        self.ran_on: list[int] = []                      # the rows the live process was started on
 
     def body(self) -> ComposeResult:
         with Horizontal(id="run-panes"):
             with Vertical(id="run-left"):
                 yield Label("stages", classes="run-title")
                 yield RunList(id="run-stages")
+                yield Label("selection", classes="run-title", id="run-selection-title")
+                yield RunList(id="run-selection")
                 yield Label("runs", classes="run-title")
                 yield RunList(id="run-runs")
                 yield Label("units", classes="run-title")
@@ -99,6 +110,31 @@ class RunScreen(SectionScreen):
 
     def on_screen_resume(self) -> None:
         self.reload()
+        self.draw_selection()
+
+    def sync_selection(self) -> None:
+        super().sync_selection()
+        self.draw_selection()
+
+    # The selection: the rows marked in the jobs sections, the same set `c` copies there.
+
+    def draw_selection(self) -> None:
+        rows = self.app.selection.marked_rows  # type: ignore[attr-defined]
+        picked = self.app.selection.preselected  # type: ignore[attr-defined]
+        self.query_one("#run-selection-title", Label).update(Text(f"selection ({len(rows)})"))
+        jobs = f"sections {number('board')} and {number('followups')}"
+        self.query_one("#run-selection", RunList).fill([
+            Option(Text.assemble((f"{MARK} ", PICK_STYLE if r.id in picked else ""),
+                                 clip(f"#{r.id} {r.company}, {r.title}", NOTE_WIDTH + 8)), id=str(r.id))
+            for r in rows] or [Option(Text(f"  nothing marked: space marks a row in {jobs}", style="dim"),
+                                      id=NO_SELECTION, disabled=True)])
+        self.draw_stages()
+
+    def action_drop(self) -> None:
+        block = self.query_one("#run-selection", RunList)
+        opt = block.highlighted_option
+        if self.focused is block and opt is not None and opt.id and opt.id != NO_SELECTION:
+            self.app.selection.drop(int(opt.id))  # type: ignore[attr-defined]
 
     def action_refresh(self) -> None:
         self.reload()
@@ -134,10 +170,19 @@ class RunScreen(SectionScreen):
         self.draw()
 
     def draw_stages(self) -> None:
-        """The stage lines, with a mark beside the one that is running."""
+        """The stage lines, with a mark beside the one that is running. `tailor` and `research`
+        carry the count they would run on; while rows are marked every other line says it
+        ignores them."""
+        n = len(self.app.selection.marked)  # type: ignore[attr-defined]
+
+        def note(s: data.RunStage) -> str:
+            if s.takes_selection:
+                return clip(f"{n} selected · {s.note}", NOTE_WIDTH)
+            return clip(s.note, NOTE_WIDTH - len(IGNORES)) + IGNORES if n else s.note
+
         self.query_one("#run-stages", RunList).fill([
             Option(Text.assemble(("▶ " if self.proc and s.name == self.proc_name else "  ", "yellow"),
-                                 f"{s.name:<10}", (s.note, "dim")), id=s.name) for s in self.stages])
+                                 f"{s.name:<10}", (note(s), "dim")), id=s.name) for s in self.stages])
 
     @work(thread=True, group="run-runs", exclusive=True)
     def load_runs(self, highlighted: str | None) -> None:
@@ -184,7 +229,8 @@ class RunScreen(SectionScreen):
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         focused = self.focused
-        view = {"run-stages": "process", "run-runs": "run", "run-units": "unit"}.get(focused.id or "") if focused else None
+        view = {"run-stages": "process", "run-selection": "process", "run-runs": "run",
+                "run-units": "unit"}.get(focused.id or "") if focused else None
         if view and view != self.view:
             self.view = view
             self.draw()
@@ -224,11 +270,19 @@ class RunScreen(SectionScreen):
         event.stop()
         if event.option_list.id == "run-stages":
             self.action_run()
+        elif event.option_list.id == "run-selection" and event.option.id not in (None, NO_SELECTION):
+            self.app.show_job(int(event.option.id))  # type: ignore[attr-defined]
 
     def action_run(self) -> None:
         stage = self.current_stage()
-        if stage is not None and self.focused is self.query_one("#run-stages", RunList):
-            self.start(stage.name, list(stage.argv))
+        if stage is None or self.focused is not self.query_one("#run-stages", RunList):
+            return
+        ids = [r.id for r in self.app.selection.marked_rows] if stage.takes_selection else []  # type: ignore[attr-defined]
+        if stage.takes_selection and not ids:            # never a run that can only fail
+            self.toast(f"nothing selected: mark rows in sections {number('board')} and "
+                       f"{number('followups')}, or run from pick", "warning")
+            return
+        self.start(stage.name, list(stage.argv_for(ids)), ids)
 
     def action_resume(self) -> None:
         if self.status is None:
@@ -238,7 +292,7 @@ class RunScreen(SectionScreen):
         else:
             self.start(f"resume {self.status.run_id}", commands.hunt_argv("run", "--resume", self.status.run_id))
 
-    def start(self, name: str, argv: list[str]) -> None:
+    def start(self, name: str, argv: list[str], ids: list[int] | None = None) -> None:
         if self.proc is not None:
             self.toast(f"{self.proc_name} is still running (ctrl+c stops it); one process at a time", "warning")
             return
@@ -248,11 +302,13 @@ class RunScreen(SectionScreen):
             self.toast(f"{name} did not start: {e}", "error")
             return
         self.proc, self.proc_name, self.stop_asked = proc, name, False
+        self.ran_on = list(ids or [])
         self.app.running = name  # type: ignore[attr-defined]
         self.lines.clear()
         self.lines.append(f"$ {commands.shell_line(argv)}")
         self.view = "process"
-        self.query_one(SectionFooter).note = f"running {name}"
+        self.state_note = f"running {name}"
+        self.draw_note()
         self.draw_stages()
         self.draw()
         self.pump(proc, name)
@@ -279,8 +335,12 @@ class RunScreen(SectionScreen):
         self.app.running = ""  # type: ignore[attr-defined]
         self.draw_stages()
         self.add_line(f"--- {name} {'stopped' if self.stop_asked else 'exited'} ({rc})")
-        self.query_one(SectionFooter).note = ""
+        self.state_note = ""
+        self.draw_note()
         self.toast(f"{name}: exit {rc}", "information" if rc == 0 else "warning")
+        if rc == 0 and self.ran_on:                      # spent only by a run that went through
+            self.app.selection.spend(self.ran_on)  # type: ignore[attr-defined]
+        self.ran_on = []
         self.reload()
         if rc == 0 and name in OPENS_REPORT:
             self.action_report()
@@ -296,9 +356,12 @@ class RunScreen(SectionScreen):
 
     def action_copy(self) -> None:
         stage = self.current_stage()
-        if stage is not None:
-            commands.copy(stage.copy_text, self.app.copy_to_clipboard)
-            self.toast(f"copied {stage.copy_text}")
+        if stage is None:
+            return
+        ids = [r.id for r in self.app.selection.marked_rows] if stage.takes_selection else []  # type: ignore[attr-defined]
+        text = commands.shell_line(stage.argv_for(ids)) if ids else stage.copy_text
+        commands.copy(text, self.app.copy_to_clipboard)
+        self.toast(f"copied {text}")
 
     def action_report(self) -> None:
         path = data.report_path()              # asked now: the stage that just exited may have written it

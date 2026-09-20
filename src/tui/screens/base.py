@@ -19,6 +19,7 @@ class SectionScreen(Screen):
         super().__init__()
         self.mode = mode
         self.placeholder = placeholder
+        self.state_note = ""           # what the section itself is doing ("running tailor")
 
     def compose(self) -> ComposeResult:
         yield SectionBar(self.mode)
@@ -27,6 +28,22 @@ class SectionScreen(Screen):
 
     def body(self) -> ComposeResult:
         yield Static(self.placeholder, id="placeholder")
+
+    def on_mount(self) -> None:
+        self.draw_note()
+
+    def on_screen_resume(self) -> None:
+        self.draw_note()
+
+    def sync_selection(self) -> None:
+        """The app's selection changed (any section may have changed it)."""
+        self.draw_note()
+
+    def draw_note(self) -> None:
+        """The footer's state line: the section's own state, then the selection, which reads the
+        same on every section so the reader never loses sight of what is marked."""
+        parts = (self.state_note, self.app.selection.note())  # type: ignore[attr-defined]
+        self.query_one(SectionFooter).note = " · ".join(p for p in parts if p)
 
     def toast(self, line: str, severity: str = "information") -> None:
         """A toast line carries a company name or a typed value: never parse it as markup."""

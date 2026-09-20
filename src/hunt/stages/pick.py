@@ -4,8 +4,18 @@ spare takes its slot (decision 12). No picks at all stops the run after the repo
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from .base import Context, StageResult
+
+
+def write_chosen(run_dir: Path, picks: list[dict]) -> Path:
+    """`hunt run --ids`: the rows a human chose stand in for this stage, in the same file and
+    shape, so research, tailor and the report read them as they read a hunt's own picks."""
+    path = run_dir / "picks.json"
+    path.write_text(json.dumps({"picks": picks, "flagged": [], "skipped": [], "spares": [], "source": "ids"},
+                               indent=1) + "\n", encoding="utf-8")
+    return path
 
 
 def run(ctx: Context) -> StageResult:

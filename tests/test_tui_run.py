@@ -225,7 +225,7 @@ def test_a_run_shows_its_tree_and_a_unit_the_tail_of_its_log(stages):
             screen = await _open(app, pilot)
             runs = screen.query_one("#run-runs")
             assert [o.id for o in runs.options] == ["20260919-1000", "20260918-0900"]
-            await pilot.press("tab")                          # stages -> runs
+            await pilot.press("tab", "tab")                   # stages -> selection -> runs
             await _settle(app, pilot)
             assert runs.has_focus and "run 20260919-1000" in _pane(screen) and "triage    running" in _pane(screen)
             assert [o.id for o in screen.query_one("#run-units").options] == ["triage/chunk_001"]
@@ -259,4 +259,104 @@ def test_R_resumes_the_highlighted_run_through_the_orchestrator(stages, monkeypa
             await pilot.press("R")
             await _until(pilot, lambda: screen.proc is None and "resumed" in screen.lines)
             assert spawned == [commands.hunt_argv("run", "--resume", "20260919-1000")]
+    _run(scenario())
+
+
+# The selection in the runner (PRA-111). `tailor` here prints the argv it was given, so the test
+# sees the ids the real spawn carried; nothing starts a hunt.
+
+ECHO = "import sys; print('argv', *sys.argv[1:])"
+
+
+@pytest.fixture
+def selection_stages(monkeypatch):
+    found = [
+        _stage("hunt", "print('hunting')", "hunt", "/jh-hunt"),
+        _stage("research", ECHO, "fanned"),
+        _stage("tailor", ECHO, "fanned"),
+        _stage("failing", "raise SystemExit(2)"),
+    ]
+    monkeypatch.setattr(data, "stages", lambda: found)
+    monkeypatch.setattr(data, "ON_SELECTION", ("research", "tailor", "failing"))
+    return found
+
+
+def _lines(screen, list_id: str) -> list[str]:
+    return [str(o.prompt) for o in screen.query_one(f"#{list_id}").options]
+
+
+def test_marked_rows_show_in_the_runner_and_enter_runs_tailor_on_them(selection_stages):
+    from tui_fakes import _add
+    ids = [_add(company=f"Co{n}", title=f"Role {n}") for n in range(3)][::-1]      # unscored: no hunt picks
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            await pilot.press("space", "space")                                     # the two top rows of the board
+            screen = await _open(app, pilot)
+            assert _lines(screen, "run-selection") == [f"● #{ids[0]} Co2, Role 2", f"● #{ids[1]} Co1, Role 1"]
+            assert str(screen.query_one("#run-selection-title").render()) == "selection (2)"
+            stage_lines = dict(zip([s.name for s in selection_stages], _lines(screen, "run-stages"), strict=True))
+            assert "2 selected · tailor note" in stage_lines["tailor"] and "2 selected" in stage_lines["research"]
+            assert stage_lines["hunt"].endswith("ignores selection")
+            assert screen.query_one("SectionFooter").note == "2 selected"
+
+            _go(screen, "run-stages", "tailor")
+            await pilot.press("enter")
+            await _until(pilot, lambda: screen.proc is None and any("exited" in ln for ln in screen.lines))
+            assert f"argv --ids {ids[0]},{ids[1]}" in _pane(screen)
+            await pilot.pause()
+            assert app.selection.marked == set()                                   # spent: the run exited 0
+            assert _lines(screen, "run-selection")[0].strip().startswith("nothing marked: space marks a row in sections 1 and 2")
+            assert "0 selected" in _lines(screen, "run-stages")[2]
+    _run(scenario())
+
+
+def test_enter_on_tailor_with_nothing_marked_spawns_nothing(selection_stages, monkeypatch):
+    spawned: list[list[str]] = []
+    monkeypatch.setattr(commands, "spawn", lambda argv: spawned.append(list(argv)))
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            screen = await _open(app, pilot)
+            for name in ("tailor", "research"):
+                _go(screen, "run-stages", name)
+                await pilot.press("enter")
+                await pilot.pause()
+            assert spawned == [] and screen.proc is None and app.running == ""
+    _run(scenario())
+
+
+def test_a_failed_run_keeps_the_selection_and_the_block_drops_and_jumps(selection_stages):
+    from tui_fakes import _add
+
+    from src.tui.screens.jobs import JobsScreen
+    from src.tui.widgets.jobs_table import JobsTable
+    ids = [_add(company=f"Co{n}") for n in range(3)][::-1]
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            await pilot.press("v")
+            screen = await _open(app, pilot)
+            _go(screen, "run-stages", "failing")
+            await pilot.press("enter")
+            await _until(pilot, lambda: screen.proc is None and any("exited (2)" in ln for ln in screen.lines))
+            await pilot.pause()
+            assert app.selection.selected == set(ids)                              # not spent: exit 2
+
+            _go(screen, "run-selection", str(ids[0]))
+            await pilot.press("backspace")
+            await pilot.pause()
+            assert app.selection.selected == set(ids[1:]) and len(_lines(screen, "run-selection")) == 2
+            assert screen.query_one("SectionFooter").note == "2 selected"
+            _go(screen, "run-selection", str(ids[2]))
+            await pilot.press("enter")                                              # jumps to the row in section 1
+            await _settle(app, pilot)
+            assert isinstance(app.screen, JobsScreen) and app.current_mode == "board"
+            table = app.screen.query_one(JobsTable)
+            assert table.current_id == ids[2] and table.get_row(str(ids[0]))[0].plain == ""
     _run(scenario())

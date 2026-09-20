@@ -11,11 +11,13 @@ from textual.screen import Screen
 from . import settings as settings_mod
 from .presets import PRESETS
 from .screens.apps import AppsScreen
+from .screens.base import SectionScreen
 from .screens.config_view import ConfigScreen
 from .screens.jobs import JobsScreen
 from .screens.run import RunScreen
 from .screens.stats import StatsScreen
 from .sections import SECTIONS, number
+from .selection import Selection
 from .widgets.detail import DetailPane
 from .widgets.jobs_table import JobsTable
 from .widgets.modals import Confirm, HelpGroup, HelpOverlay, NotesEditor, StatusPicker
@@ -56,6 +58,9 @@ class JobhuntApp(App):
         self.today = today or date.today()
         self.settings = settings_mod.load()
         self.running = ""                      # the runner's live process, by name
+        self.selection = Selection()           # the marked rows, one set for every section
+        self.selection.on_change = self.selection_changed
+        self.jump_to: int | None = None        # a row the board should land on when it next shows
         self.register_theme(settings_mod.KANAGAWA_THEME)
         self.theme = self.settings.theme
 
@@ -75,6 +80,19 @@ class JobhuntApp(App):
                 settings_mod.save(new)
             except OSError as e:
                 self.notify(f"config/tui.toml not saved: {e}", severity="error", markup=False)
+
+    def selection_changed(self) -> None:
+        for screen in self.screen_stack:
+            if isinstance(screen, SectionScreen):
+                screen.sync_selection()
+
+    def show_job(self, job_id: int) -> None:
+        """Land on a row in the board (the runner's selection block jumps with it)."""
+        self.jump_to = job_id
+        if self.current_mode == "board":
+            self.screen.on_screen_resume()      # type: ignore[attr-defined]
+        else:
+            self.switch_mode("board")
 
     def action_section(self, mode: str) -> None:
         if mode != self.current_mode:

@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -187,6 +187,18 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
         if status == ALL:
             return select(conn, COLD, ALL_CAP) + select(conn, HOT, None)
         return select(conn, (status,) if status else p.statuses, None)
+
+
+def rows_by_id(ids: set[int] | frozenset[int]) -> list[JobRow]:
+    """The marked rows that are still ones the TUI lists, whatever view is on screen: the app's
+    selection outlives a filter, and a row that went `irrelevant` or `expired` leaves it."""
+    if not ids:
+        return []
+    listed = (*HOT, *COLD)
+    with _conn() as conn:
+        sql = (f"SELECT {_ROW_COLS} FROM jobs WHERE id IN ({','.join('?' for _ in ids)}) "
+               f"AND status IN ({','.join('?' for _ in listed)})")
+        return [_job_row(r) for r in conn.execute(sql, [*sorted(ids), *listed])]
 
 
 def picks() -> list[int]:
@@ -608,6 +620,7 @@ def set_stage_model(stage: str, model: str | None) -> str:
 # `data/hunt/`. Nothing here starts a process: a stage carries its argv, the screen runs it.
 
 HUNT = "hunt"                                   # the whole loop, `python -m src.hunt run`
+ON_SELECTION = ("research", "tailor")           # `--only` these needs picks: the selection is them
 SLASH = {HUNT: "/jh-hunt", "discover": "/jh-discover", "triage": "/jh-triage", "match": "/jh-match",
          "inbox": "/jh-gmail-sync", "report": "/jh-report"}   # research and tailor need an id: `c` on a job
 
@@ -624,6 +637,14 @@ class RunStage:
     def copy_text(self) -> str:
         """What `c` puts on the clipboard: the slash command, else the shell line."""
         return self.slash or commands.shell_line(self.argv)
+
+    @property
+    def takes_selection(self) -> bool:
+        """Runs on the rows marked in the jobs sections (`hunt run --ids`), never on its own."""
+        return self.name in ON_SELECTION
+
+    def argv_for(self, job_ids: Sequence[int]) -> tuple[str, ...]:
+        return (*self.argv, "--ids", ",".join(str(int(i)) for i in job_ids)) if self.takes_selection else self.argv
 
 
 def stages() -> list[RunStage]:

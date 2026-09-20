@@ -907,9 +907,54 @@ def test_space_v_and_esc_select_rows_and_the_footer_counts_them():
             assert table.get_row(str(ids[2]))[0].plain == ""
             await pilot.press("v")
             app.screen.query_one(StatusList).focus()
-            await pilot.press("j")                           # another filter: the selection goes
+            await pilot.press("j")                           # another filter: the selection is the app's, it stays
             await _settle(app, pilot)
-            assert table.selected == set() and footer.note == ""
+            assert table.job_ids == [] and table.selected == set(ids) and footer.note == "3 selected"
+            assert [r.id for r in app.selection.selected_rows] == ids
+            await pilot.press("k")
+            await _settle(app, pilot)
+            assert [table.get_row(str(i))[0].plain for i in ids] == ["●"] * 3
+    _run(scenario())
+
+
+def test_marks_are_shared_by_the_jobs_sections_and_go_when_the_row_leaves_the_listed_statuses():
+    live = _add(status="applied", company="Live Co")
+    short = _add(company="Short Co")
+    from src.tui.widgets.footer import SectionFooter
+    from src.tui.widgets.jobs_table import JobsTable
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await pilot.press(_key("followups"))
+            await _settle(app, pilot)
+            await pilot.press("space")                       # marked in follow-ups
+            await pilot.pause()
+            assert app.selection.selected == {live}
+            await pilot.press(_key("board"))
+            await _settle(app, pilot)
+            board = app.screen.query_one(JobsTable)
+            assert board.job_ids == [short] and app.screen.query_one(SectionFooter).note == "1 selected"
+            await pilot.press("space")
+            app.screen.query_one(StatusList).highlighted = list(HOT).index("applied")
+            await _settle(app, pilot)
+            assert board.job_ids == [live] and board.get_row(str(live))[0].plain == "●"   # shows in section 1
+            for section in ("apps", "stats", "run", "settings", "followups"):
+                await pilot.press(_key(section))
+                await _settle(app, pilot)
+                assert app.screen.query_one(SectionFooter).note == "2 selected", section
+            assert app.screen.query_one(JobsTable).get_row(str(live))[0].plain == "●"
+
+            conn = db.connect(db.DB_PATH)                    # a hunt expires the posting meanwhile
+            conn.execute("UPDATE jobs SET status='expired' WHERE id=?", (short,))
+            conn.commit()
+            conn.close()
+            await pilot.press("r")
+            await _settle(app, pilot)
+            assert app.selection.selected == {live} and app.screen.query_one(SectionFooter).note == "1 selected"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.selection.marked == set()
     _run(scenario())
 
 

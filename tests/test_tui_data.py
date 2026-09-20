@@ -376,6 +376,13 @@ def test_picks_are_what_pick_would_choose(env):
     assert data.picks() == [dream_row, *top[1:5]]
 
 
+def test_rows_by_id_finds_marked_rows_in_any_listed_status_and_never_the_hidden_ones(env):
+    short, live, cold = env(), env(status="applied"), env(status="discovered")
+    gone = env(status="expired")
+    assert {r.id for r in data.rows_by_id({short, live, cold, gone, 9999})} == {short, live, cold}
+    assert data.rows_by_id(set()) == []
+
+
 def test_picks_first_keeps_each_half_in_order(env):
     found = [env(match_score=s, company=f"Co{s}") for s in (90, 80, 70, 60)]
     rows = data.rows("board", "shortlisted")

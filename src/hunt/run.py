@@ -34,6 +34,7 @@ from .doctor import validate_models
 from .harness import Harness
 from .ledger import Ledger, new_run_id
 from .stages import REGISTRY, Context, StageResult
+from .stages import pick as pick_stage
 
 NOT_IN_BUILD = "not in this build yet (docs/spec-hunt-orchestrator.md section 12)"
 PID_FILE = "pid"
@@ -84,7 +85,8 @@ def _summary_line(summary: dict[str, Any]) -> str:
 def run(cfg: HuntConfig, stages: Sequence[str], harness: str | None, *, hunt_dir: Path | None = None,
         cwd: Path = ROOT, emit: Callable[[str], None] | None = None, run_id: str | None = None,
         resume: str | None = None, clock: Callable[[], str] | None = None,
-        get_harness: Callable[[str], Harness] | None = None, pool_options: dict[str, Any] | None = None) -> int:
+        get_harness: Callable[[str], Harness] | None = None, pool_options: dict[str, Any] | None = None,
+        picks: list[dict[str, Any]] | None = None) -> int:
     say = emit or (lambda line: print(line, flush=True))
     hunt_dir = hunt_dir or ledger_mod.HUNT_DIR
     kwargs: dict[str, Any] = {"clock": clock} if clock else {}
@@ -132,6 +134,9 @@ def run(cfg: HuntConfig, stages: Sequence[str], harness: str | None, *, hunt_dir
                 say(f"hunt run: {e} (a run started this minute; wait for the next one)")
                 return 2
             say(f"run {led.run_id} started: {', '.join(stages)} on {harness} ({led.run_dir})")
+            if picks is not None:                  # `--ids`: a resume finds the file, so it keeps them
+                pick_stage.write_chosen(led.run_dir, picks)
+                say(f"picks from --ids: {', '.join('#' + str(p['id']) for p in picks)}")
         else:
             closed = led.interrupt("interrupted: the run died here")
             led.reopen()
