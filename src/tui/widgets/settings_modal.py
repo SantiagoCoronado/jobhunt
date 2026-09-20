@@ -46,10 +46,13 @@ def heading(text: str) -> Line:
 class SettingsModal(ModalScreen[None]):
     DEFAULT_CSS = """
     SettingsModal { align: center middle; }
-    SettingsModal #settings-box { width: 64; height: auto; max-height: 90%; border: round $primary;
+    /* One size for every tab: the box is as tall as the longest list needs (22 lines, plus the
+       title, the tabs, the hint and the border) and a longer list scrolls inside it, so `tab`
+       never moves an edge. On a short terminal the 90% cap wins and the list gives way. */
+    SettingsModal #settings-box { width: 64; height: 29; max-height: 90%; border: round $primary;
                                   background: $surface; padding: 0 1; }
     SettingsModal #settings-tabs { height: 1; margin-bottom: 1; }
-    SettingsModal OptionList, SettingsModal OptionList:focus { height: auto; max-height: 22; border: none; background: $surface; }
+    SettingsModal OptionList, SettingsModal OptionList:focus { height: 1fr; border: none; background: $surface; }
     SettingsModal #settings-keys { color: $text-muted; margin-top: 1; }
     """
     BINDINGS = [
