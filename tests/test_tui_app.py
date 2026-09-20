@@ -1325,3 +1325,50 @@ def test_scrollbars_are_one_cell_in_the_theme_colours_and_the_title_column_takes
             await pilot.pause()
             assert table.current_id == ids[0] and table.scroll_y > 0
     _run(scenario())
+
+
+def test_the_legend_under_the_status_list_says_what_the_marks_mean_per_section():
+    from src.tui import settings
+    from src.tui.widgets import jobs_table
+    from src.tui.widgets.legend import SAMPLE_DATE, Legend, entries
+    _add(company="Acme")
+
+    def lines(legend) -> list[str]:
+        return legend.text().plain.splitlines()
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 34)) as pilot:
+            await _settle(app, pilot)
+            legend, sl = app.screen.query_one(Legend), app.screen.query_one(StatusList)
+            assert lines(legend) == ["● marked by hand", "● hunt pick", f"{SAMPLE_DATE} overdue",
+                                     "(dream) dream list", "all discovered rows", "· no value"]
+            assert all(len(ln) <= 19 for ln in lines(legend))                   # fits the 22-cell pane
+            assert legend.region.y >= sl.region.bottom and legend.region.bottom == sl.parent.region.bottom
+            assert sl.region.height == len(HOT) + 1
+
+            spans = {legend.text().plain[s.start:s.end]: str(s.style) for s in legend.text().spans}
+            assert spans[SAMPLE_DATE] == "red"
+            app.apply_settings(settings.Settings(overdue_style="magenta"))      # as the settings modal does
+            app.screen.apply_settings()
+            await pilot.pause()
+            spans = {legend.text().plain[s.start:s.end]: str(s.style) for s in legend.text().spans}
+            assert spans[SAMPLE_DATE] == "magenta" and SAMPLE_DATE in str(legend.render())
+
+            await pilot.press(_key("followups"))                                 # no picks, no `all` there
+            await _settle(app, pilot)
+            assert lines(app.screen.query_one(Legend)) == [
+                "● marked by hand", f"{SAMPLE_DATE} overdue", "(dream) dream list", "· no value"]
+
+        # the samples are the table's own constants
+        first = entries("board")
+        assert first[0][0].plain == jobs_table.MARK and str(first[1][0].style) == jobs_table.PICK_STYLE
+        assert first[3][0].plain == jobs_table.DREAM_TAG.strip() and first[5][0].plain == jobs_table.NONE
+
+        short = JobhuntApp()
+        async with short.run_test(size=(140, 14)) as pilot:                      # a short terminal
+            await _settle(short, pilot)
+            sl = short.screen.query_one(StatusList)
+            assert sl.region.height == len(HOT) + 1                              # the status list keeps every line
+            assert short.screen.query_one(Legend).region.height < 6              # the legend gave way
+    _run(scenario())

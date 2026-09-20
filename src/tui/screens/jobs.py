@@ -12,6 +12,7 @@ from .. import commands, data
 from ..presets import ALL, PICKS_LEAD, PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
 from ..widgets.jobs_table import JobsTable
+from ..widgets.legend import Legend
 from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
 from ..widgets.status_list import StatusList
 from .base import SectionScreen
@@ -25,6 +26,7 @@ class JobsScreen(SectionScreen):
 
     DEFAULT_CSS = """
     JobsScreen #panes { height: 1fr; }
+    JobsScreen #left { width: 22; height: 1fr; border-right: solid $panel; }
     JobsScreen #middle { width: 1fr; height: 1fr; }
     JobsScreen #search { display: none; height: 1; border: none; padding: 0 1; background: $boost; }
     JobsScreen #search.open { display: block; }
@@ -61,7 +63,9 @@ class JobsScreen(SectionScreen):
 
     def body(self) -> ComposeResult:
         with Horizontal(id="panes"):
-            yield StatusList(PRESETS[self.preset].entries, id="status-list")
+            with Vertical(id="left"):
+                yield StatusList(PRESETS[self.preset].entries, id="status-list")
+                yield Legend(self.preset, id="legend")
             with Vertical(id="middle"):
                 yield Input(placeholder="search title, company, notes (d: adds descriptions in all)",
                             id="search")
@@ -71,6 +75,7 @@ class JobsScreen(SectionScreen):
     def on_mount(self) -> None:
         self.query_one(JobsTable).focus()
         self.query_one(JobsTable).marks = self.app.selection  # type: ignore[attr-defined]
+        self.query_one(Legend).show(self.app.settings.overdue_style)  # type: ignore[attr-defined]
         self.query_one(JobsTable).overdue_style = self.app.settings.overdue_style  # type: ignore[attr-defined]
         self.call_after_refresh(self.set_sort, None)      # the arrow on the preset's lead column
         self.seen_mtime = data.db_mtime()
@@ -119,6 +124,7 @@ class JobsScreen(SectionScreen):
     def apply_settings(self) -> None:
         s = self.app.settings  # type: ignore[attr-defined]
         self.query_one("#detail", DetailPane).display = self.wide
+        self.query_one(Legend).show(s.overdue_style)       # the overdue sample follows the setting
         table = self.query_one(JobsTable)
         if table.overdue_style != s.overdue_style:
             table.overdue_style = s.overdue_style
