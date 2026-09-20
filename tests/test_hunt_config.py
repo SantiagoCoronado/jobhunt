@@ -166,3 +166,30 @@ def test_a_python_stage_takes_no_model_and_a_bad_edit_writes_nothing(tmp_path):
         hc.set_stage_model("tailor", "opus", broken)
     assert path.read_text(encoding="utf-8") == before
     assert "model = [" in broken.read_text(encoding="utf-8")
+
+
+def test_an_integer_keeps_its_line_comment_and_a_value_under_the_minimum_writes_nothing(tmp_path):
+    path = tmp_path / "hunt.toml"
+    text = ('[harness]\ndefault = "claude"\nglobal_concurrency = 8          # rate-limit guard\n\n'
+            '[stages.triage]\nmodel = "haiku"\nconcurrency = 8   # chunks at once\n\n[stages.tailor]\nmodel = "fable"\n')
+    path.write_text(text, encoding="utf-8")
+    cfg = hc.set_stage_concurrency("triage", 12, path)
+    assert cfg.stage("triage").concurrency == 12
+    after = path.read_text(encoding="utf-8")
+    assert "concurrency = 12  # chunks at once" in after           # one line changed, the comment kept
+    assert after.replace("concurrency = 12  # chunks at once", "concurrency = 8   # chunks at once") == text
+    assert hc.set_global_concurrency(4, path).global_concurrency == 4
+    assert "global_concurrency = 4          # rate-limit guard" in path.read_text(encoding="utf-8")
+    hc.set_stage_concurrency("tailor", 2, path)                     # a missing key goes in under its table
+    assert "[stages.tailor]\nconcurrency = 2\n" in path.read_text(encoding="utf-8")
+
+    before = path.read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="concurrency must be at least 1, got 0"):
+        hc.set_stage_concurrency("triage", 0, path)
+    with pytest.raises(ValueError, match="global_concurrency must be at least"):
+        hc.set_global_concurrency(0, path)
+    with pytest.raises(ValueError, match="one Python process"):
+        hc.set_stage_concurrency("pick", 2, path)
+    with pytest.raises(ValueError, match="must be an integer"):
+        hc.set_int(before, "stages.triage", "concurrency", True)
+    assert path.read_text(encoding="utf-8") == before

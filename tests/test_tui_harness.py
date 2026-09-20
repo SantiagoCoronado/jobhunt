@@ -181,3 +181,43 @@ def test_doctor_runs_the_orchestrator_and_shows_its_table(hunt_toml, monkeypatch
             assert isinstance(app.screen, SettingsModal)
     _run(scenario())
     assert ran == [commands.hunt_argv("doctor")] and ran[0][1:] == ["-m", "src.hunt", "doctor"]
+
+
+def test_enter_on_a_parallel_line_takes_a_number_and_writes_concurrency(hunt_toml):
+    from src.tui.widgets.modals import Prompt
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 50)) as pilot:
+            modal = await _harness_tab(app, pilot)
+            lines = _labels(modal)
+            assert "  triage    8" in lines and "  tailor    3" in lines
+            assert "  all stages8  the cap over the numbers above" in lines
+            ol = modal.query_one("#settings-list")
+            ol.highlighted = lines.index("  triage    8")
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, Prompt)
+            await pilot.press("backspace", "1", "2", "enter")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, SettingsModal) and "  triage    12" in _labels(modal)
+
+            ol.highlighted = _labels(modal).index("  triage    12")
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.press("backspace", "backspace", "0", "enter")      # under the minimum: the config refuses
+            await _settle(app, pilot)
+            assert "  triage    12" in _labels(modal)
+            assert any("concurrency must be at least 1, got 0" in str(n.message) for n in app._notifications)
+
+            ol.highlighted = _labels(modal).index("  all stages8  the cap over the numbers above")
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.press("backspace", "4", "enter")
+            await _settle(app, pilot)
+            assert "  all stages4  the cap over the numbers above" in _labels(modal)
+    _run(scenario())
+    cfg = hunt_config.load()
+    assert cfg.stage("triage").concurrency == 12 and cfg.global_concurrency == 4
+    text = hunt_toml.read_text(encoding="utf-8")
+    assert 'model = "haiku"                   # cheap' in text and "# the reference harness" in text

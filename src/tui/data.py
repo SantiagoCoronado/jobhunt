@@ -561,6 +561,7 @@ class StageModel:
     stage: str
     harness: str               # the stage's own override, else the default
     model: str | None          # None: the harness default
+    concurrency: int = 1       # the most harness processes the orchestrator runs at once for it
 
 
 @dataclass(frozen=True)
@@ -569,6 +570,7 @@ class HarnessView:
     harnesses: tuple[str, ...] = ()        # shipped adapters plus the file's [harness.<name>] templates
     stages: tuple[StageModel, ...] = ()    # fanned stages only: a Python stage runs no model
     error: str = ""                        # hunt.toml does not load; nothing else is set
+    global_concurrency: int = 8            # the cap over every stage's own number
 
 
 def harness_view() -> HarnessView:
@@ -577,9 +579,9 @@ def harness_view() -> HarnessView:
     except ValueError as e:
         return HarnessView(error=str(e))
     names = tuple(dict.fromkeys([*hunt_harness.SHIPPED, *sorted(cfg.harness_templates), cfg.harness]))
-    stages = tuple(StageModel(s, cfg.harness_for(s), cfg.stage(s).model)
+    stages = tuple(StageModel(s, cfg.harness_for(s), cfg.stage(s).model, cfg.stage(s).concurrency)
                    for s in hunt_config.STAGES if cfg.stage(s).fanned)
-    return HarnessView(cfg.harness, names, stages)
+    return HarnessView(cfg.harness, names, stages, global_concurrency=cfg.global_concurrency)
 
 
 @dataclass(frozen=True)
@@ -619,6 +621,16 @@ def set_stage_model(stage: str, model: str | None) -> str:
 # registry plus the full hunt and the two Python extras; a run is a ledger folder under
 # `data/hunt/`. Nothing here starts a process: a stage carries its argv, the screen runs it.
 
+def set_stage_concurrency(stage: str, n: int) -> str:
+    hunt_config.set_stage_concurrency(stage, n)
+    return f"{stage}: {n} parallel (config/hunt.toml)"
+
+
+def set_global_concurrency(n: int) -> str:
+    hunt_config.set_global_concurrency(n)
+    return f"at most {n} harness processes at once, over every stage (config/hunt.toml)"
+
+
 HUNT = "hunt"                                   # the whole loop, `python -m src.hunt run`
 ON_SELECTION = ("research", "tailor")           # `--only` these needs picks: the selection is them
 SLASH = {HUNT: "/jh-hunt", "discover": "/jh-discover", "triage": "/jh-triage", "match": "/jh-match",
@@ -655,10 +667,12 @@ def stages() -> list[RunStage]:
     except ValueError:
         cfg = hunt_config.defaults()      # the harness tab names the error; the list still draws
     out = [RunStage(HUNT, "hunt", tuple(commands.hunt_argv("run")),
-                    f"every stage in order, on {cfg.harness}", SLASH[HUNT])]
+                    f"every stage, on {cfg.harness} · cap {cfg.global_concurrency} parallel", SLASH[HUNT])]
     for name, stage in REGISTRY.items():
         sc = cfg.stage(name)
-        note = f"{sc.model or 'harness default'} on {cfg.harness_for(name)}, {sc.concurrency} at a time" \
+        # `N parallel` is `concurrency` in hunt.toml, a setting (the harness tab edits it), not a
+        # limit of the runner: the most harness processes the orchestrator fans out at once.
+        note = f"{sc.model or 'harness default'} on {cfg.harness_for(name)} · {sc.concurrency} parallel" \
             if sc.fanned else "python, in process"
         out.append(RunStage(name, stage.kind, tuple(commands.hunt_argv("run", "--only", name)),
                             note, SLASH.get(name, "")))

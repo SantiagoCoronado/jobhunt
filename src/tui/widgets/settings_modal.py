@@ -162,6 +162,11 @@ class SettingsModal(ModalScreen[None]):
                                  (f"  on {sm.harness}" if sm.harness != view.default else "", "dim")),
                    f"model={sm.stage}", partial(self.pick_model, sm)) 
               for sm in view.stages),
+            heading("parallel harness processes (enter takes a number; a rate-limit and cost guard)"),
+            *(Line(Text.assemble(f"  {sm.stage:<10}", f"{sm.concurrency}"), f"parallel={sm.stage}",
+                   partial(self.ask_parallel, sm.stage, sm.concurrency)) for sm in view.stages),
+            Line(Text.assemble(f"  {'all stages':<10}", f"{view.global_concurrency}", ("  the cap over the numbers above", "dim")),
+                 "parallel=", partial(self.ask_parallel, "", view.global_concurrency)),
             heading("check"),
             Line(Text("  run doctor (binary, catalog, models, read tool)"), "doctor", self.run_doctor),
         ]
@@ -236,6 +241,24 @@ class SettingsModal(ModalScreen[None]):
 
         self.app.push_screen(Picker(f"{sm.stage} model on {sm.harness}", options, sm.model or "",
                                     choices.note, choices.open_ended), picked)
+
+    def ask_parallel(self, stage: str, now: int) -> None:
+        """`concurrency` of one fanned stage, or `global_concurrency` when `stage` is empty. The
+        prompt only asks for a whole number: the minimum is `src.hunt.config`'s to refuse."""
+        def parse(text: str) -> str:
+            try:
+                return str(int(text.strip()))
+            except ValueError:
+                raise ValueError(f"a whole number, got {text.strip()!r}") from None
+
+        def entered(text: str | None) -> None:
+            if text is not None and int(text) != now:
+                n = int(text)
+                self.hunt_write(lambda: data.set_stage_concurrency(stage, n) if stage
+                                else data.set_global_concurrency(n))
+
+        what = f"{stage}: harness processes in parallel" if stage else "every stage together: harness processes in parallel"
+        self.app.push_screen(Prompt(what, "a whole number, 1 or more", parse, str(now)), entered)
 
     def run_doctor(self) -> None:
         self.app.notify("running hunt doctor: a smoke prompt per model, up to a few minutes", markup=False)

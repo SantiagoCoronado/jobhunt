@@ -37,7 +37,8 @@ def test_a_stage_note_names_the_model_and_harness_from_hunt_toml():
     hunt_config.HUNT_TOML.parent.mkdir(parents=True, exist_ok=True)
     hunt_config.HUNT_TOML.write_text('[stages.tailor]\nmodel = "fable"\nconcurrency = 3\n', encoding="utf-8")
     by = {s.name: s for s in data.stages()}
-    assert by["tailor"].note == "fable on claude, 3 at a time"
+    assert by["tailor"].note == "fable on claude · 3 parallel"             # a setting, not a limit of the TUI
+    assert by["hunt"].note == "every stage, on claude · cap 8 parallel"    # the global cap
     assert by["match"].note.startswith("harness default on claude")
     assert by["discover"].note == "python, in process"
     hunt_config.HUNT_TOML.write_text("[stages.nope]\n", encoding="utf-8")        # a broken file still lists
