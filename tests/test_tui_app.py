@@ -1200,3 +1200,37 @@ def test_R_shows_the_plan_asks_once_and_applies_it(tmp_db, monkeypatch):
             assert not isinstance(app.screen, Confirm)
             assert toasts[-1].startswith("reconcile: 0 DB updates, 0 folder moves, 1 by hand")
     _run(scenario())
+
+
+def test_a_click_on_a_section_tab_is_its_number_key():
+    from src.tui.widgets.modals import HelpOverlay
+    from src.tui.widgets.section_bar import PAD, SectionBar, tabs
+
+    spans = {mode: (start, end) for mode, _text, start, end in tabs()}
+    assert [mode for mode, *_ in tabs()] == [mode for mode, _label in SECTIONS]      # drawn from the same table
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 30)) as pilot:
+            await _settle(app, pilot)
+            bar = app.screen.query_one(SectionBar).render().plain
+            start, end = spans["apps"]
+            assert bar[start:end] == f" {_key('apps')} apps "
+            await pilot.click(SectionBar, offset=(PAD + start + 1, 0))           # on the number
+            await _settle(app, pilot)
+            assert app.current_mode == "apps"
+            await pilot.click(SectionBar, offset=(PAD + spans["run"][1] - 1, 0))  # the label's last cell
+            await _settle(app, pilot)
+            assert app.current_mode == "run"                                      # works on every section's bar
+            await pilot.click(SectionBar, offset=(PAD + spans["settings"][1] + 3, 0))   # past the last tab
+            await pilot.click(SectionBar, offset=(135, 0))                        # the date
+            await _settle(app, pilot)
+            assert app.current_mode == "run"
+
+            await pilot.press("question_mark")                                    # a modal owns the screen
+            await pilot.pause()
+            assert isinstance(app.screen, HelpOverlay)
+            await pilot.click(offset=(PAD + spans["board"][0] + 1, 0))
+            await pilot.pause()
+            assert app.current_mode == "run"
+    _run(scenario())
