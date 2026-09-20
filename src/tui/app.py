@@ -52,10 +52,10 @@ class JobhuntApp(App):
     BINDINGS = [
         *(Binding(str(i), f"section('{mode}')", label, show=False)
           for i, (mode, label) in enumerate(SECTIONS, start=1)),
-        Binding("question_mark", "help", "help"),
-        Binding("comma", "settings", "settings", key_display=","),
+        Binding("question_mark", "help", "help", tooltip="help: every key, this list"),
+        Binding("comma", "settings", "settings", key_display=",", show=False),
         Binding("escape", "home", "home: back to the table, search cleared, modal closed", show=False),
-        Binding("q", "quit", "quit"),
+        Binding("q", "quit", "quit", show=False),
     ]
 
     def __init__(self, today: date | None = None) -> None:

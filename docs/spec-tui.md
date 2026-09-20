@@ -37,7 +37,7 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 18 | Search | `/` searches title, company and notes inside the current filter. In the `all` view a `d:` prefix also searches descriptions. | The common path stays instant. |
 | 19 | Apps section | Every folder under `applications/{pending,applied,other}` joined to its DB row: bucket, company, title, DB status, files present, build verdict when `build.json` exists, drift flag when bucket and status disagree. Pending first. `o` opens posting and Finder folder together, `p` opens the resume PDF, `s` status picker, `R` runs reconcile. | Pending rows are the ones waiting on a human click. |
 | 20 | Live refresh | Poll the `jobs.db` mtime every 2 s, reload the current view on change, `r` forces it. `db.connect` gains `busy_timeout=5000` and `journal_mode=WAL`. | A hunt in another pane must show up without a keypress and must not hand the TUI "database is locked". |
-| 21 | Keybindings | Single keys, focus-based modes (while an input has focus, letters type; `esc` returns focus to the table). `?` opens a help overlay grouped by section. The footer always shows the bindings that apply right now, drawn from the same binding table so it cannot drift. No prefix key. Avoid `ctrl+b` (the tmux prefix). | The TUI is a leaf, not a multiplexer: nothing underneath it needs the keys. |
+| 21 | Keybindings | Single keys, focus-based modes (while an input has focus, letters type; `esc` returns focus to the table). `?` opens a help overlay grouped by section. The footer always shows the bindings that apply right now, drawn from the same binding table so it cannot drift. (Amended 2026-09-20: the footer carries only the keys a reader needs in front of them, a handful per section with one or two word labels; every other binding is `show=False` and lives under `?`, which lists all of them. A shown binding keeps its long form in `tooltip`, on the same `Binding`, and the overlay prints that.) No prefix key. Avoid `ctrl+b` (the tmux prefix). | The TUI is a leaf, not a multiplexer: nothing underneath it needs the keys. |
 
 Routine calls made without a question: notes edit the whole field in a text modal (events keep
 history); `f` takes a date or `+N`; `t` records contact, `T` records contact and bumps the
@@ -279,6 +279,7 @@ Built in the order 6, 3, 8, then the rest; the numbers are the stories' own.
 
 3. **The selection follows you into the runner**: the marks are held on the app, the runner shows them in a `selection` block and `enter` on `tailor` or `research` runs `hunt run --only <stage> --ids ...` on them (decisions 11, 12, 15; hunt spec section 8).
 6. **Remove the shortlist section**: six sections; the board's `shortlisted` view leads with the hunt's picks under its own sort (decisions 4, 9).
+4. **Footer**: board and follow-ups show `space select`, `/ search`, `s status`, `c copy`, `? help`; apps `o open`, `s status`, `R reconcile`; run `enter run`, `^c stop`, `R resume`; stats `r again`; config files `tab next`, `e edit`; `,` and `q` left the footer too. Nothing is cut at 120 columns with a selection note.
 8. **An editor round trip never quits the TUI**: `e` with nvim closed the app.
 
 As built, story 8: `e` builds the argv from the template (`settings.editor_argv`), suspends the

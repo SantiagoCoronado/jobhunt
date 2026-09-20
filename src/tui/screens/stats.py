@@ -23,7 +23,7 @@ class StatsScreen(SectionScreen):
     StatsScreen #stats-scroll { height: 1fr; padding: 0 1; }
     """
     BINDINGS = [
-        Binding("r", "refresh", "refresh"),
+        Binding("r", "refresh", "again", tooltip="run the command again"),
         Binding("j", "scroll(1)", "down", show=False),
         Binding("k", "scroll(-1)", "up", show=False),
         Binding("g", "scroll(0)", "top", show=False),

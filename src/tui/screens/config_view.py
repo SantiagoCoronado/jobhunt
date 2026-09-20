@@ -21,14 +21,14 @@ class ConfigScreen(SectionScreen):
     ConfigScreen #config-scroll { height: 1fr; padding: 0 1; }
     """
     BINDINGS = [
-        Binding("tab", "tab(1)", "next file"),
+        Binding("tab", "tab(1)", "next", tooltip="next file"),
         Binding("shift+tab", "tab(-1)", "previous file", show=False),
         Binding("l", "tab(1)", "next file", show=False),
         Binding("h", "tab(-1)", "previous file", show=False),
         Binding("right", "tab(1)", "next file", show=False),
         Binding("left", "tab(-1)", "previous file", show=False),
-        Binding("e", "edit", "edit in the editor"),
-        Binding("r", "refresh", "read again"),
+        Binding("e", "edit", "edit", tooltip="edit in the configured editor"),
+        Binding("r", "refresh", "read again", show=False),
         Binding("j", "scroll(1)", "down", show=False),
         Binding("k", "scroll(-1)", "up", show=False),
         Binding("g", "scroll(0)", "top", show=False),

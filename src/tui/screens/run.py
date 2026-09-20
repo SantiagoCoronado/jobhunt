@@ -45,6 +45,12 @@ class RunList(OptionList):
             self.highlighted = ids.index(was) if was in ids else 0
 
 
+class StageList(RunList):
+    """An OptionList binds `enter` itself (hidden), which would keep the screen's `enter run`
+    out of the footer while this list has the focus; the same key, named here."""
+    BINDINGS = [Binding("enter", "select", "run", key_display="enter", tooltip="run the stage (tailor and research: on the selection)")]
+
+
 class RunScreen(SectionScreen):
     POLL_SECONDS = 2.0
 
@@ -60,14 +66,14 @@ class RunScreen(SectionScreen):
     RunScreen Log { height: 1fr; padding: 0 1; }
     """
     BINDINGS = [
-        Binding("enter", "run", "run the stage (tailor and research: on the selection)"),
+        Binding("enter", "run", "run the stage (tailor and research: on the selection)", show=False),
         Binding("space", "drop", "take the row off the selection", show=False),
         Binding("backspace", "drop", "take the row off the selection", show=False),
-        Binding("c", "copy", "copy the command"),
-        Binding("R", "resume", "resume the run"),
-        Binding("o", "report", "open report.html"),
-        Binding("ctrl+c", "cancel", "stop the running stage", priority=True),
-        Binding("r", "refresh", "refresh"),
+        Binding("ctrl+c", "cancel", "stop", tooltip="stop the running stage (again: kill it)", priority=True),
+        Binding("R", "resume", "resume", tooltip="resume the highlighted run"),
+        Binding("c", "copy", "copy the command", show=False),
+        Binding("o", "report", "open report.html", show=False),
+        Binding("r", "refresh", "refresh", show=False),
         Binding("tab", "app.focus_next", "next list: stages, selection, runs, units, log", show=False),
     ]
 
@@ -88,7 +94,7 @@ class RunScreen(SectionScreen):
         with Horizontal(id="run-panes"):
             with Vertical(id="run-left"):
                 yield Label("stages", classes="run-title")
-                yield RunList(id="run-stages")
+                yield StageList(id="run-stages")
                 yield Label("selection", classes="run-title", id="run-selection-title")
                 yield RunList(id="run-selection")
                 yield Label("runs", classes="run-title")

@@ -14,11 +14,11 @@ from .base import SectionScreen
 
 class AppsScreen(SectionScreen):
     BINDINGS = [
-        Binding("r", "refresh", "refresh"),
-        Binding("o", "open", "open posting + folder"),
-        Binding("p", "pdf", "resume PDF"),
+        Binding("r", "refresh", "refresh", show=False),
+        Binding("o", "open", "open", tooltip="open the posting and the folder"),
+        Binding("p", "pdf", "resume PDF", show=False),
         Binding("s", "status", "status"),
-        Binding("R", "reconcile", "reconcile"),
+        Binding("R", "reconcile", "reconcile", tooltip="reconcile folders and statuses: the dry run, then y applies"),
     ]
 
     def __init__(self) -> None:

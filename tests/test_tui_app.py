@@ -599,7 +599,7 @@ def test_help_overlay_lists_every_binding_by_group_and_footer_reads_the_same_tab
     from textual.widgets import Footer
 
     from src.tui.screens.jobs import JobsScreen
-    from src.tui.widgets.modals import HelpOverlay, help_text, key_name
+    from src.tui.widgets.modals import HelpOverlay, help_text, key_name, long_text
 
     async def scenario():
         app = JobhuntApp()
@@ -618,9 +618,10 @@ def test_help_overlay_lists_every_binding_by_group_and_footer_reads_the_same_tab
             assert [ln for ln in lines if ln and not ln.startswith(" ")] == titles
             for _title, bindings in groups:
                 for b in bindings:
-                    assert f"{key_name(b):<8}{b.description}" in text, b
-            for want in ("/       search", "?       help", "esc     home", "1       board",
-                         "6       settings", "s       status", "T       touch and bump"):
+                    assert f"{key_name(b):<8}{long_text(b)}" in text, b       # shown in the footer or not
+            for want in ("/       search", "?       help", "esc     home", "1       board", "q       quit",
+                         "6       settings", "s       status", "T       touch and bump", "b       backlog",
+                         "c       copy /jh-tailor lines", ">       sort by next column"):
                 assert want in text, want
             assert "—" not in text
             await pilot.press("escape")
@@ -1233,4 +1234,39 @@ def test_a_click_on_a_section_tab_is_its_number_key():
             await pilot.click(offset=(PAD + spans["board"][0] + 1, 0))
             await pilot.pause()
             assert app.current_mode == "run"
+    _run(scenario())
+
+
+def test_the_footer_carries_the_necessary_keys_only_and_fits_120_columns_with_a_note():
+    """PRA-112. Everything else is under `?` (the help test above walks every binding)."""
+    from textual.widgets import Footer
+
+    from src.tui.widgets.footer import SectionFooter
+    want = {
+        "board": [("space", "select"), ("/", "search"), ("s", "status"), ("c", "copy"), ("?", "help")],
+        "followups": [("space", "select"), ("/", "search"), ("s", "status"), ("c", "copy"), ("?", "help")],
+        "apps": [("o", "open"), ("s", "status"), ("R", "reconcile"), ("?", "help")],
+        "stats": [("again", "r")[::-1], ("?", "help")],
+        "run": [("enter", "run"), ("^c", "stop"), ("R", "resume"), ("?", "help")],
+        "settings": [("tab", "next"), ("e", "edit"), ("?", "help")],
+    }
+    ids = [_add(company=f"Co{n}") for n in range(3)]
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(120, 30)) as pilot:
+            await _settle(app, pilot)
+            await pilot.press("v")                                   # a selection note on every section
+            assert app.selection.selected == set(ids)
+            for mode, _label in SECTIONS:
+                await pilot.press(_key(mode))
+                await _settle(app, pilot)
+                footer = app.screen.query_one(Footer)
+                assert app.screen.query_one(SectionFooter).note == "3 selected"
+                keys = [k for k in footer.query("FooterKey") if k.key != "ctrl+p"]
+                shown = [(k.key_display, k.description) for k in keys]
+                assert sorted(shown) == sorted(want[mode]), mode
+                assert all(len(k.description.split()) <= 2 for k in keys)
+                for k in keys:                                        # nothing cut, nothing wrapped
+                    assert k.region.right <= footer.region.right and k.region.height == 1, (mode, k.key)
     _run(scenario())
