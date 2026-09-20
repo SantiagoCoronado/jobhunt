@@ -292,7 +292,7 @@ def detail(job_id: int) -> JobDetail | None:
     )
 
 
-# Applications (section 4): every folder under applications/{pending,applied,other} joined to
+# Applications (the apps section): every folder under applications/{pending,applied,other} joined to
 # its DB row by the `-<id>` suffix.
 
 APP_FILES = ("resume", "pdf", "letter", "answers")   # the order the files column lists them in

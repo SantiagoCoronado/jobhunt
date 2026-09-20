@@ -1,4 +1,4 @@
-"""App shell: seven sections as Textual modes, a section bar, the footer, global keys."""
+"""App shell: six sections as Textual modes, a section bar, the footer, global keys."""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -15,23 +15,12 @@ from .screens.config_view import ConfigScreen
 from .screens.jobs import JobsScreen
 from .screens.run import RunScreen
 from .screens.stats import StatsScreen
+from .sections import SECTIONS, number
 from .widgets.detail import DetailPane
 from .widgets.jobs_table import JobsTable
 from .widgets.modals import Confirm, HelpGroup, HelpOverlay, NotesEditor, StatusPicker
 from .widgets.settings_modal import SettingsModal
 from .widgets.status_list import StatusList
-
-# (mode, label). Order is the key order: `1` is the first entry.
-SECTIONS: tuple[tuple[str, str], ...] = (
-    ("board", "board"),
-    ("shortlist", "shortlist"),
-    ("followups", "follow-ups"),
-    ("apps", "apps"),
-    ("stats", "stats"),
-    ("run", "run"),
-    ("settings", "settings"),
-)
-
 
 OWN_SCREENS: dict[str, Callable[[], Screen]] = {
     "apps": AppsScreen, "stats": StatsScreen, "run": RunScreen, "settings": ConfigScreen,
@@ -39,7 +28,7 @@ OWN_SCREENS: dict[str, Callable[[], Screen]] = {
 
 
 def _screen(mode: str) -> Callable[[], Screen]:
-    """Sections 1 to 3 are presets on the one jobs screen; 4 to 7 are their own screens."""
+    """Board and follow-ups are presets on the one jobs screen; the rest are their own screens."""
     return (lambda: JobsScreen(mode)) if mode in PRESETS else OWN_SCREENS[mode]
 
 
@@ -110,9 +99,9 @@ class JobhuntApp(App):
     @staticmethod
     def help_groups() -> list[HelpGroup]:
         owners = (
-            ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
+            ("everywhere", JobhuntApp), ("board and follow-ups", JobsScreen), ("jobs table", JobsTable),
             ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen), ("stats", StatsScreen), ("run", RunScreen),
-            ("config files (section 7)", ConfigScreen),
+            (f"config files (section {number('settings')})", ConfigScreen),
             ("status picker", StatusPicker), ("notes editor", NotesEditor), ("settings", SettingsModal),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.

@@ -47,7 +47,7 @@ KANAGAWA_THEME = Theme(
     },
 )
 THEMES: tuple[str, ...] = (*BUILTIN_THEMES, KANAGAWA)
-SECTIONS: tuple[str, ...] = tuple(PRESETS)           # a launch section is one of the three presets
+SECTIONS: tuple[str, ...] = tuple(PRESETS)           # a launch section is one of the jobs presets
 OVERDUE_STYLES: tuple[str, ...] = ("red", "bold red", "yellow", "magenta", "reverse")
 EDITORS: tuple[str, ...] = ("$EDITOR", "code -w", "cursor -w", "zed -w", "nvim", "vim", "nano")
 FALLBACK_EDITOR = "vi"                               # what `$EDITOR` means when it is unset

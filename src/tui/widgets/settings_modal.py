@@ -17,6 +17,7 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .. import commands, data, settings
+from ..sections import number
 from ..settings import Settings
 from .modals import OutputModal, Picker, Prompt
 
@@ -150,7 +151,7 @@ class SettingsModal(ModalScreen[None]):
         """`config/hunt.toml`, not tui.toml: how a hunt runs is the orchestrator's file."""
         view = data.harness_view()
         if view.error:
-            return [heading("config/hunt.toml does not load; fix it in the editor (section 7)"),
+            return [heading(f"config/hunt.toml does not load; fix it in the editor (section {number('settings')})"),
                     heading(view.error)]
         return [
             heading("harness (config/hunt.toml)"),
@@ -178,7 +179,7 @@ class SettingsModal(ModalScreen[None]):
     def editor_lines(self) -> list[Line]:
         known = list(dict.fromkeys([*settings.EDITORS, self.current.editor]))
         return [
-            heading("opens a config file (e in section 7)"),
+            heading(f"opens a config file (e in section {number('settings')})"),
             *(self.choice(cmd, "editor", cmd) for cmd in known),
             Line(Text("  another command..."), CUSTOM, self.ask_editor),
         ]

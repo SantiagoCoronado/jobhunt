@@ -1,6 +1,6 @@
 """Headless pilot tests for the TUI shell (Textual's run_test; no terminal needed)."""
 import pytest
-from tui_fakes import COPIED, OPENED, _add, _run, _settle
+from tui_fakes import _add, COPIED, _key, OPENED, _run, _settle
 
 from src import db
 from src.tui import commands
@@ -22,7 +22,8 @@ def test_boots_on_board_and_number_keys_switch_sections():
             await pilot.press("1")
             assert app.current_mode == "board"
             bar = app.screen.query_one("SectionBar").render().plain
-            assert "1 board" in bar and "7 settings" in bar
+            assert "1 board" in bar and "2 follow-ups" in bar and "6 settings" in bar
+            assert len(SECTIONS) == 6 and "shortlist " not in bar
     _run(scenario())
 
 
@@ -108,17 +109,15 @@ def test_jobs_table_loads_the_filter_in_preset_order_and_jkgG_move():
     _run(scenario())
 
 
-def test_shortlist_and_followups_list_only_their_statuses():
+def test_followups_lists_only_its_statuses():
     _add(status="interview", next_followup_at="2026-09-10")
 
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 30)) as pilot:
-            await pilot.press("2")
+            await pilot.press("2")                            # the shortlist section is gone: 2 is follow-ups
             await _settle(app, pilot)
-            assert [o.id for o in app.screen.query_one(StatusList).options] == ["shortlisted"]
-            await pilot.press("3")
-            await _settle(app, pilot)
+            assert app.current_mode == "followups"
             assert [o.id for o in app.screen.query_one(StatusList).options] == [
                 "followups", "applied", "screen", "interview"]
     _run(scenario())
@@ -239,11 +238,10 @@ def test_presets_filter_sort_and_style_overdue_followups_red():
     async def scenario():
         app = JobhuntApp(today=date(2026, 9, 18))
         async with app.run_test(size=(140, 30)) as pilot:
-            await pilot.press("2")
             await _settle(app, pilot)
-            assert app.screen.query_one(JobsTable).job_ids == [short]
+            assert app.screen.query_one(JobsTable).job_ids == [short]   # the board opens on `shortlisted`
 
-            await pilot.press("3")
+            await pilot.press(_key("followups"))
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
             sl = app.screen.query_one(StatusList)
@@ -303,7 +301,9 @@ def test_status_picker_filters_applies_writes_the_event_and_moves_the_folder(tmp
         async with app.run_test(size=(140, 30)) as pilot:
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
-            await pilot.press("s")
+            # Acme has a folder, so it is in play and no pick: the two picks lead `shortlisted`.
+            assert table.job_ids == [second, third, first]
+            await pilot.press("G", "s")
             await pilot.pause()
             assert isinstance(app.screen, StatusPicker)
             await pilot.press("escape")
@@ -320,8 +320,8 @@ def test_status_picker_filters_applies_writes_the_event_and_moves_the_folder(tmp
             assert _events(first) == [("status_change", '{"from": "shortlisted", "to": "applied"}')]
             assert not folder.exists()
             assert (tmp_db / "applications" / "applied" / f"acme-{first}").is_dir()
-            # The row left the filter; the cursor stays on its line, now the next job.
-            assert table.job_ids == [second, third] and table.current_id == second
+            # The row left the filter; the cursor stays on its line, or the last one left.
+            assert table.job_ids == [second, third] and table.current_id == third
             counts = {o.id: o.prompt.plain.split()[-1] for o in app.screen.query_one(StatusList).options}
             assert counts["shortlisted"] == "2" and counts["applied"] == "1"
     _run(scenario())
@@ -613,14 +613,14 @@ def test_help_overlay_lists_every_binding_by_group_and_footer_reads_the_same_tab
             groups = app.help_groups()
             assert text == help_text(groups).plain
             titles = [t for t, _ in groups]
-            assert titles[:3] == ["everywhere", "sections 1 to 3", "jobs table"]
+            assert titles[:3] == ["everywhere", "board and follow-ups", "jobs table"]
             lines = text.splitlines()
             assert [ln for ln in lines if ln and not ln.startswith(" ")] == titles
             for _title, bindings in groups:
                 for b in bindings:
                     assert f"{key_name(b):<8}{b.description}" in text, b
             for want in ("/       search", "?       help", "esc     home", "1       board",
-                         "7       settings", "s       status", "T       touch and bump"):
+                         "6       settings", "s       status", "T       touch and bump"):
                 assert want in text, want
             assert "—" not in text
             await pilot.press("escape")
@@ -673,7 +673,7 @@ def test_esc_is_home_from_every_pane_and_modal():
             await pilot.pause()
             assert not isinstance(app.screen, HelpOverlay)
 
-            await pilot.press("5", "escape")                         # a section with no home
+            await pilot.press(_key("stats"), "escape")                         # a section with no home
             await pilot.pause()
             assert app.current_mode == "stats"
     _run(scenario())
@@ -827,7 +827,7 @@ def test_followups_marks_its_own_lead_and_flips_from_it():
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 30)) as pilot:
-            await pilot.press("3")
+            await pilot.press(_key("followups"))
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
             assert table.columns["fup"].label.plain == "fup ▲" and table.job_ids == [soon, late]
@@ -837,13 +837,14 @@ def test_followups_marks_its_own_lead_and_flips_from_it():
     _run(scenario())
 
 
-def test_shortlist_leads_with_the_hunt_picks_and_a_chosen_sort_overrides_them():
+def test_shortlisted_on_the_board_leads_with_the_hunt_picks_and_a_chosen_sort_overrides_them():
     """Seven scored companies: `pick` takes five, the dream row among them at 60, below two
-    rows it passed over. Shortlist lifts it above them; the board keeps plain score order."""
+    rows it passed over. The board's `shortlisted` view lifts it above them (the rule the
+    shortlist section had); every other status keeps plain score order."""
     ids = [_add(match_score=s, company=f"Co{s}") for s in (95, 90, 85, 80, 75, 70)]
     dream = _add(match_score=60, company="Example Robotics", location="Berlin, Germany")
     held = _add(match_score=99, company="Busy Co")
-    _add(status="applied", company="Busy Co")
+    busy = _add(status="applied", company="Busy Co")
     from src.tui.widgets.jobs_table import JobsTable
 
     async def scenario():
@@ -851,20 +852,21 @@ def test_shortlist_leads_with_the_hunt_picks_and_a_chosen_sort_overrides_them():
         async with app.run_test(size=(140, 30)) as pilot:
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
-            assert table.job_ids == [held, *ids, dream]
+            assert app.screen.status_filter == "shortlisted"
+            assert table.job_ids == [*ids[:4], dream, held, *ids[4:]]
             marked = [i for i in table.job_ids if table.get_row(str(i))[0].plain == "●"]
             assert marked == [*ids[:4], dream]           # a dream slot, Busy Co in play, five in all
             assert table.preselected == set(marked) and table.selected == set()
-            await pilot.press("2")
-            await _settle(app, pilot)
-            table = app.screen.query_one(JobsTable)
-            assert table.job_ids == [*ids[:4], dream, held, *ids[4:]]
             await pilot.press("minus")                    # score ascending: the reader's sort wins
             await _settle(app, pilot)
             assert table.job_ids == [dream, *reversed(ids), held]
             await pilot.press("equals_sign")
             await _settle(app, pilot)
             assert table.job_ids[:5] == [*ids[:4], dream]
+            app.screen.query_one(StatusList).highlighted = len(HOT)   # `all`: any other status
+            await _settle(app, pilot)
+            assert app.screen.status_filter == "all"
+            assert table.job_ids == [held, *ids, dream, busy]          # plain score order
     _run(scenario())
 
 
@@ -1052,7 +1054,7 @@ def test_apps_lists_pending_first_and_opens_posting_folder_and_pdf(tmp_db, monke
         app = JobhuntApp()
         monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
         async with app.run_test(size=(160, 30)) as pilot:
-            await pilot.press("4")
+            await pilot.press(_key("apps"))
             await _settle(app, pilot)
             assert isinstance(app.screen, AppsScreen)
             table = app.screen.query_one(AppsTable)
@@ -1089,7 +1091,7 @@ def test_apps_status_change_moves_the_folder_and_keeps_the_cursor_on_it(tmp_db):
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(160, 30)) as pilot:
-            await pilot.press("4")
+            await pilot.press(_key("apps"))
             await _settle(app, pilot)
             table = app.screen.query_one(AppsTable)
             await pilot.press("s", "a", "p", "p", "enter")   # shortlisted -> applied: no question
@@ -1125,7 +1127,7 @@ def test_R_shows_the_plan_asks_once_and_applies_it(tmp_db, monkeypatch):
         app = JobhuntApp()
         monkeypatch.setattr(app, "notify", lambda line, **kw: toasts.append(line))
         async with app.run_test(size=(160, 30)) as pilot:
-            await pilot.press("4")
+            await pilot.press(_key("apps"))
             await _settle(app, pilot)
             table = app.screen.query_one(AppsTable)
             assert sum(bool(a.drift) for a in table.apps) == 3

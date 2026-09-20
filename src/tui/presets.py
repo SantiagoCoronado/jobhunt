@@ -1,4 +1,4 @@
-"""Board, shortlist and follow-ups: the same rows under three filters and sorts (spec decision 9)."""
+"""Board and follow-ups: the same rows under two filters and sorts (spec decision 9)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +13,9 @@ HOT: tuple[str, ...] = tuple(s for s in STATUSES if s not in NEVER + COLD)
 ALL = "all"
 LIVE = ("applied", "screen", "interview")   # a follow-up date means something only here
 OVERDUE_STYLE = "red"
+# Under this left-pane status the rows `src.pick` would choose lead the preset's own order (the
+# shortlist section did this until it was removed); a chosen sort is obeyed as is.
+PICKS_LEAD = "shortlisted"
 
 # ORDER BY fragments. Literals only: they are spliced into SQL, never built from input.
 BY_SCORE = "match_score IS NULL, match_score DESC, id DESC"
@@ -60,7 +63,6 @@ class Preset:
     order_by: str
     listed: tuple[str, ...] = ()   # the left pane's entries; empty = the same as `statuses`
     leads: Sort = Sort("score", True)   # the column and direction `order_by` leads with
-    picks_first: bool = False           # the rows `src.pick` would choose lead the preset's own order
 
     @property
     def entries(self) -> tuple[str, ...]:
@@ -69,7 +71,6 @@ class Preset:
 
 PRESETS: dict[str, Preset] = {
     "board": Preset("board", HOT, BY_SCORE, listed=(*HOT, ALL)),
-    "shortlist": Preset("shortlist", ("shortlisted",), BY_SCORE, picks_first=True),
     # The head entry (the preset's own name) is every live application at once, soonest
     # follow-up first: that is the view the section exists for.
     "followups": Preset("followups", LIVE, BY_FOLLOWUP, listed=("followups", *LIVE),

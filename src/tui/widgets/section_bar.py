@@ -1,8 +1,10 @@
-"""The top bar: `1 board  2 shortlist ...` with the active section highlighted, date on the right."""
+"""The top bar: `1 board  2 follow-ups ...` with the active section highlighted, date on the right."""
 from __future__ import annotations
 
 from rich.text import Text
 from textual.widgets import Static
+
+from ..sections import SECTIONS
 
 
 class SectionBar(Static):
@@ -15,8 +17,6 @@ class SectionBar(Static):
         self.active = active
 
     def render(self) -> Text:
-        from ..app import SECTIONS  # local import: app imports the screens that import this bar
-
         t = Text()
         for i, (mode, label) in enumerate(SECTIONS, start=1):
             style = "reverse bold" if mode == self.active else ""

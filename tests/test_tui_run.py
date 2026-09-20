@@ -4,7 +4,7 @@ import asyncio
 import sys
 
 import pytest
-from tui_fakes import COPIED, OPENED, _run, _settle
+from tui_fakes import COPIED, _key, OPENED, _run, _settle
 
 from src import db
 from src.hunt import ledger
@@ -37,7 +37,7 @@ def stages(monkeypatch):
 
 
 async def _open(app, pilot) -> RunScreen:
-    await pilot.press("6")
+    await pilot.press(_key("run"))
     await _settle(app, pilot)
     assert isinstance(app.screen, RunScreen)
     return app.screen

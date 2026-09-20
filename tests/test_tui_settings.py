@@ -32,6 +32,12 @@ def test_an_unknown_theme_falls_back_and_says_so(tmp_path):
     assert len(s.warnings) == 1 and "vaporwave" in s.warnings[0]
 
 
+def test_a_file_that_still_opens_on_the_removed_shortlist_section_falls_back_to_board(tmp_path):
+    s = settings.load(_write(tmp_path / "tui.toml", '[sections]\ndefault = "shortlist"\n'))
+    assert s.default_section == "board" and settings.SECTIONS == ("board", "followups")
+    assert len(s.warnings) == 1 and "shortlist" in s.warnings[0]
+
+
 def test_every_builtin_theme_and_kanagawa_pass():
     for name in settings.THEMES:
         assert settings.parse({"theme": {"name": name}}) == replace(DEFAULTS, theme=name)

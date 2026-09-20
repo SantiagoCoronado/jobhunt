@@ -1,4 +1,4 @@
-"""Sections 1 to 3: one three-pane screen (status list, jobs table, detail) under a preset."""
+"""Board and follow-ups: one three-pane screen (status list, jobs table, detail) under a preset."""
 from __future__ import annotations
 
 from textual import events, work
@@ -9,7 +9,7 @@ from textual.widgets import Input
 from textual.worker import get_current_worker
 
 from .. import commands, data
-from ..presets import PRESETS, SORT_COLUMNS, Sort
+from ..presets import PICKS_LEAD, PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
 from ..widgets.footer import SectionFooter
 from ..widgets.jobs_table import JobsTable
@@ -122,7 +122,7 @@ class JobsScreen(SectionScreen):
         worker = get_current_worker()
         rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
         picks = set(data.picks())
-        if PRESETS[self.preset].picks_first and self.sort is None:    # a chosen sort is obeyed as is
+        if self.status_filter == PICKS_LEAD and self.sort is None:    # a chosen sort is obeyed as is
             rows = data.picks_first(rows, picks)
         if not worker.is_cancelled:
             today = self.app.today  # type: ignore[attr-defined]
@@ -285,7 +285,7 @@ class JobsScreen(SectionScreen):
             return
         self.app.call_from_thread(self.toast, line)
 
-    # Copy: `c` every marked row listed (the hunt's picks arrive marked, so on a fresh shortlist
+    # Copy: `c` every marked row listed (the hunt's picks arrive marked, so on a fresh `shortlisted`
     # that is what a hunt would tailor), else the row under the cursor. One `/jh-tailor <id>`
     # per line, in table order; a multi-line paste runs in order.
 

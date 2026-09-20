@@ -2,7 +2,7 @@
 from datetime import date
 
 import pytest
-from tui_fakes import _add, _run, _settle
+from tui_fakes import _add, _key, _run, _settle
 
 from src.tui import settings
 from src.tui.app import JobhuntApp
@@ -56,7 +56,7 @@ def test_enter_applies_and_saves_and_the_check_moves():
             await pilot.press("tab")                          # sections
             lines = _labels(modal)
             assert lines[lines.index("  board ✓")] and "  followups" in lines
-            await pilot.press("j", "j", "enter")              # board -> shortlist -> followups
+            await pilot.press("j", "enter")                   # board -> followups
             await pilot.pause()
             assert app.settings.default_section == "followups"
             assert settings.load().default_section == "followups"
@@ -67,13 +67,13 @@ def test_enter_applies_and_saves_and_the_check_moves():
 
 
 def test_the_saved_launch_section_is_where_the_next_launch_opens(tmp_db):
-    settings.save(settings.Settings(default_section="shortlist"))
+    settings.save(settings.Settings(default_section="followups"))
 
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 30)) as pilot:
             await _settle(app, pilot)
-            assert app.current_mode == "shortlist"
+            assert app.current_mode == "followups"
     _run(scenario())
 
 
@@ -120,7 +120,7 @@ def test_overdue_style_and_the_followup_hint_come_from_the_settings():
     async def scenario():
         app = JobhuntApp(today=date(2026, 9, 19))
         async with app.run_test(size=(160, 40)) as pilot:
-            await pilot.press("3")
+            await pilot.press(_key("followups"))
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
             assert str(table.get_row_at(0)[-1].style) == "red"

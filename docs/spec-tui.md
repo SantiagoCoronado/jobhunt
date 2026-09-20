@@ -20,12 +20,12 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 1 | Framework | Textual (Python), with `src/tui/data.py` as the only module touching SQLite so a ratatui front end could replace the view later | Same venv, imports the existing write paths, no second implementation of `set_status`. A fast TUI never blocks on I/O, stays alive between uses and draws only dirty cells; Textual gives the last one, the first two are architecture and apply regardless of language. No Rust or Go toolchain on the machine. |
 | 2 | Notion | Full delete: `src/notion_pull.py`, its test, `/jh-notion-sync`, `query crm`, hints in run.sh, setup.sh, notify footer, docs wording. History docs keep past-tense mentions. Santiago disconnects the claude.ai Notion connector himself (it is not configured in the repo). | Half-killed code gets picked up by an agent one day. |
 | 3 | What it replaces | The Flask viewer and the Flask dependency. `report.html` stays as the offline, shareable dashboard. | A TUI cannot be opened on a phone or sent to someone. |
-| 4 | Sections | 1 board, 2 shortlist, 3 follow-ups, 4 apps, 5 stats (placeholder only), 6 run, 7 settings | Sections 1 to 3 are presets on one shared three-pane screen. |
+| 4 | Sections | 1 board, 2 follow-ups, 3 apps, 4 stats (placeholder only), 5 run, 6 settings. (Amended 2026-09-20: the shortlist section, once `2`, is gone; it showed the board's `shortlisted` rows under a left pane with nothing to pick. The board's `shortlisted` view took over its one rule, the hunt's picks leading the list.) | Board and follow-ups are presets on one shared three-pane screen. |
 | 5 | Claude Code | The TUI runs no model itself. LLM stages run through the hunt orchestrator (`docs/spec-hunt-orchestrator.md`): `python -m src.hunt run --only <stage>` or a full `run`, as a subprocess exactly like a Python stage, stdout tailed in the log pane. The harness behind it is chosen in `config/hunt.toml`, never in the TUI code. Copy-to-clipboard of the slash command stays as the secondary verb. (Amended 2026-09-07; before that, v1 was copy-only and harness execution was deferred.) | Shelling an interactive agent out of Textual is a terminal-ownership rabbit hole; a headless orchestrator with log files is not. |
 | 6 | Phone access | Lost, accepted. `textual serve` is the one-line escape hatch later. | The hunt stopped pushing to Notion on 2026-09-02 anyway. |
 | 7 | Process | Spec first, review in a separate session, one PR per phase, several commits per PR (one story each). | House workflow. |
 | 8 | Multiplexer integration | None. Standalone `python -m src.tui`, opened in any terminal or tmux pane by hand. | A multiplexer plugin would buy one keybinding and an auto-start; it over-complicates v1 (Santiago, 2026-09-19). |
-| 9 | Navigation | Sections 1 to 3 share one three-pane screen (status list, jobs table, detail pane). Sections 4 to 7 are their own screens. | Board, shortlist and follow-ups are the same rows with different filters. |
+| 9 | Navigation | Board and follow-ups share one three-pane screen (status list, jobs table, detail pane). Apps, stats, run and settings are their own screens. | Board and follow-ups are the same rows with different filters. |
 | 10 | Board shape | Three-pane. Eleven kanban columns do not fit a terminal. | The status list is the counts strip turned vertical. |
 | 11 | Hunt picks (was: stars) | Computed, never stored: a row is a pick iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. There is no star mark (amended 2026-09-19): a mark nobody can set by hand reads as broken, so the picks arrive as a pre-selection, the same `●` as a hand-made one, in yellow. `space` takes one off, `esc` takes them all off, `C` brings them back. The pre-selection feeds `c` only; `s` and `b` act on hand-made marks, so a stray `b` never backlogs five rows. | What the TUI shows pre-selected is what a hunt would tailor. |
 | 12 | Runner scope | The stage list is the `src.hunt` registry (discover, triage, match, inbox, pick, research, tailor, report, plus the full hunt) and the extra Python stages (reconcile, stats). `enter` runs any of them as a subprocess with a streamed log; `c` still copies the slash command. A run list shows `data/hunt/*/state.json` with state and started time; selecting a run shows its stages and units and tails the selected unit's log. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. | One process at a time keeps SQLite writes serialized, and the orchestrator's lockfile enforces it for hunts. |
@@ -45,11 +45,11 @@ follow-up; mouse enabled; stats placeholder shows the plain output of `stats fun
 
 ## 3. Layout
 
-Sections 1 to 3 (board shown; shortlist pins `shortlisted` with the hunt's picks leading;
-follow-ups pins `applied · screen · interview`, sorts by follow-up date, overdue in red):
+Board and follow-ups (board shown; its `shortlisted` view leads with the hunt's picks unless a
+sort was chosen; follow-ups pins `applied · screen · interview`, sorts by follow-up date, overdue in red):
 
 ```
- 1 board  2 shortlist  3 follow-ups  4 apps  5 stats  6 run  7 settings          jobhunt · 2026-09-04
+ 1 board  2 follow-ups  3 apps  4 stats  5 run  6 settings                       jobhunt · 2026-09-04
 ──────────────────────────────────────────────────────────────────────────────────────────────────
  status         │ score co    company           title                       loc          fup      │ #3625 ElevenLabs
  ▸ shortlisted 622 │ ★ 94   ElevenLabs        Forward Deployed Engineer    Remote LATAM  ·        │ Forward Deployed Engineer
@@ -85,10 +85,10 @@ Settings modal:
 
 ## 4. Keybindings
 
-Global: `1`..`7` sections, `?` help, `,` settings, `r` refresh, `q` quit, `esc` home
+Global: `1`..`6` sections, `?` help, `,` settings, `r` refresh, `q` quit, `esc` home
 (focus back to the table, selection cleared, any modal closed).
 
-Jobs table (sections 1 to 3): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` detail overlay
+Jobs table (board and follow-ups): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` detail overlay
 (narrow) or focus detail (wide), `space` select, `v` select all visible, `s` status picker,
 `b` backlog, `n` notes, `f` follow-up date, `t` touch, `T` touch and bump, `o` open posting,
 `O` open folder (or dossier when no folder), `c` copy `/jh-tailor <id>` (every marked row when any),
@@ -99,18 +99,18 @@ on a column header sorts by it and a second click flips. The sorted header carri
 The order is made in SQL (`data.rows(..., sort)`, whitelisted columns, empty values last in
 both directions), so search, the `all` cap and live refresh keep it.
 
-Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile (the dry
+Apps (3): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile (the dry
 run first; one `y` applies it when there is something it can fix, and what only a human can
 settle stays in the toast).
 
-Run (6): `j`/`k` pick a stage, `enter` runs it (any stage, the full hunt included), `c` copies
+Run (5): `j`/`k` pick a stage, `enter` runs it (any stage, the full hunt included), `c` copies
 the slash command (the shell line when there is none), `R` resumes the highlighted run, `o` opens
 `report.html`, `tab` walks stages, runs, units and the log, `ctrl+c` stops the running stage
 (SIGTERM; a second one kills the process group). `q` asks first while a stage is running.
 
-Stats (5): `j`/`k`/`g` scroll, `r` runs the command again.
+Stats (4): `j`/`k`/`g` scroll, `r` runs the command again.
 
-Config files (7): `tab` / `h` / `l` walk the files, `j`/`k`/`g` scroll, `e` opens the file in
+Config files (6): `tab` / `h` / `l` walk the files, `j`/`k`/`g` scroll, `e` opens the file in
 the configured editor, `r` reads it again.
 
 Settings modal (`,`): `tab` / `shift+tab` walk the tabs, `j`/`k`/arrows move, `enter` applies
@@ -127,14 +127,15 @@ src/tui/
   __main__.py        python -m src.tui
   app.py             App, section switching, global bindings, refresh timer
   data.py            the ONLY module that opens SQLite; pure functions returning dataclasses
-  presets.py         board / shortlist / follow-ups filter + sort definitions
+  presets.py         board / follow-ups filter + sort definitions
+  sections.py        the section table (key order) and `number(mode)`
   commands.py        slash-command strings, `src.hunt` argv builders, clipboard
   settings.py        config/tui.toml load/save, defaults, kanagawa theme
   screens/
-    jobs.py          three-pane screen (sections 1 to 3)
-    apps.py          section 4
-    stats.py         section 5 placeholder
-    run.py           section 6
+    jobs.py          three-pane screen (board and follow-ups)
+    apps.py          the apps section
+    stats.py         the stats placeholder
+    run.py           the runner
     config_view.py   read-only config + open in editor
   widgets/
     status_list.py   left pane

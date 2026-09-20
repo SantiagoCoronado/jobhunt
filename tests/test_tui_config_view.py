@@ -1,6 +1,6 @@
 """Section 7: the read-only config view and open-in-editor."""
 import pytest
-from tui_fakes import _run, _settle
+from tui_fakes import _key, _run, _settle
 
 from src import config
 from src.hunt import config as hunt_config
@@ -40,7 +40,7 @@ def test_section_7_shows_each_file_read_only_and_tab_walks_them(edits):
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.press("7")
+            await pilot.press(_key("settings"))
             await _settle(app, pilot)
             screen = app.screen
             assert isinstance(screen, ConfigScreen) and screen.current.name == "profile.yaml"
@@ -67,7 +67,7 @@ def test_a_value_that_looks_like_markup_is_shown_as_typed(edits, monkeypatch, tm
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.press("7")
+            await pilot.press(_key("settings"))
             await _settle(app, pilot)
             assert "[bold]not markup[/bold] [/nope]" in _body(app.screen)
     _run(scenario())
@@ -88,7 +88,7 @@ def test_e_opens_the_file_in_the_configured_editor_and_reads_it_again(edits, mon
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.press("7")
+            await pilot.press(_key("settings"))
             await _settle(app, pilot)
             assert "before" in _body(app.screen)
             await pilot.press("e")
@@ -108,7 +108,7 @@ def test_editing_tui_toml_takes_effect_at_once_and_a_bad_value_is_toasted(monkey
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.press("7", "shift+tab")
+            await pilot.press(_key("settings"), "shift+tab")
             await _settle(app, pilot)
             assert app.screen.current.name == "tui.toml" and app.theme == "kanagawa"
             await pilot.press("e")
@@ -124,7 +124,7 @@ def test_an_editor_that_fails_is_a_toast_not_a_crash(monkeypatch):
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 40)) as pilot:
-            await pilot.press("7", "e")
+            await pilot.press(_key("settings"), "e")
             await _settle(app, pilot)
             assert any("did not start" in n.message for n in app._notifications)
             assert isinstance(app.screen, ConfigScreen)

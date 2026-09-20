@@ -6,7 +6,7 @@
 name = "kanagawa"           # any Textual built-in or "kanagawa" (custom)
 
 [sections]
-default = "board"           # section opened on launch: board, shortlist, followups
+default = "board"           # section opened on launch: board, followups
 detail_pane = true          # false = always overlay
 
 # No [harness] block: the harness and per-stage models live in config/hunt.toml

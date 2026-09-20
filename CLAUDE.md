@@ -33,13 +33,13 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
 6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
    `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
-   2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
+   2026-09-18). Board and follow-ups share one three-pane screen (the shortlist section is gone since 2026-09-20; status list, jobs table,
    detail); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
-   stored, feeds `c` only), `space`/`v` select by hand for bulk status, `c` copies `/jh-tailor` lines; section 4 lists `applications/` beside the DB
-   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 5 prints `stats funnel`; section 6 is the
+   stored, feeds `c` only), `space`/`v` select by hand for bulk status, `c` copies `/jh-tailor` lines; section 3 lists `applications/` beside the DB
+   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 4 prints `stats funnel`; section 5 is the
    runner (`data.stages()` = the full hunt, the `src.hunt` registry, reconcile, stats; `enter` spawns the stage
    through `commands.spawn`, one at a time, `ctrl+c` = SIGTERM so `--resume` works, `R` resumes a run; runs and
-   units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 7 shows the config files
+   units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 6 shows the config files
    read-only (`e` = the editor template in `config/tui.toml`); `,` is the settings modal (`src/tui/settings.py`
    loads and rewrites `config/tui.toml`, never raises; its harness tab writes `config/hunt.toml` only through
    `src.hunt.config.set_default_harness` / `set_stage_model`, a comment-keeping one-line edit). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through

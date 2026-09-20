@@ -11,7 +11,7 @@ import pytest
 from src import db, reconcile, research
 from src.hunt import config as hunt_config
 from src.hunt import ledger as hunt_ledger
-from src.tui import commands, settings
+from src.tui import commands, sections, settings
 
 
 @pytest.fixture
@@ -54,6 +54,11 @@ def _add(**cols) -> int:
     conn.commit()
     conn.close()
     return int(cur.lastrowid or 0)
+
+
+def _key(mode: str) -> str:
+    """The number key that opens a section, read from the table so a renumbering cannot strand a test."""
+    return str(sections.number(mode))
 
 
 def _run(coro):
