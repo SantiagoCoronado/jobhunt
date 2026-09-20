@@ -277,10 +277,17 @@ Known cost: the harness tab and the modal write tracked files (`config/hunt.toml
 
 Built in the order 6, 3, 8, then the rest; the numbers are the stories' own.
 
+1. **Clickable section tabs**: a click on a tab's label is its number key; the hit areas come from the table the bar draws from (`section_bar.tabs()`, itself from `SECTIONS`).
+2. **Runner stage notes**: `haiku on claude · 8 parallel` and a hunt line that names the global cap; the harness tab edits each fanned stage's `concurrency` and `global_concurrency` through the comment-keeping writer, which gained an integer form.
 3. **The selection follows you into the runner**: the marks are held on the app, the runner shows them in a `selection` block and `enter` on `tailor` or `research` runs `hunt run --only <stage> --ids ...` on them (decisions 11, 12, 15; hunt spec section 8).
 6. **Remove the shortlist section**: six sections; the board's `shortlisted` view leads with the hunt's picks under its own sort (decisions 4, 9).
 4. **Footer**: board and follow-ups show `space select`, `/ search`, `s status`, `c copy`, `? help`; apps `o open`, `s status`, `R reconcile`; run `enter run`, `^c stop`, `R resume`; stats `r again`; config files `tab next`, `e edit`; `,` and `q` left the footer too. Nothing is cut at 120 columns with a selection note.
+5. **No command palette**: `ENABLE_COMMAND_PALETTE = False`; the theme changes only in the settings modal, so `tui.toml` is its one record.
+7. **Thin scrollbars**: one cell, set once in the app's CSS, colours from the theme; the jobs table's title column takes the table's slack (never under `TITLE_MIN`), so the horizontal bar goes where the columns fit.
 8. **An editor round trip never quits the TUI**: `e` with nvim closed the app.
+9. **The settings modal keeps one size**: a fixed box (29 rows, `max-height: 90%` on a short terminal) with the list scrolling inside; no edge moves on `tab`.
+10. **Legend**: under the status list of board and follow-ups, drawn from the table's own constants (`widgets/legend.py`), only the lines the section can show, first to give way on a short terminal.
+11. **Loading state**: `src/tui/loading.py`. A first load that takes over 0.2 s puts Textual's indicator on the widget it fills; a reload keeps the rows and spins a mark in the footer note; the model picker and `hunt doctor` say they are running on the modal's hint line; every load clears its sign in a `finally`, and a token keeps a superseded worker from clearing the newer load's.
 
 As built, story 8: `e` builds the argv from the template (`settings.editor_argv`), suspends the
 app (`App.suspend`: the driver leaves application mode and stops reading input), runs the editor
@@ -297,6 +304,18 @@ what trickles in later; a `q` typed after that quits as ever. `tests/test_tui_pt
 pseudo-terminal, with a fake terminal editor that reads nothing while the test injects that
 answer plus a bare `q`: the TUI must be alive afterwards and a later `q` must exit 0. With the
 two guards removed the test fails on "the late reply was read as `q`".
+
+As built, the rest: decisions 4, 9, 11, 12, 15 and 21 carry their amendments inline. The
+selection (story 3) outlives a filter as well as a section, which the story left open: the
+footer counts it everywhere, so a bulk `s` or `b` acts on every hand-made mark, listed in the
+current view or not. Section numbers in on-screen text come from `sections.number(mode)`, and
+pilot tests press `_key(mode)`, so the next renumbering is one table. Story 11 measured section
+3 before adding any indicator: the seconds were not the folder walk but `config.resume_basename()`
+called once per folder, a full parse of `profile.yaml` each time (155 folders, 2.0 s); read once
+per load it is 0.06 s, so no per-folder cache was needed. Textual posts `ScreenResume` twice on
+a mode's first show, which started every section's first load twice; a load already on its way
+is now the load. `hunt.toml` gained a minimum of 1 for `global_concurrency` (a cap of 0 let no
+unit start).
 
 ## 9. Later (not scheduled)
 

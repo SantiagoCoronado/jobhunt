@@ -106,8 +106,7 @@ class RunScreen(SectionScreen):
                 yield Log(id="run-log", auto_scroll=True)
 
     def on_mount(self) -> None:
-        self.query_one("#run-stages", RunList).focus()
-        self.reload()
+        self.query_one("#run-stages", RunList).focus()      # the first load is on_screen_resume's
         self.set_interval(self.POLL_SECONDS, self.poll)
 
     def on_unmount(self) -> None:
@@ -115,7 +114,8 @@ class RunScreen(SectionScreen):
             commands.stop(self.proc)
 
     def on_screen_resume(self) -> None:
-        self.reload()
+        if not self.busy.running("stages"):             # ScreenResume comes twice on the first show
+            self.reload()
         self.draw_selection()
 
     def sync_selection(self) -> None:
@@ -150,22 +150,28 @@ class RunScreen(SectionScreen):
             self.refresh_runs()
 
     def reload(self) -> None:
-        self.load_stages()
+        self.load_stages(self.busy.start("stages", self.query_one("#run-stages", RunList)))
         self.refresh_runs()
 
     def refresh_runs(self) -> None:
         """The highlighted run is read here, on the UI thread: the worker must not touch a list
         that `fill()` may be rebuilding under it."""
         opt = self.query_one("#run-runs", RunList).highlighted_option
-        self.load_runs(opt.id if opt else None)
+        token = self.busy.start("runs", self.query_one("#run-runs", RunList), self.query_one("#run-units", RunList))
+        self.load_runs(opt.id if opt else None, token)
 
     # Loading: the registry import, the ledgers and the runs table are all read off the UI thread.
 
     @work(thread=True, group="run-stages", exclusive=True)
-    def load_stages(self) -> None:
-        stages = data.stages()
-        runs = data.source_runs()
-        self.app.call_from_thread(self.show_stages, stages, runs)
+    def load_stages(self, token: int) -> None:
+        try:
+            stages = data.stages()
+            runs = data.source_runs()
+            self.app.call_from_thread(self.show_stages, stages, runs)
+        except Exception as e:  # noqa: BLE001, a load that fails says why and never leaves the indicator on
+            self.load_failed("the stage list", e)
+        finally:
+            self.busy.done_from_thread(self.app, "stages", token)
 
     def show_stages(self, stages: list[data.RunStage], sources: list[data.SourceRun]) -> None:
         self.stages = stages
@@ -191,11 +197,16 @@ class RunScreen(SectionScreen):
                                  f"{s.name:<10}", (note(s), "dim")), id=s.name) for s in self.stages])
 
     @work(thread=True, group="run-runs", exclusive=True)
-    def load_runs(self, highlighted: str | None) -> None:
-        runs = data.hunt_runs()
-        wanted = highlighted if highlighted in {r.run_id for r in runs} else (runs[0].run_id if runs else None)
-        status = data.hunt_status(wanted) if wanted else None
-        self.app.call_from_thread(self.show_runs, runs, status)
+    def load_runs(self, highlighted: str | None, token: int) -> None:
+        try:
+            runs = data.hunt_runs()
+            wanted = highlighted if highlighted in {r.run_id for r in runs} else (runs[0].run_id if runs else None)
+            status = data.hunt_status(wanted) if wanted else None
+            self.app.call_from_thread(self.show_runs, runs, status)
+        except Exception as e:  # noqa: BLE001
+            self.load_failed("the runs", e)
+        finally:
+            self.busy.done_from_thread(self.app, "runs", token)
 
     def show_runs(self, runs: list[data.HuntRun], status: data.HuntStatus | None) -> None:
         self.query_one("#run-runs", RunList).fill([

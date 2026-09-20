@@ -43,7 +43,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 6 shows the config files
    read-only (`e` = the editor template in `config/tui.toml`); `,` is the settings modal (`src/tui/settings.py`
    loads and rewrites `config/tui.toml`, never raises; its harness tab writes `config/hunt.toml` only through
-   `src.hunt.config.set_default_harness` / `set_stage_model`, a comment-keeping one-line edit). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
+   `src.hunt.config.set_default_harness` / `set_stage_model`, a comment-keeping one-line edit). Every load shows through `src/tui/loading.py` (`Busy`: indicator on a slow first load, footer mark on a reload, cleared in a `finally`). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
    `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
    Pilot tests opt into the `tmp_db` fixture (`tests/tui_fakes.py`, `pytestmark = pytest.mark.usefixtures("tmp_db")`), which patches
    `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `settings.TUI_TOML`, `hunt.config.HUNT_TOML`, `ledger.HUNT_DIR`,

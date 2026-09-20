@@ -17,6 +17,7 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .. import commands, data, settings
+from ..loading import Busy
 from ..sections import number
 from ..settings import Settings
 from .modals import OutputModal, Picker, Prompt
@@ -27,6 +28,7 @@ TABS: tuple[tuple[str, str], ...] = (
 )
 FOLLOWUP_DAYS: tuple[int, ...] = (3, 5, 7, 10, 14)
 CHECK = " ✓"
+KEYS_HINT = "↑↓ select   tab section          ↵ apply   esc close"
 CUSTOM = "custom"
 
 
@@ -70,6 +72,8 @@ class SettingsModal(ModalScreen[None]):
         super().__init__()
         self.tab = tab
         self.lines: list[Line] = []
+        self.busy_text = ""
+        self.busy = Busy(self, self.draw_busy)
 
     @property
     def current(self) -> Settings:
@@ -80,7 +84,7 @@ class SettingsModal(ModalScreen[None]):
             yield Label(Text("settings", style="bold"))
             yield Static(id="settings-tabs")
             yield OptionList(id="settings-list")
-            yield Label("↑↓ select   tab section          ↵ apply   esc close", id="settings-keys")
+            yield Label(KEYS_HINT, id="settings-keys")
 
     def on_mount(self) -> None:
         self.query_one(OptionList).focus()
@@ -226,11 +230,27 @@ class SettingsModal(ModalScreen[None]):
     def set_harness(self, name: str) -> None:
         self.hunt_write(lambda: data.set_harness(name))
 
-    @work(thread=True, group="models", exclusive=True)
+    # The two slow actions say they are running on the hint line, until their modal opens: the
+    # catalog takes a second or two (`claude --help`), doctor up to minutes.
+
+    def draw_busy(self, frame: str) -> None:
+        self.query_one("#settings-keys", Label).update(Text(f"{frame} {self.busy_text}" if frame else KEYS_HINT))
+
     def pick_model(self, sm: data.StageModel) -> None:
+        self.busy_text = f"asking {sm.harness} for its models"
+        self.read_models(sm, self.busy.start("models"))
+
+    @work(thread=True, group="models", exclusive=True)
+    def read_models(self, sm: data.StageModel, token: int) -> None:
         """The catalog is the harness CLI's answer, so it is asked off the UI thread."""
-        choices = data.harness_models(sm.harness)
-        self.app.call_from_thread(self.show_models, sm, choices)
+        try:
+            choices = data.harness_models(sm.harness)
+            self.app.call_from_thread(self.show_models, sm, choices)
+        except Exception as e:  # noqa: BLE001, a failed ask says why and never leaves the mark spinning
+            self.app.call_from_thread(self.app.notify, f"the {sm.harness} catalog did not load: {e}",
+                                      severity="error", markup=False)
+        finally:
+            self.busy.done_from_thread(self.app, "models", token)
 
     def show_models(self, sm: data.StageModel, choices: data.ModelChoices) -> None:
         if self.app.screen is not self:                  # closed while the catalog loaded
@@ -264,13 +284,18 @@ class SettingsModal(ModalScreen[None]):
         self.app.push_screen(Prompt(what, "a whole number, 1 or more", parse, str(now)), entered)
 
     def run_doctor(self) -> None:
-        self.app.notify("running hunt doctor: a smoke prompt per model, up to a few minutes", markup=False)
-        self.doctor()
+        self.busy_text = "hunt doctor is running: a smoke prompt per model, up to a few minutes"
+        self.doctor(self.busy.start("doctor"))
 
     @work(thread=True, group="doctor", exclusive=True)
-    def doctor(self) -> None:
-        _rc, text = commands.capture(commands.hunt_argv("doctor"))
-        self.app.call_from_thread(self.app.push_screen, OutputModal("hunt doctor", text or "doctor printed nothing"))
+    def doctor(self, token: int) -> None:
+        try:
+            _rc, text = commands.capture(commands.hunt_argv("doctor"))
+            self.app.call_from_thread(self.app.push_screen, OutputModal("hunt doctor", text or "doctor printed nothing"))
+        except Exception as e:  # noqa: BLE001
+            self.app.call_from_thread(self.app.notify, f"hunt doctor did not run: {e}", severity="error", markup=False)
+        finally:
+            self.busy.done_from_thread(self.app, "doctor", token)
 
     def ask_editor(self) -> None:
         def parse(text: str) -> str:

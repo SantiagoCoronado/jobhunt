@@ -325,8 +325,7 @@ class AppRow:
     drift: str                  # "" when folder and DB agree, else what `reconcile` would say
 
 
-def _app_files(folder: Path) -> tuple[tuple[str, ...], Path | None]:
-    stem = config.resume_basename()
+def _app_files(folder: Path, stem: str) -> tuple[tuple[str, ...], Path | None]:
     names = {p.name for p in folder.iterdir() if p.is_file()}
     # An earlier profile name leaves another stem behind (`reconcile` lists those): still a resume.
     yamls = sorted(n for n in names if n.endswith("Resume.yaml"))
@@ -379,6 +378,9 @@ def apps() -> list[AppRow]:
             found = {r["id"]: r for r in conn.execute(
                 f"SELECT id, company, title, status, url FROM jobs WHERE id IN ({marks})", list(seen))}
 
+    # Once per load, not once per folder: `resume_basename` parses profile.yaml each time it is
+    # asked, and 155 folders made that 2 s of a 2 s load (measured 2026-09-20, PRA-119).
+    stem = config.resume_basename()
     out: list[tuple[tuple[int, float, str], AppRow]] = []
     for (bucket, path), job_id in zip(folders, ids, strict=True):
         r = found.get(job_id) if job_id is not None else None
@@ -391,7 +393,7 @@ def apps() -> list[AppRow]:
         else:
             drift = _drift(bucket, r["status"] or "")
         try:
-            files, pdf = _app_files(path)
+            files, pdf = _app_files(path, stem)
             build, mtime = _build_verdict(path), path.stat().st_mtime
         except OSError:
             continue    # moved between the scan and here (a status change, a hunt): the next load has it

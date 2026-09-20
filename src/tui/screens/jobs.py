@@ -142,29 +142,43 @@ class JobsScreen(SectionScreen):
         self.query_one("#detail", DetailPane).display = (
             event.size.width >= WIDE and self.app.settings.detail_pane)  # type: ignore[attr-defined]
 
-    @work(thread=True, group="counts", exclusive=True)
     def load_counts(self) -> None:
-        counts = data.counts()
-        preset = PRESETS[self.preset]
-        counts[self.preset] = sum(counts.get(s, 0) for s in preset.statuses)   # the head entry
-        self.app.call_from_thread(self.query_one(StatusList).set_counts, counts)
+        self.read_counts(self.busy.start("counts"))          # the list has its entries: only the mark
+
+    @work(thread=True, group="counts", exclusive=True)
+    def read_counts(self, token: int) -> None:
+        try:
+            counts = data.counts()
+            preset = PRESETS[self.preset]
+            counts[self.preset] = sum(counts.get(s, 0) for s in preset.statuses)   # the head entry
+            self.app.call_from_thread(self.query_one(StatusList).set_counts, counts)
+        except Exception as e:  # noqa: BLE001, a load that fails says why and never leaves the indicator on
+            self.load_failed("counts", e)
+        finally:
+            self.busy.done_from_thread(self.app, "counts", token)
 
     def load_rows(self, keep: bool = False) -> None:
         """The marked ids are read here, on the UI thread, and handed to the worker."""
-        self.read_rows(keep, frozenset(self.app.selection.selected))  # type: ignore[attr-defined]
+        token = self.busy.start("rows", self.query_one(JobsTable))
+        self.read_rows(keep, frozenset(self.app.selection.selected), token)  # type: ignore[attr-defined]
 
     @work(thread=True, group="rows", exclusive=True)
-    def read_rows(self, keep: bool, marked: frozenset[int]) -> None:
+    def read_rows(self, keep: bool, marked: frozenset[int], token: int) -> None:
         """SQLite off the UI thread. A thread cannot be interrupted, so a load that was
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
-        rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
-        picks = data.picks()
-        held = data.rows_by_id(marked | frozenset(picks))      # the selection outlives this view
-        if self.status_filter == PICKS_LEAD and self.sort is None:    # a chosen sort is obeyed as is
-            rows = data.picks_first(rows, set(picks))
-        if not worker.is_cancelled:
-            self.app.call_from_thread(self.show_rows, rows, keep, picks, held)
+        try:
+            rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
+            picks = data.picks()
+            held = data.rows_by_id(marked | frozenset(picks))      # the selection outlives this view
+            if self.status_filter == PICKS_LEAD and self.sort is None:    # a chosen sort is obeyed as is
+                rows = data.picks_first(rows, set(picks))
+            if not worker.is_cancelled:
+                self.app.call_from_thread(self.show_rows, rows, keep, picks, held)
+        except Exception as e:  # noqa: BLE001
+            self.load_failed("jobs", e)
+        finally:
+            self.busy.done_from_thread(self.app, "rows", token)
 
     def show_rows(self, rows: list[data.JobRow], keep: bool, picks: list[int], held: list[data.JobRow]) -> None:
         table = self.query_one(JobsTable)
@@ -191,17 +205,26 @@ class JobsScreen(SectionScreen):
         else:
             self.load_detail(self.query_one(JobsTable).current_id, overlay=True)
 
-    @work(thread=True, group="detail", exclusive=True)
     def load_detail(self, job_id: int | None, overlay: bool) -> None:
+        pane = self.query_one("#detail", DetailPane)
+        self.read_detail(job_id, overlay, self.busy.start("detail", *(() if overlay else (pane,))))
+
+    @work(thread=True, group="detail", exclusive=True)
+    def read_detail(self, job_id: int | None, overlay: bool, token: int) -> None:
         worker = get_current_worker()
-        detail = data.detail(job_id) if job_id is not None else None
-        if worker.is_cancelled:
-            return
-        if overlay:
-            if detail is not None:
-                self.app.call_from_thread(self.app.push_screen, DetailOverlay(detail))
-        else:
-            self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
+        try:
+            detail = data.detail(job_id) if job_id is not None else None
+            if worker.is_cancelled:
+                return
+            if overlay:
+                if detail is not None:
+                    self.app.call_from_thread(self.app.push_screen, DetailOverlay(detail))
+            else:
+                self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
+        except Exception as e:  # noqa: BLE001
+            self.load_failed("the detail", e)
+        finally:
+            self.busy.done_from_thread(self.app, "detail", token)
 
     # Status changes. The hand-made selection when there is one (the app's, so rows marked under
     # another filter or in the other jobs section count, as the footer says), else the row under
