@@ -3,8 +3,12 @@ in the configured editor; `,` is where the TUI's own settings are changed. No fo
 `profile.yaml` is the single authority for scoring and is edited as the file it is."""
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 from rich.syntax import Syntax
 from rich.text import Text
+from textual import work
 from textual.app import ComposeResult, SuspendNotSupported
 from textual.binding import Binding
 from textual.containers import VerticalScroll
@@ -15,6 +19,8 @@ from .base import SectionScreen
 
 
 class ConfigScreen(SectionScreen):
+    POLL_SECONDS = 2.0   # how often the shown file's mtime is checked
+
     DEFAULT_CSS = """
     ConfigScreen #config-tabs { height: 1; padding: 0 1; }
     ConfigScreen #config-path { height: 1; padding: 0 1; color: $text-muted; }
@@ -39,6 +45,7 @@ class ConfigScreen(SectionScreen):
         self.files: list[data.ConfigFile] = []
         self.index = 0
         self.shown: Text | Syntax = Text("")     # what the pane holds now
+        self.seen: dict[Path, float] = {}        # each file's mtime when it was last drawn
 
     def body(self) -> ComposeResult:
         yield Static(id="config-tabs")
@@ -48,6 +55,22 @@ class ConfigScreen(SectionScreen):
 
     def on_mount(self) -> None:
         self.query_one("#config-scroll").focus()
+        self.set_interval(self.POLL_SECONDS, self.poll)
+
+    @staticmethod
+    def mtime(path: Path) -> float:
+        try:
+            return path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    def poll(self) -> None:
+        """The view follows the file: a window editor saves while the TUI is up, and nothing
+        else would say so. One stat per tick, and only while this section is on top."""
+        if self.app.screen is self and self.files:
+            f = self.current
+            if self.mtime(f.path) != self.seen.get(f.path, 0.0):
+                self.after_edit(f)
 
     def on_screen_resume(self) -> None:
         """Back from the settings modal or another section: the file may have been written."""
@@ -60,6 +83,7 @@ class ConfigScreen(SectionScreen):
         self.files = data.config_files()
         self.index = min(self.index, len(self.files) - 1)
         self.draw()
+        self.seen = {f.path: self.mtime(f.path) for f in self.files}
 
     @property
     def current(self) -> data.ConfigFile:
@@ -107,6 +131,15 @@ class ConfigScreen(SectionScreen):
         except ValueError as e:
             self.toast(str(e), "error")
             return
+        if commands.is_window_editor(argv):          # its own window: the TUI stays up beside it
+            try:
+                proc = commands.launch_editor(argv)
+            except OSError as e:
+                self.toast(f"{Path(argv[0]).name} did not start: {e}", "error")
+                return
+            self.toast(f"{f.name} is open in {Path(argv[0]).name}; this view follows the file as you save")
+            self.wait_for_editor(proc, f, Path(argv[0]).name)
+            return
         try:
             with self.app.suspend():                 # a terminal editor needs the terminal back
                 rc = commands.run_editor(argv)
@@ -116,6 +149,21 @@ class ConfigScreen(SectionScreen):
             rc = commands.run_editor(argv)
         if rc != 0:
             self.toast(f"{argv[0]} exited {rc}" if rc > 0 else f"{argv[0]} did not start", "warning")
+        self.after_edit(f)
+
+    @work(thread=True, group="editor")
+    def wait_for_editor(self, proc: subprocess.Popen[bytes], f: data.ConfigFile, name: str) -> None:
+        """Reaps the detached editor and takes its last save. With `-w` that is when the tab
+        closes; without it the launcher exits at once and the poll does the following."""
+        rc = proc.wait()
+        try:
+            if rc != 0:
+                self.app.call_from_thread(self.toast, f"{name} exited {rc}", "warning")
+            self.app.call_from_thread(self.after_edit, f)
+        except RuntimeError:                         # the app closed meanwhile; the editor lives on
+            pass
+
+    def after_edit(self, f: data.ConfigFile) -> None:
         if f.path == settings.TUI_TOML:              # the TUI's own file: take the edit now
             self.app.apply_settings(settings.load())  # type: ignore[attr-defined]
             for line in self.app.settings.warnings:  # type: ignore[attr-defined]

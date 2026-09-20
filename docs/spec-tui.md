@@ -311,7 +311,7 @@ reaches PATH only through the editor's own "install shell command" action. `comm
 looks on PATH, then in the bundles under `/Applications` and `~/Applications` (globbed, a second
 install is "Visual Studio Code 2.app"); `resolve_editor` runs before the terminal is given away,
 an editor nothing can find is an error toast that says what to do, and the settings modal's editor
-tab marks it `not installed`. The runner's selection block became a checklist the same day:
+tab marks it `not installed`. A window editor (VS Code, Cursor, Zed, Sublime: `commands.is_window_editor`) is started detached and the TUI stays up beside it; only a terminal editor suspends the app. The config view polls the shown file's mtime every 2 s, so it follows each save, and an edit to `tui.toml` takes effect as it is saved. The runner's selection block became a checklist the same day:
 `space` takes a row off and puts it back (it stays listed, `○` and struck through), `x` clears,
 the title counts what is on and off, the footer names the keys while the block has the focus, and
 a run takes the marked rows in the block's order.

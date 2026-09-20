@@ -122,6 +122,20 @@ def resolve_editor(argv: Sequence[str]) -> list[str]:
     return [program, *argv[1:]]
 
 
+def is_window_editor(argv: Sequence[str]) -> bool:
+    """An editor that opens its own window (VS Code, Cursor, Zed, Sublime) needs nothing from the
+    terminal, so the TUI stays up beside it. Anything else is taken for a terminal editor, which
+    must have the terminal: guessing wrong that way only costs a suspend."""
+    return bool(argv) and Path(argv[0]).name in BUNDLED_CLI
+
+
+def launch_editor(argv: Sequence[str]) -> subprocess.Popen[bytes]:
+    """A window editor, detached and silent: the TUI keeps the terminal and keeps running. With
+    `-w` the process lives until the file's tab closes; the caller may wait on it in a worker."""
+    return subprocess.Popen(list(argv), cwd=ROOT, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, start_new_session=True)
+
+
 def run_editor(argv: Sequence[str]) -> int:
     """The editor in the foreground, on the real terminal (the caller suspended the TUI).
     Returns its exit code, -1 when it could not start."""

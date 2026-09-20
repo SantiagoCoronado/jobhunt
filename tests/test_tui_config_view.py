@@ -191,3 +191,59 @@ def test_an_editor_nothing_can_find_is_an_error_toast_and_the_terminal_is_never_
             lines = [str(o.prompt) for o in app.screen.query_one("#settings-list").options]
             assert any(ln.startswith("  code -w") and "not installed" in ln for ln in lines)
     _run(scenario())
+
+
+def test_a_window_editor_opens_beside_the_tui_which_never_gives_the_terminal_away(edits, monkeypatch):
+    """Santiago, 2026-09-20: `code -w` left the TUI to launch. A window editor needs nothing from
+    the terminal, so it is started detached and the TUI stays up; only a terminal editor suspends."""
+    import subprocess
+    import sys
+    assert commands.is_window_editor(["/Applications/Cursor.app/Contents/Resources/app/bin/cursor", "-w", "f"])
+    assert commands.is_window_editor(["code", "f"]) and not commands.is_window_editor(["nvim", "f"])
+    assert not commands.is_window_editor(["/usr/bin/nano", "f"]) and not commands.is_window_editor([])
+
+    settings.save(settings.Settings(editor="code -w"))
+    launched: list[list[str]] = []
+
+    def launch(argv):
+        launched.append(list(argv))
+        return subprocess.Popen([sys.executable, "-c", "pass"])              # exits at once, as a saved-and-closed tab
+    monkeypatch.setattr(commands, "launch_editor", launch)
+
+    async def scenario():
+        app = JobhuntApp()
+        suspended: list[int] = []
+        monkeypatch.setattr(app, "suspend", lambda: suspended.append(1))
+        async with app.run_test(size=(140, 40)) as pilot:
+            await pilot.press(_key("settings"), "e")
+            await _settle(app, pilot)
+            assert [a[:2] for a in launched] == [["code", "-w"]] and launched[0][2].endswith("profile.yaml")
+            assert edits == [] and suspended == []                           # never the foreground path
+            assert isinstance(app.screen, ConfigScreen) and app.is_running
+            assert any("is open in code" in n.message for n in app._notifications)
+            await pilot.press("j", "tab")                                    # the TUI takes keys while it is open
+            await pilot.pause()
+            assert app.screen.current.name != "profile.yaml"
+    _run(scenario())
+
+
+def test_the_view_follows_the_file_as_it_is_saved_elsewhere():
+    import os
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 40)) as pilot:
+            await pilot.press(_key("settings"), "shift+tab")
+            await _settle(app, pilot)
+            screen = app.screen
+            assert screen.current.name == "tui.toml" and app.theme == "kanagawa"
+            settings.TUI_TOML.parent.mkdir(parents=True, exist_ok=True)
+            settings.TUI_TOML.write_text('[theme]\nname = "nord"\n', encoding="utf-8")   # a save in the editor's window
+            os.utime(settings.TUI_TOML, (1, 1))                              # whatever the clock's grain
+            screen.poll()
+            await pilot.pause()
+            assert app.theme == "nord" and 'name = "nord"' in screen.shown.code
+            shown = screen.shown
+            screen.poll()                                                    # nothing moved: nothing redrawn
+            assert screen.shown is shown
+    _run(scenario())
