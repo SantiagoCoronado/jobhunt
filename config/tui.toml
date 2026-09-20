@@ -3,7 +3,7 @@
 # kept, comments added by hand are not.
 
 [theme]
-name = "kanagawa"           # any Textual built-in or "kanagawa" (custom)
+name = "textual-dark"           # any Textual built-in or "kanagawa" (custom)
 
 [sections]
 default = "board"           # section opened on launch: board, followups
@@ -13,8 +13,8 @@ detail_pane = true          # false = always overlay
 # (docs/spec-hunt-orchestrator.md section 6) and the settings modal edits that file.
 
 [followups]
-days = 7                    # display only; config.followup_days() stays the pipeline authority
+days = 5                    # display only; config.followup_days() stays the pipeline authority
 overdue_style = "red"
 
 [editor]
-command = "$EDITOR"         # $VARS expand; {file} marks where the path goes (appended when absent)
+command = "code -w"         # $VARS expand; {file} marks where the path goes (appended when absent)
