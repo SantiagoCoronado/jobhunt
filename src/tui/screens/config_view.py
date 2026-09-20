@@ -103,6 +103,7 @@ class ConfigScreen(SectionScreen):
         f = self.current
         try:
             argv = settings.editor_argv(self.app.settings.editor, f.path)  # type: ignore[attr-defined]
+            argv = commands.resolve_editor(argv)     # before the terminal is given away for nothing
         except ValueError as e:
             self.toast(str(e), "error")
             return

@@ -9,6 +9,7 @@ from src.tui.app import JobhuntApp
 from src.tui.screens.config_view import ConfigScreen
 
 pytestmark = pytest.mark.usefixtures("tmp_db")
+FIND_PROGRAM = commands.find_program          # the real one: the pilot fixture replaces it with a stub
 
 
 @pytest.fixture
@@ -149,4 +150,44 @@ def test_input_is_dropped_for_a_moment_after_an_editor_round_trip_and_q_quits_af
             await pilot.pause()
             assert app.current_mode == "board"
         assert app_mod.DEAF_SECONDS <= 0.5                   # never long enough to eat a human key
+    _run(scenario())
+
+
+def test_a_gui_editor_is_found_inside_its_app_bundle_when_its_cli_is_not_on_path(monkeypatch, tmp_path):
+    """`code -w` and `cursor -w` did not launch: the apps were installed, their shell commands
+    were not, and a second VS Code install is "Visual Studio Code 2.app"."""
+    import sys
+    cli = tmp_path / "Visual Studio Code 2.app" / "Contents" / "Resources" / "app" / "bin" / "code"
+    cli.parent.mkdir(parents=True)
+    cli.write_text("#!/bin/sh\n")
+    cli.chmod(0o755)
+    monkeypatch.setattr(commands, "find_program", FIND_PROGRAM)
+    monkeypatch.setattr(commands, "APP_DIRS", (tmp_path,))
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert commands.resolve_editor(["code", "-w", "f.yaml"]) == [str(cli), "-w", "f.yaml"]
+    with pytest.raises(ValueError, match="cursor is not on PATH and no app bundle carries it: install its shell command"):
+        commands.resolve_editor(["cursor", "-w", "f.yaml"])
+    with pytest.raises(ValueError, match="myedit is not on PATH.*pick another editor"):
+        commands.resolve_editor(["myedit", "f.yaml"])
+    assert commands.find_program(sys.executable) == sys.executable               # a path is taken as given
+    monkeypatch.setenv("PATH", str(cli.parent))
+    assert commands.find_program("code") == str(cli)                             # PATH wins when it has it
+
+
+def test_an_editor_nothing_can_find_is_an_error_toast_and_the_terminal_is_never_given_away(edits, monkeypatch):
+    settings.save(settings.Settings(editor="code -w"))
+    monkeypatch.setattr(commands, "find_program", lambda name: None)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(140, 40)) as pilot:
+            await pilot.press(_key("settings"), "e")
+            await _settle(app, pilot)
+            assert edits == [] and isinstance(app.screen, ConfigScreen)
+            assert any("code is not on PATH" in n.message and n.severity == "error" for n in app._notifications)
+            await pilot.press("comma", "shift+tab")                               # the editor tab says so too
+            await pilot.pause()
+            lines = [str(o.prompt) for o in app.screen.query_one("#settings-list").options]
+            assert any(ln.startswith("  code -w") and "not installed" in ln for ln in lines)
     _run(scenario())

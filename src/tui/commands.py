@@ -78,6 +78,50 @@ def capture(argv: Sequence[str], timeout: int = 600) -> tuple[int, str]:
     return cp.returncode, "\n".join(part.rstrip() for part in (cp.stdout, cp.stderr) if part.strip())
 
 
+# A GUI editor's command line tool lives inside its app bundle on macOS and reaches PATH only if
+# the reader once ran the editor's "install shell command" action. Most never do, so `code -w`
+# found nothing and the file never opened. Glob patterns, because a second install is
+# "Visual Studio Code 2.app".
+APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
+BUNDLED_CLI: dict[str, tuple[str, ...]] = {
+    "code": ("Visual Studio Code*.app/Contents/Resources/app/bin/code",),
+    "code-insiders": ("Visual Studio Code*Insiders*.app/Contents/Resources/app/bin/code",),
+    "cursor": ("Cursor*.app/Contents/Resources/app/bin/cursor",),
+    "zed": ("Zed*.app/Contents/MacOS/cli",),
+    "subl": ("Sublime Text*.app/Contents/SharedSupport/bin/subl",),
+}
+
+
+def find_program(name: str) -> str | None:
+    """Where `name` is: PATH first, then (macOS) the CLI inside the editor's app bundle. A path
+    is taken as given. None when it is nowhere."""
+    import shutil
+    if os.sep in name:
+        return name if os.access(name, os.X_OK) else None
+    found = shutil.which(name)
+    if found or sys.platform != "darwin":
+        return found
+    for pattern in BUNDLED_CLI.get(name, ()):
+        for apps in APP_DIRS:
+            for hit in sorted(apps.glob(pattern)):
+                if os.access(hit, os.X_OK):
+                    return str(hit)
+    return None
+
+
+def resolve_editor(argv: Sequence[str]) -> list[str]:
+    """`argv` with its program located. Raises ValueError, with what to do about it, when the
+    editor is not installed where anything can find it."""
+    if not argv:
+        raise ValueError("the editor command is empty")
+    program = find_program(argv[0])
+    if program is None:
+        hint = (f": install its shell command (in the editor, \"Shell Command: Install '{argv[0]}' command in PATH\") "
+                "or pick another editor in the settings") if argv[0] in BUNDLED_CLI else "; pick another editor in the settings (,)"
+        raise ValueError(f"{argv[0]} is not on PATH and no app bundle carries it{hint}")
+    return [program, *argv[1:]]
+
+
 def run_editor(argv: Sequence[str]) -> int:
     """The editor in the foreground, on the real terminal (the caller suspended the TUI).
     Returns its exit code, -1 when it could not start."""

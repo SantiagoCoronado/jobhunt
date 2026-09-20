@@ -188,11 +188,21 @@ class SettingsModal(ModalScreen[None]):
             *(self.choice(Text.assemble("  ", (s, s)), "overdue_style", s) for s in styles),
         ]
 
+    @staticmethod
+    def editor_label(cmd: str) -> Text:
+        """An editor nothing can find says so here, before `e` is pressed on a file."""
+        from pathlib import Path
+        try:
+            found = commands.find_program(settings.editor_argv(cmd, Path("file"))[0])
+        except ValueError:
+            found = None
+        return Text.assemble(f"  {cmd}", ("" if found else "  not installed", "dim"))
+
     def editor_lines(self) -> list[Line]:
         known = list(dict.fromkeys([*settings.EDITORS, self.current.editor]))
         return [
             heading(f"opens a config file (e in section {number('settings')})"),
-            *(self.choice(cmd, "editor", cmd) for cmd in known),
+            *(self.choice(self.editor_label(cmd), "editor", cmd) for cmd in known),
             Line(Text("  another command..."), CUSTOM, self.ask_editor),
         ]
 
