@@ -201,6 +201,10 @@ def test_a_window_editor_opens_beside_the_tui_which_never_gives_the_terminal_awa
     assert commands.is_window_editor(["/Applications/Cursor.app/Contents/Resources/app/bin/cursor", "-w", "f"])
     assert commands.is_window_editor(["code", "f"]) and not commands.is_window_editor(["nvim", "f"])
     assert not commands.is_window_editor(["/usr/bin/nano", "f"]) and not commands.is_window_editor([])
+    # Zed's bundle file is called `cli`, not `zed`: the resolved path must still be a window editor
+    assert commands.is_window_editor(["/Applications/Zed.app/Contents/MacOS/cli", "-w", "f"])
+    assert commands.is_window_editor(["/Users/x/Applications/Zed Preview.app/Contents/MacOS/cli", "f"])
+    assert not commands.is_window_editor(["/usr/local/bin/cli", "f"])          # any other `cli` is not
 
     settings.save(settings.Settings(editor="code -w"))
     launched: list[list[str]] = []
@@ -246,4 +250,35 @@ def test_the_view_follows_the_file_as_it_is_saved_elsewhere():
             shown = screen.shown
             screen.poll()                                                    # nothing moved: nothing redrawn
             assert screen.shown is shown
+    _run(scenario())
+
+
+def test_zed_found_in_its_bundle_still_opens_beside_the_tui(edits, monkeypatch, tmp_path):
+    """Cursor review of PR #30: `resolve_editor` turns `zed` into `.../Zed.app/Contents/MacOS/cli`,
+    whose name is not a known command, so `zed -w` took the suspend path."""
+    import subprocess
+    import sys
+    cli = tmp_path / "Zed.app" / "Contents" / "MacOS" / "cli"
+    cli.parent.mkdir(parents=True)
+    cli.write_text("#!/bin/sh\n")
+    cli.chmod(0o755)
+    monkeypatch.setattr(commands, "find_program", FIND_PROGRAM)
+    monkeypatch.setattr(commands, "APP_DIRS", (tmp_path,))
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    settings.save(settings.Settings(editor="zed -w"))
+    launched: list[list[str]] = []
+    monkeypatch.setattr(commands, "launch_editor",
+                        lambda argv: (launched.append(list(argv)), subprocess.Popen([sys.executable, "-c", "pass"]))[1])
+
+    async def scenario():
+        app = JobhuntApp()
+        suspended: list[int] = []
+        monkeypatch.setattr(app, "suspend", lambda: suspended.append(1))
+        async with app.run_test(size=(140, 40)) as pilot:
+            await pilot.press(_key("settings"), "e")
+            await _settle(app, pilot)
+            assert [a[:2] for a in launched] == [[str(cli), "-w"]]
+            assert edits == [] and suspended == [] and isinstance(app.screen, ConfigScreen)
+            assert any("is open in zed" in n.message for n in app._notifications)      # named as typed, not `cli`
     _run(scenario())

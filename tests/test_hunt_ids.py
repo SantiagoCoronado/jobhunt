@@ -38,7 +38,7 @@ def env(tmp_path, monkeypatch):
 
 def test_parse_ids_keeps_the_order_and_drops_a_repeat():
     assert cli.parse_ids("3625, 9118,3625") == [3625, 9118]
-    for bad in ("", " , ", "12,abc", "-4"):
+    for bad in ("", " , ", "12,abc", "-4", "3\u00b2", "\u0663"):          # a superscript two and an Arabic-Indic three are digits to str.isdigit
         with pytest.raises(ValueError, match="--ids takes job ids"):
             cli.parse_ids(bad)
 
@@ -127,3 +127,15 @@ def test_a_resume_keeps_the_picks_of_the_run(env):
     assert (env / "hunt" / "20260920-1100" / "picks.json").read_text() == before
     units = {u["id"]: u["state"] for u in ledger.load_state(env / "hunt" / "20260920-1100")["stages"][0]["units"]}
     assert units == {"beta-labs": "done", "acme": "done"}
+
+
+def test_a_dry_run_with_ids_names_the_picks_it_resolved(env, capsys):
+    assert cli.main(["run", "--dry-run", "--from", "research", "--to", "tailor", "--ids", "2,1"]) == 0
+    out = capsys.readouterr().out
+    assert "  picks from --ids (2): #2 Beta Labs, #1 Acme" in out
+    assert "one per pick above" in out and "picks from pick" not in out
+    assert not (env / "hunt").exists()                                       # nothing ran
+    assert cli.main(["run", "--dry-run", "--only", "tailor", "--ids", "99"]) == 2   # and it still refuses by name
+    assert "--ids: #99 is not a row" in capsys.readouterr().err
+    assert cli.main(["run", "--dry-run", "--only", "tailor"]) == 0           # without --ids: as before
+    assert "picks from pick" in capsys.readouterr().out

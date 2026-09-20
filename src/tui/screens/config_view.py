@@ -127,18 +127,20 @@ class ConfigScreen(SectionScreen):
         f = self.current
         try:
             argv = settings.editor_argv(self.app.settings.editor, f.path)  # type: ignore[attr-defined]
+            name = Path(argv[0]).name                # as typed: the resolved file may be named otherwise
+            window = commands.is_window_editor(argv)
             argv = commands.resolve_editor(argv)     # before the terminal is given away for nothing
         except ValueError as e:
             self.toast(str(e), "error")
             return
-        if commands.is_window_editor(argv):          # its own window: the TUI stays up beside it
+        if window or commands.is_window_editor(argv):   # its own window: the TUI stays up beside it
             try:
                 proc = commands.launch_editor(argv)
             except OSError as e:
-                self.toast(f"{Path(argv[0]).name} did not start: {e}", "error")
+                self.toast(f"{name} did not start: {e}", "error")
                 return
-            self.toast(f"{f.name} is open in {Path(argv[0]).name}; this view follows the file as you save")
-            self.wait_for_editor(proc, f, Path(argv[0]).name)
+            self.toast(f"{f.name} is open in {name}; this view follows the file as you save")
+            self.wait_for_editor(proc, f, name)
             return
         try:
             with self.app.suspend():                 # a terminal editor needs the terminal back

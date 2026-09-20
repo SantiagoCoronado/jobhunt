@@ -107,7 +107,8 @@ class JobsTable(DataTable):
         return Text(r.followup, style=overdue_style if overdue else "")
 
     def load(self, rows: list[JobRow], today: date | None = None, keep: bool = False,
-             picks: list[int] | None = None, held: list[JobRow] | None = None) -> None:
+             picks: list[int] | None = None, held: list[JobRow] | None = None,
+             asked: frozenset[int] | None = None) -> None:
         """Replace the rows. With `keep` (a reload of the same view) the cursor stays on the same
         job when it is still listed, else on the same line, where the row below slid up; a
         status change must not throw the reader back to the top. A new filter starts at the top.
@@ -115,7 +116,7 @@ class JobsTable(DataTable):
         found outside it, so a mark goes only when its row left the statuses the TUI lists."""
         was_id, was_line = self.current_id, self.cursor_row
         # First, while the old rows are still here: a change redraws the marks of what is listed.
-        self.marks.loaded(picks or [], [*(held or []), *rows], [r.id for r in rows])
+        self.marks.loaded(picks or [], [*(held or []), *rows], [r.id for r in rows], asked)
         self.clear()
         self.job_ids = [r.id for r in rows]
         self.rows_by_id = {r.id: r for r in rows}

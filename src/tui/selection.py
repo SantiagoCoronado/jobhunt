@@ -80,13 +80,19 @@ class Selection:
         self._reorder(listed)
         self._changed(before)
 
-    def loaded(self, picks: list[int], found: Iterable[JobRow], listed: Iterable[int]) -> None:
+    def loaded(self, picks: list[int], found: Iterable[JobRow], listed: Iterable[int],
+               asked: Iterable[int] | None = None) -> None:
         """A table read the DB again: the picks as they are now, and every marked row it still
-        found. A hand-made mark on a row that was not found (it left the listed statuses) goes."""
+        found. A hand-made mark on a row that was not found (it left the listed statuses) goes.
+        `asked` is the marks the loader looked up when it started: a mark made while it was
+        reading (in this table or the other jobs section) was never looked up, so not finding
+        it says nothing, and it stays."""
         before = (set(self.selected), self.preselected)
         self.picks = list(picks)
-        rows = {r.id: r for r in found}
-        self.selected &= rows.keys()
+        fresh = {r.id: r for r in found}
+        checked = set(self.selected) if asked is None else set(asked) & self.selected
+        self.selected -= checked - fresh.keys()
+        rows = {**self.rows, **fresh}                # a mark that was not looked up keeps its row
         self.dismissed &= set(picks)
         self.rows = {i: r for i, r in rows.items() if i in self.marked}
         self._reorder(listed)

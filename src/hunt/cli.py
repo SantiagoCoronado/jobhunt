@@ -50,7 +50,9 @@ READS_PICKS = ("research", "tailor", "report")     # the stages `--ids` can feed
 def parse_ids(text: str) -> list[int]:
     """`3625,9118` to ids, in the order given, a repeat dropped."""
     parts = [p.strip() for p in text.split(",") if p.strip()]
-    bad = [p for p in parts if not p.isdigit()]
+    # ASCII digits only: `str.isdigit` is also true for characters like a superscript two, which
+    # `int()` then refuses with its own traceback instead of the message below.
+    bad = [p for p in parts if not (p.isascii() and p.isdigit())]
     if bad or not parts:
         raise ValueError(f"--ids takes job ids separated by commas, got {text!r}")
     return list(dict.fromkeys(int(p) for p in parts))
@@ -181,7 +183,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                       f"x{s.concurrency} {s.timeout_s}s {s.attempts} attempts")
             else:
                 print(f"  {name:<9} python")
-        print("nothing ran; units are planned when the run reaches a stage (chunks from its export, picks from pick)")
+        if picks is not None:                      # `--ids`: the picks are known now, and they are not pick's
+            print(f"  picks from --ids ({len(picks)}): "
+                  + ", ".join(f"#{p['id']} {p.get('company') or '?'}" for p in picks))
+            print("nothing ran; units are planned when the run reaches a stage (one per pick above)")
+        else:
+            print("nothing ran; units are planned when the run reaches a stage (chunks from its export, picks from pick)")
         return 0
     from . import run as run_mod
 

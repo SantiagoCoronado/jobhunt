@@ -2,7 +2,6 @@
 spinning mark in the footer on a reload, never a flash on a fast load, never left spinning."""
 import asyncio
 import threading
-import time
 
 import pytest
 from tui_fakes import _key, _run, _settle
@@ -91,8 +90,12 @@ def test_a_fast_load_never_shows_it_and_a_slow_reload_spins_the_footer_instead(m
 
 
 def test_a_failing_load_clears_the_indicator_and_says_why(monkeypatch):
+    """Held on a gate, not on a sleep: a sleep races the first look at `table.loading`, and on
+    a slow runner the load had already failed and cleared it (the red check on PR #30)."""
+    gate = threading.Event()
+
     def broken():
-        time.sleep(0.15)                                       # long enough for the indicator to come up
+        gate.wait(10)
         raise OSError("applications/ is unreadable")
     monkeypatch.setattr(data, "apps", broken)
 
@@ -102,13 +105,18 @@ def test_a_failing_load_clears_the_indicator_and_says_why(monkeypatch):
             await _settle(app, pilot)
             await pilot.press(_key("apps"))
             table = app.screen.query_one(AppsTable)
-            await _wait(pilot, lambda: table.loading)
+            await _wait(pilot, lambda: table.loading)          # in flight: the worker is blocked
+            assert not any("did not load" in str(n.message) for n in app._notifications)
+            gate.set()                                         # now it raises
             await _settle(app, pilot)
             await _wait(pilot, lambda: not table.loading)
             assert not app.screen.busy.active
             assert any("applications did not load: applications/ is unreadable" in str(n.message)
                        for n in app._notifications)
-    _run(scenario())
+    try:
+        _run(scenario())
+    finally:
+        gate.set()
 
 
 def test_a_superseded_load_cannot_clear_the_newer_loads_indicator():

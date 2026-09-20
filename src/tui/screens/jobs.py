@@ -174,15 +174,16 @@ class JobsScreen(SectionScreen):
             if self.status_filter == PICKS_LEAD and self.sort is None:    # a chosen sort is obeyed as is
                 rows = data.picks_first(rows, set(picks))
             if not worker.is_cancelled:
-                self.app.call_from_thread(self.show_rows, rows, keep, picks, held)
+                self.app.call_from_thread(self.show_rows, rows, keep, picks, held, marked)
         except Exception as e:  # noqa: BLE001
             self.load_failed("jobs", e)
         finally:
             self.busy.done_from_thread(self.app, "rows", token)
 
-    def show_rows(self, rows: list[data.JobRow], keep: bool, picks: list[int], held: list[data.JobRow]) -> None:
+    def show_rows(self, rows: list[data.JobRow], keep: bool, picks: list[int], held: list[data.JobRow],
+                  asked: frozenset[int]) -> None:
         table = self.query_one(JobsTable)
-        table.load(rows, self.app.today, keep, picks, held)  # type: ignore[attr-defined]
+        table.load(rows, self.app.today, keep, picks, held, asked)  # type: ignore[attr-defined]
         if self.goto is not None and self.goto in table.rows_by_id:
             table.move_cursor(row=table.job_ids.index(self.goto))
         self.goto = None

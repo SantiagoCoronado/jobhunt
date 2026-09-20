@@ -125,8 +125,17 @@ def resolve_editor(argv: Sequence[str]) -> list[str]:
 def is_window_editor(argv: Sequence[str]) -> bool:
     """An editor that opens its own window (VS Code, Cursor, Zed, Sublime) needs nothing from the
     terminal, so the TUI stays up beside it. Anything else is taken for a terminal editor, which
-    must have the terminal: guessing wrong that way only costs a suspend."""
-    return bool(argv) and Path(argv[0]).name in BUNDLED_CLI
+    must have the terminal: guessing wrong that way only costs a suspend.
+
+    Two ways to be one, because `resolve_editor` may already have swapped the name for the file
+    inside the bundle, and that file is not always called what the command is (Zed's is `cli`):
+    the command's name as typed, or a program that is one of the bundle files looked up here."""
+    if not argv:
+        return False
+    program = Path(argv[0])
+    if program.name in BUNDLED_CLI:
+        return True
+    return any(program.match(pattern) for patterns in BUNDLED_CLI.values() for pattern in patterns)
 
 
 def launch_editor(argv: Sequence[str]) -> subprocess.Popen[bytes]:
