@@ -302,6 +302,13 @@ def key_name(binding: Binding) -> str:
     return binding.key_display or KEY_NAMES.get(binding.key, binding.key)
 
 
+def long_text(binding: Binding) -> str:
+    """What `?` says about a key. A binding the footer shows keeps a one or two word
+    `description` there and carries its long form in `tooltip`; both live on the one Binding,
+    so the footer and the overlay still cannot drift (spec decision 21)."""
+    return binding.tooltip or binding.description
+
+
 def help_text(groups: Sequence[HelpGroup]) -> Text:
     """One block per group, one line per binding, straight from the BINDINGS tables the app
     runs on: the footer reads the same tables, so neither can describe a key that is not bound."""
@@ -310,7 +317,7 @@ def help_text(groups: Sequence[HelpGroup]) -> Text:
         t.append(f"{title}\n", style="bold")
         for b in bindings:
             t.append(f"  {key_name(b):<8}", style="bold cyan")
-            t.append(f"{b.description}\n")
+            t.append(f"{long_text(b)}\n")
         t.append("\n")
     t.rstrip()
     return t

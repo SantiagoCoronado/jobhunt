@@ -26,11 +26,19 @@ def test_stages_are_the_full_hunt_the_registry_in_order_then_the_two_extras():
     assert by["stats"].argv[-2:] == ("src.stats", "funnel")
 
 
+def test_only_tailor_and_research_take_the_selection_as_ids():
+    by = {s.name: s for s in data.stages()}
+    assert [n for n, s in by.items() if s.takes_selection] == ["research", "tailor"]
+    assert by["tailor"].argv_for([3625, 9118])[-4:] == ("--only", "tailor", "--ids", "3625,9118")
+    assert by["hunt"].argv_for([3625]) == by["hunt"].argv and by["pick"].argv_for([1]) == by["pick"].argv
+
+
 def test_a_stage_note_names_the_model_and_harness_from_hunt_toml():
     hunt_config.HUNT_TOML.parent.mkdir(parents=True, exist_ok=True)
     hunt_config.HUNT_TOML.write_text('[stages.tailor]\nmodel = "fable"\nconcurrency = 3\n', encoding="utf-8")
     by = {s.name: s for s in data.stages()}
-    assert by["tailor"].note == "fable on claude, 3 at a time"
+    assert by["tailor"].note == "fable on claude · 3 parallel"             # a setting, not a limit of the TUI
+    assert by["hunt"].note == "every stage, on claude · cap 8 parallel"    # the global cap
     assert by["match"].note.startswith("harness default on claude")
     assert by["discover"].note == "python, in process"
     hunt_config.HUNT_TOML.write_text("[stages.nope]\n", encoding="utf-8")        # a broken file still lists

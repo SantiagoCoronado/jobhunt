@@ -1,7 +1,7 @@
 """`python -m src.hunt ...` (spec section 8).
 
     run      [--harness NAME] [--from STAGE] [--to STAGE] [--only STAGE] [--skip STAGE ...]
-             [--resume RUN|latest] [--dry-run] [--quiet]
+             [--ids ID,ID,...] [--resume RUN|latest] [--dry-run] [--quiet]
     status   [RUN|latest]
     report   [RUN|latest]
     runs
@@ -44,6 +44,31 @@ def select_stages(from_: str | None = None, to: str | None = None, only: str | N
     return [s for s in chosen if s not in set(skip)]
 
 
+READS_PICKS = ("research", "tailor", "report")     # the stages `--ids` can feed; `pick` writes what they read
+
+
+def parse_ids(text: str) -> list[int]:
+    """`3625,9118` to ids, in the order given, a repeat dropped."""
+    parts = [p.strip() for p in text.split(",") if p.strip()]
+    # ASCII digits only: `str.isdigit` is also true for characters like a superscript two, which
+    # `int()` then refuses with its own traceback instead of the message below.
+    bad = [p for p in parts if not (p.isascii() and p.isdigit())]
+    if bad or not parts:
+        raise ValueError(f"--ids takes job ids separated by commas, got {text!r}")
+    return list(dict.fromkeys(int(p) for p in parts))
+
+
+def check_ids_range(stages: Sequence[str]) -> None:
+    """`--ids` stands in for the pick stage, so the range must start after it and tailor or
+    research something."""
+    outside = [s for s in stages if s not in READS_PICKS]
+    if outside:
+        raise ValueError(f"--ids replaces the pick stage, so {', '.join(outside)} cannot run with it; use "
+                         f"--only research, --only tailor or --from research --to tailor")
+    if not {"research", "tailor"} & set(stages):
+        raise ValueError("--ids needs a stage that works on picks: --only research, --only tailor or --from research --to tailor")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="python -m src.hunt", description="The hunt orchestrator.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -54,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--to", choices=STAGES, metavar="STAGE")
     run.add_argument("--only", choices=STAGES, metavar="STAGE")
     run.add_argument("--skip", action="append", default=[], choices=STAGES, metavar="STAGE")
+    run.add_argument("--ids", metavar="ID,ID", help="research/tailor these shortlisted rows, in this order, instead of the pick stage")
     run.add_argument("--resume", metavar="RUN", help="re-enter a run: RUN id or `latest`")
     run.add_argument("--dry-run", action="store_true", help="plan, write prompts, run nothing")
     run.add_argument("--quiet", action="store_true")
@@ -128,10 +154,24 @@ def cmd_run(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"hunt run: {e}", file=sys.stderr)
         return 2
-    if args.resume and (args.from_ or args.to or args.only or args.skip or args.dry_run):
-        print("hunt run: --resume continues the stages of that run; it takes no --from, --to, --only, --skip or --dry-run",
-              file=sys.stderr)
+    if args.resume and (args.from_ or args.to or args.only or args.skip or args.dry_run or args.ids):
+        print("hunt run: --resume continues the stages of that run (and keeps its picks); it takes no --from, --to, "
+              "--only, --skip, --ids or --dry-run", file=sys.stderr)
         return 2
+    picks = None
+    if args.ids is not None:
+        from .. import pick as pick_mod
+        try:
+            ids = parse_ids(args.ids)
+            check_ids_range(stages)
+        except ValueError as e:
+            print(f"hunt run: {e}", file=sys.stderr)
+            return 2
+        picks, refused = pick_mod.chosen(ids)
+        if refused:                                # by name, before anything runs
+            for line in refused:
+                print(f"hunt run: --ids: {line}", file=sys.stderr)
+            return 2
     harness = args.harness or cfg.harness
     if args.dry_run:
         print(f"dry run: {len(stages)} stage(s) on {harness}, config {cfg.source or 'defaults'}")
@@ -143,7 +183,12 @@ def cmd_run(args: argparse.Namespace) -> int:
                       f"x{s.concurrency} {s.timeout_s}s {s.attempts} attempts")
             else:
                 print(f"  {name:<9} python")
-        print("nothing ran; units are planned when the run reaches a stage (chunks from its export, picks from pick)")
+        if picks is not None:                      # `--ids`: the picks are known now, and they are not pick's
+            print(f"  picks from --ids ({len(picks)}): "
+                  + ", ".join(f"#{p['id']} {p.get('company') or '?'}" for p in picks))
+            print("nothing ran; units are planned when the run reaches a stage (one per pick above)")
+        else:
+            print("nothing ran; units are planned when the run reaches a stage (chunks from its export, picks from pick)")
         return 0
     from . import run as run_mod
 
@@ -154,7 +199,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, terminate)
     # a resumed run keeps the harness it started on unless one is named now
-    return run_mod.run(cfg, stages, args.harness if args.resume else harness, emit=say, resume=args.resume)
+    return run_mod.run(cfg, stages, args.harness if args.resume else harness, emit=say, resume=args.resume,
+                       picks=picks)
 
 
 def cmd_models(harness_name: str | None, grep: str | None) -> int:

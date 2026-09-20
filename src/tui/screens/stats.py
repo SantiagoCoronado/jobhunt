@@ -23,7 +23,7 @@ class StatsScreen(SectionScreen):
     StatsScreen #stats-scroll { height: 1fr; padding: 0 1; }
     """
     BINDINGS = [
-        Binding("r", "refresh", "refresh"),
+        Binding("r", "refresh", "again", tooltip="run the command again"),
         Binding("j", "scroll(1)", "down", show=False),
         Binding("k", "scroll(-1)", "up", show=False),
         Binding("g", "scroll(0)", "top", show=False),
@@ -41,8 +41,10 @@ class StatsScreen(SectionScreen):
         self.query_one("#stats-scroll").focus()
 
     def on_screen_resume(self) -> None:
-        """Every time the section comes up, the first included: one run of the command each."""
-        self.reload()
+        """Every time the section comes up, the first included: one run of the command each
+        (ScreenResume comes twice on the first show; a run already on its way is the run)."""
+        if not self.busy.running("stats"):
+            self.reload()
 
     def action_refresh(self) -> None:
         self.reload()
@@ -55,13 +57,18 @@ class StatsScreen(SectionScreen):
             pane.scroll_relative(y=step * 3, animate=False)
 
     def reload(self) -> None:
-        self.load_stats()
+        self.load_stats(self.busy.start("stats", self.query_one("#stats-scroll")))
 
     @work(thread=True, group="stats", exclusive=True)
-    def load_stats(self) -> None:
-        rc, text = commands.capture(commands.module_argv(*STATS_ARGV), timeout=60)
-        shown = text or "stats printed nothing"
-        if rc != 0:
-            shown = f"python -m src.stats funnel: exit {rc}\n\n{shown}"
-        # the funnel names companies and sources from scraped postings: text, never markup
-        self.app.call_from_thread(self.query_one("#stats-text", Static).update, Text(shown))
+    def load_stats(self, token: int) -> None:
+        try:
+            rc, text = commands.capture(commands.module_argv(*STATS_ARGV), timeout=60)
+            shown = text or "stats printed nothing"
+            if rc != 0:
+                shown = f"python -m src.stats funnel: exit {rc}\n\n{shown}"
+            # the funnel names companies and sources from scraped postings: text, never markup
+            self.app.call_from_thread(self.query_one("#stats-text", Static).update, Text(shown))
+        except Exception as e:  # noqa: BLE001
+            self.load_failed("stats", e)
+        finally:
+            self.busy.done_from_thread(self.app, "stats", token)

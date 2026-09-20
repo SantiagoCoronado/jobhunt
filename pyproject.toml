@@ -33,3 +33,4 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["pty: drives the real TUI on a pseudo-terminal (skipped where there is none; `-m \"not pty\"` skips it by hand)"]

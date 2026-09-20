@@ -17,6 +17,8 @@ from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from .. import commands, data, settings
+from ..loading import Busy
+from ..sections import number
 from ..settings import Settings
 from .modals import OutputModal, Picker, Prompt
 
@@ -26,6 +28,7 @@ TABS: tuple[tuple[str, str], ...] = (
 )
 FOLLOWUP_DAYS: tuple[int, ...] = (3, 5, 7, 10, 14)
 CHECK = " ✓"
+KEYS_HINT = "↑↓ select   tab section          ↵ apply   esc close"
 CUSTOM = "custom"
 
 
@@ -45,10 +48,13 @@ def heading(text: str) -> Line:
 class SettingsModal(ModalScreen[None]):
     DEFAULT_CSS = """
     SettingsModal { align: center middle; }
-    SettingsModal #settings-box { width: 64; height: auto; max-height: 90%; border: round $primary;
+    /* One size for every tab: the box is as tall as the longest list needs (22 lines, plus the
+       title, the tabs, the hint and the border) and a longer list scrolls inside it, so `tab`
+       never moves an edge. On a short terminal the 90% cap wins and the list gives way. */
+    SettingsModal #settings-box { width: 64; height: 29; max-height: 90%; border: round $primary;
                                   background: $surface; padding: 0 1; }
     SettingsModal #settings-tabs { height: 1; margin-bottom: 1; }
-    SettingsModal OptionList, SettingsModal OptionList:focus { height: auto; max-height: 22; border: none; background: $surface; }
+    SettingsModal OptionList, SettingsModal OptionList:focus { height: 1fr; border: none; background: $surface; }
     SettingsModal #settings-keys { color: $text-muted; margin-top: 1; }
     """
     BINDINGS = [
@@ -66,6 +72,8 @@ class SettingsModal(ModalScreen[None]):
         super().__init__()
         self.tab = tab
         self.lines: list[Line] = []
+        self.busy_text = ""
+        self.busy = Busy(self, self.draw_busy)
 
     @property
     def current(self) -> Settings:
@@ -76,7 +84,7 @@ class SettingsModal(ModalScreen[None]):
             yield Label(Text("settings", style="bold"))
             yield Static(id="settings-tabs")
             yield OptionList(id="settings-list")
-            yield Label("↑↓ select   tab section          ↵ apply   esc close", id="settings-keys")
+            yield Label(KEYS_HINT, id="settings-keys")
 
     def on_mount(self) -> None:
         self.query_one(OptionList).focus()
@@ -150,7 +158,7 @@ class SettingsModal(ModalScreen[None]):
         """`config/hunt.toml`, not tui.toml: how a hunt runs is the orchestrator's file."""
         view = data.harness_view()
         if view.error:
-            return [heading("config/hunt.toml does not load; fix it in the editor (section 7)"),
+            return [heading(f"config/hunt.toml does not load; fix it in the editor (section {number('settings')})"),
                     heading(view.error)]
         return [
             heading("harness (config/hunt.toml)"),
@@ -161,6 +169,11 @@ class SettingsModal(ModalScreen[None]):
                                  (f"  on {sm.harness}" if sm.harness != view.default else "", "dim")),
                    f"model={sm.stage}", partial(self.pick_model, sm)) 
               for sm in view.stages),
+            heading("parallel harness processes (enter takes a number; a rate-limit and cost guard)"),
+            *(Line(Text.assemble(f"  {sm.stage:<10}", f"{sm.concurrency}"), f"parallel={sm.stage}",
+                   partial(self.ask_parallel, sm.stage, sm.concurrency)) for sm in view.stages),
+            Line(Text.assemble(f"  {'all stages':<10}", f"{view.global_concurrency}", ("  the cap over the numbers above", "dim")),
+                 "parallel=", partial(self.ask_parallel, "", view.global_concurrency)),
             heading("check"),
             Line(Text("  run doctor (binary, catalog, models, read tool)"), "doctor", self.run_doctor),
         ]
@@ -175,11 +188,21 @@ class SettingsModal(ModalScreen[None]):
             *(self.choice(Text.assemble("  ", (s, s)), "overdue_style", s) for s in styles),
         ]
 
+    @staticmethod
+    def editor_label(cmd: str) -> Text:
+        """An editor nothing can find says so here, before `e` is pressed on a file."""
+        from pathlib import Path
+        try:
+            found = commands.find_program(settings.editor_argv(cmd, Path("file"))[0])
+        except ValueError:
+            found = None
+        return Text.assemble(f"  {cmd}", ("" if found else "  not installed", "dim"))
+
     def editor_lines(self) -> list[Line]:
         known = list(dict.fromkeys([*settings.EDITORS, self.current.editor]))
         return [
-            heading("opens a config file (e in section 7)"),
-            *(self.choice(cmd, "editor", cmd) for cmd in known),
+            heading(f"opens a config file (e in section {number('settings')})"),
+            *(self.choice(self.editor_label(cmd), "editor", cmd) for cmd in known),
             Line(Text("  another command..."), CUSTOM, self.ask_editor),
         ]
 
@@ -217,11 +240,27 @@ class SettingsModal(ModalScreen[None]):
     def set_harness(self, name: str) -> None:
         self.hunt_write(lambda: data.set_harness(name))
 
-    @work(thread=True, group="models", exclusive=True)
+    # The two slow actions say they are running on the hint line, until their modal opens: the
+    # catalog takes a second or two (`claude --help`), doctor up to minutes.
+
+    def draw_busy(self, frame: str) -> None:
+        self.query_one("#settings-keys", Label).update(Text(f"{frame} {self.busy_text}" if frame else KEYS_HINT))
+
     def pick_model(self, sm: data.StageModel) -> None:
+        self.busy_text = f"asking {sm.harness} for its models"
+        self.read_models(sm, self.busy.start("models"))
+
+    @work(thread=True, group="models", exclusive=True)
+    def read_models(self, sm: data.StageModel, token: int) -> None:
         """The catalog is the harness CLI's answer, so it is asked off the UI thread."""
-        choices = data.harness_models(sm.harness)
-        self.app.call_from_thread(self.show_models, sm, choices)
+        try:
+            choices = data.harness_models(sm.harness)
+            self.app.call_from_thread(self.show_models, sm, choices)
+        except Exception as e:  # noqa: BLE001, a failed ask says why and never leaves the mark spinning
+            self.app.call_from_thread(self.app.notify, f"the {sm.harness} catalog did not load: {e}",
+                                      severity="error", markup=False)
+        finally:
+            self.busy.done_from_thread(self.app, "models", token)
 
     def show_models(self, sm: data.StageModel, choices: data.ModelChoices) -> None:
         if self.app.screen is not self:                  # closed while the catalog loaded
@@ -236,14 +275,37 @@ class SettingsModal(ModalScreen[None]):
         self.app.push_screen(Picker(f"{sm.stage} model on {sm.harness}", options, sm.model or "",
                                     choices.note, choices.open_ended), picked)
 
+    def ask_parallel(self, stage: str, now: int) -> None:
+        """`concurrency` of one fanned stage, or `global_concurrency` when `stage` is empty. The
+        prompt only asks for a whole number: the minimum is `src.hunt.config`'s to refuse."""
+        def parse(text: str) -> str:
+            try:
+                return str(int(text.strip()))
+            except ValueError:
+                raise ValueError(f"a whole number, got {text.strip()!r}") from None
+
+        def entered(text: str | None) -> None:
+            if text is not None and int(text) != now:
+                n = int(text)
+                self.hunt_write(lambda: data.set_stage_concurrency(stage, n) if stage
+                                else data.set_global_concurrency(n))
+
+        what = f"{stage}: harness processes in parallel" if stage else "every stage together: harness processes in parallel"
+        self.app.push_screen(Prompt(what, "a whole number, 1 or more", parse, str(now)), entered)
+
     def run_doctor(self) -> None:
-        self.app.notify("running hunt doctor: a smoke prompt per model, up to a few minutes", markup=False)
-        self.doctor()
+        self.busy_text = "hunt doctor is running: a smoke prompt per model, up to a few minutes"
+        self.doctor(self.busy.start("doctor"))
 
     @work(thread=True, group="doctor", exclusive=True)
-    def doctor(self) -> None:
-        _rc, text = commands.capture(commands.hunt_argv("doctor"))
-        self.app.call_from_thread(self.app.push_screen, OutputModal("hunt doctor", text or "doctor printed nothing"))
+    def doctor(self, token: int) -> None:
+        try:
+            _rc, text = commands.capture(commands.hunt_argv("doctor"))
+            self.app.call_from_thread(self.app.push_screen, OutputModal("hunt doctor", text or "doctor printed nothing"))
+        except Exception as e:  # noqa: BLE001
+            self.app.call_from_thread(self.app.notify, f"hunt doctor did not run: {e}", severity="error", markup=False)
+        finally:
+            self.busy.done_from_thread(self.app, "doctor", token)
 
     def ask_editor(self) -> None:
         def parse(text: str) -> str:

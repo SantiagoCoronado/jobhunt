@@ -2,7 +2,7 @@
 import sys
 
 import pytest
-from tui_fakes import CAPTURED, _run, _settle
+from tui_fakes import CAPTURED, _key, _run, _settle
 
 from src.tui import commands
 from src.tui.app import JobhuntApp
@@ -22,7 +22,7 @@ def test_section_5_renders_the_funnel_output_with_the_placeholder_note(monkeypat
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(120, 30)) as pilot:
-            await pilot.press("5")
+            await pilot.press(_key("stats"))
             await _settle(app, pilot)
             screen = app.screen
             assert isinstance(screen, StatsScreen)
@@ -50,7 +50,7 @@ def test_a_failing_stats_command_shows_its_exit_code_and_what_it_printed(monkeyp
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(120, 30)) as pilot:
-            await pilot.press("5")
+            await pilot.press(_key("stats"))
             await _settle(app, pilot)
             assert "exit 1" in _text(app.screen) and "no such table" in _text(app.screen)
     _run(scenario())

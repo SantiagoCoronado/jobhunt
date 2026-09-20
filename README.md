@@ -60,10 +60,10 @@ Record a submission (moves the folder AND schedules the follow-up):
 ```bash
 python -m src.query set-status 42 applied
 ```
-Local CRM, a terminal UI (`docs/spec-tui.md`): board, shortlist and follow-ups over one
+Local CRM, a terminal UI (`docs/spec-tui.md`): board and follow-ups over one
 three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `>` `<` `-` sort, `?` every key;
-`4` the application folders, `5` the funnel, `6` runs a stage or the whole hunt with its log beside it,
-`7` the config files (`e` edits one), `,` the settings (theme, launch section, harness and models, editor):
+`3` the application folders, `4` the funnel, `5` runs a stage or the whole hunt with its log beside it,
+`6` the config files (`e` edits one), `,` the settings (theme, launch section, harness and models, editor):
 ```bash
 python -m src.tui
 ```

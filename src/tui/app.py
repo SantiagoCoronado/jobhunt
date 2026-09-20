@@ -1,9 +1,11 @@
-"""App shell: seven sections as Textual modes, a section bar, the footer, global keys."""
+"""App shell: six sections as Textual modes, a section bar, the footer, global keys."""
 from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date
+from time import monotonic
 
+from textual import events
 from textual.app import App
 from textual.binding import Binding
 from textual.screen import Screen
@@ -11,27 +13,18 @@ from textual.screen import Screen
 from . import settings as settings_mod
 from .presets import PRESETS
 from .screens.apps import AppsScreen
+from .screens.base import SectionScreen
 from .screens.config_view import ConfigScreen
 from .screens.jobs import JobsScreen
 from .screens.run import RunScreen
 from .screens.stats import StatsScreen
+from .sections import SECTIONS, number
+from .selection import Selection
 from .widgets.detail import DetailPane
 from .widgets.jobs_table import JobsTable
 from .widgets.modals import Confirm, HelpGroup, HelpOverlay, NotesEditor, StatusPicker
 from .widgets.settings_modal import SettingsModal
 from .widgets.status_list import StatusList
-
-# (mode, label). Order is the key order: `1` is the first entry.
-SECTIONS: tuple[tuple[str, str], ...] = (
-    ("board", "board"),
-    ("shortlist", "shortlist"),
-    ("followups", "follow-ups"),
-    ("apps", "apps"),
-    ("stats", "stats"),
-    ("run", "run"),
-    ("settings", "settings"),
-)
-
 
 OWN_SCREENS: dict[str, Callable[[], Screen]] = {
     "apps": AppsScreen, "stats": StatsScreen, "run": RunScreen, "settings": ConfigScreen,
@@ -39,12 +32,23 @@ OWN_SCREENS: dict[str, Callable[[], Screen]] = {
 
 
 def _screen(mode: str) -> Callable[[], Screen]:
-    """Sections 1 to 3 are presets on the one jobs screen; 4 to 7 are their own screens."""
+    """Board and follow-ups are presets on the one jobs screen; the rest are their own screens."""
     return (lambda: JobsScreen(mode)) if mode in PRESETS else OWN_SCREENS[mode]
+
+
+DEAF_SECONDS = 0.3   # after an editor round trip: long for a terminal's late reply, short for a hand
 
 
 class JobhuntApp(App):
     TITLE = "jobhunt"
+    # No command palette: every verb has a single key and `?` lists them (spec decision 21), and
+    # its "Change theme" switched the theme without saving it, so tui.toml stopped being the record.
+    ENABLE_COMMAND_PALETTE = False
+    # One cell of scrollbar, set once for every widget that scrolls (Textual's default is two
+    # columns, on a bar nobody drags). The colours stay the theme's ($scrollbar and friends).
+    CSS = """
+    * { scrollbar-size-vertical: 1; scrollbar-size-horizontal: 1; }
+    """
     MODES = {mode: _screen(mode) for mode, _label in SECTIONS}
     # DEFAULT_MODE stays Textual's "_default" (a blank screen) and on_mount switches to
     # board. Naming board as DEFAULT_MODE crashed the real `run()` path: Textual runs
@@ -56,10 +60,10 @@ class JobhuntApp(App):
     BINDINGS = [
         *(Binding(str(i), f"section('{mode}')", label, show=False)
           for i, (mode, label) in enumerate(SECTIONS, start=1)),
-        Binding("question_mark", "help", "help"),
-        Binding("comma", "settings", "settings", key_display=","),
+        Binding("question_mark", "help", "help", tooltip="help: every key, this list"),
+        Binding("comma", "settings", "settings", key_display=",", show=False),
         Binding("escape", "home", "home: back to the table, search cleared, modal closed", show=False),
-        Binding("q", "quit", "quit"),
+        Binding("q", "quit", "quit", show=False),
     ]
 
     def __init__(self, today: date | None = None) -> None:
@@ -67,6 +71,10 @@ class JobhuntApp(App):
         self.today = today or date.today()
         self.settings = settings_mod.load()
         self.running = ""                      # the runner's live process, by name
+        self.selection = Selection()           # the marked rows, one set for every section
+        self.selection.on_change = self.selection_changed
+        self.jump_to: int | None = None        # a row the board should land on when it next shows
+        self.deaf_until = 0.0                  # monotonic; input before it is dropped (see `deafen`)
         self.register_theme(settings_mod.KANAGAWA_THEME)
         self.theme = self.settings.theme
 
@@ -86,6 +94,31 @@ class JobhuntApp(App):
                 settings_mod.save(new)
             except OSError as e:
                 self.notify(f"config/tui.toml not saved: {e}", severity="error", markup=False)
+
+    def deafen(self, seconds: float = DEAF_SECONDS) -> None:
+        """Ignore keys, clicks and pastes for a moment. After an editor gave the terminal back,
+        the replies it asked the terminal for can still arrive and would be read as keys (one
+        of them ends in `q`); `commands.flush_terminal_input` drops what came before the TUI
+        resumed, this drops what comes just after. A human `q` a moment later still quits."""
+        self.deaf_until = monotonic() + seconds
+
+    async def on_event(self, event: events.Event) -> None:
+        if isinstance(event, events.InputEvent) and monotonic() < self.deaf_until:
+            return
+        await super().on_event(event)
+
+    def selection_changed(self) -> None:
+        for screen in self.screen_stack:
+            if isinstance(screen, SectionScreen):
+                screen.sync_selection()
+
+    def show_job(self, job_id: int) -> None:
+        """Land on a row in the board (the runner's selection block jumps with it)."""
+        self.jump_to = job_id
+        if self.current_mode == "board":
+            self.screen.on_screen_resume()      # type: ignore[attr-defined]
+        else:
+            self.switch_mode("board")
 
     def action_section(self, mode: str) -> None:
         if mode != self.current_mode:
@@ -110,9 +143,9 @@ class JobhuntApp(App):
     @staticmethod
     def help_groups() -> list[HelpGroup]:
         owners = (
-            ("everywhere", JobhuntApp), ("sections 1 to 3", JobsScreen), ("jobs table", JobsTable),
+            ("everywhere", JobhuntApp), ("board and follow-ups", JobsScreen), ("jobs table", JobsTable),
             ("status list", StatusList), ("detail pane", DetailPane), ("apps", AppsScreen), ("stats", StatsScreen), ("run", RunScreen),
-            ("config files (section 7)", ConfigScreen),
+            (f"config files (section {number('settings')})", ConfigScreen),
             ("status picker", StatusPicker), ("notes editor", NotesEditor), ("settings", SettingsModal),
         )
         # Textual also accepts bare tuples in BINDINGS; this app only writes Binding objects.

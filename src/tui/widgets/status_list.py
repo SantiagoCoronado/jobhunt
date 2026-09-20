@@ -12,7 +12,7 @@ from ..presets import ALL, HOT, LABELS
 
 class StatusList(OptionList):
     DEFAULT_CSS = """
-    StatusList { width: 22; height: 1fr; border: none; border-right: solid $panel; padding: 0; }
+    StatusList, StatusList:focus { width: 100%; height: auto; border: none; padding: 0; }
     """
     BINDINGS = [
         Binding("j", "cursor_down", "down", show=False),

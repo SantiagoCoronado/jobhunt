@@ -33,16 +33,17 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
 6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
    `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
-   2026-09-18). Board, shortlist and follow-ups share one three-pane screen (status list, jobs table,
+   2026-09-18). Board and follow-ups share one three-pane screen (the shortlist section is gone since 2026-09-20; status list, jobs table,
    detail); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
-   stored, feeds `c` only), `space`/`v` select by hand for bulk status, `c` copies `/jh-tailor` lines; section 4 lists `applications/` beside the DB
-   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 5 prints `stats funnel`; section 6 is the
+   stored, feeds `c` and the runner only), `space`/`v` select by hand for bulk status (the marks are the app's,
+   `src/tui/selection.py`, shared by every section), `c` copies `/jh-tailor` lines; section 3 lists `applications/` beside the DB
+   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 4 prints `stats funnel`; section 5 is the
    runner (`data.stages()` = the full hunt, the `src.hunt` registry, reconcile, stats; `enter` spawns the stage
-   through `commands.spawn`, one at a time, `ctrl+c` = SIGTERM so `--resume` works, `R` resumes a run; runs and
-   units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 7 shows the config files
+   through `commands.spawn`, one at a time, `tailor` and `research` on the marked rows through `hunt run --ids`, `ctrl+c` = SIGTERM so `--resume` works, `R` resumes a run; runs and
+   units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 6 shows the config files
    read-only (`e` = the editor template in `config/tui.toml`); `,` is the settings modal (`src/tui/settings.py`
    loads and rewrites `config/tui.toml`, never raises; its harness tab writes `config/hunt.toml` only through
-   `src.hunt.config.set_default_harness` / `set_stage_model`, a comment-keeping one-line edit). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
+   `src.hunt.config.set_default_harness` / `set_stage_model`, a comment-keeping one-line edit). Every load shows through `src/tui/loading.py` (`Busy`: indicator on a slow first load, footer mark on a reload, cleared in a `finally`). `src/tui/data.py` is the ONLY TUI module that opens SQLite and every write goes through
    `db.set_status` / `touch_contact` / `log_event` plus `reconcile.sync_folder`, as `src.query` does.
    Pilot tests opt into the `tmp_db` fixture (`tests/tui_fakes.py`, `pytestmark = pytest.mark.usefixtures("tmp_db")`), which patches
    `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `settings.TUI_TOML`, `hunt.config.HUNT_TOML`, `ledger.HUNT_DIR`,
@@ -155,7 +156,8 @@ All commands are `jh-` prefixed; see `.claude/commands/`.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
 `python -m src.hunt sync-agents` regenerates `.claude/agents/*.md` from them with each stage's model
 from `config/hunt.toml`, and CI runs `sync-agents --check`. Never edit a generated agent file.
-Hunt orchestrator: `python -m src.hunt run [--from S] [--to S] [--only S] [--skip S] [--harness H]`
+Hunt orchestrator: `python -m src.hunt run [--from S] [--to S] [--only S] [--skip S] [--ids ID,ID] [--harness H]`
+(`--ids` = research/tailor rows a human chose instead of the pick stage, `src.pick.chosen`)
 (exit 0 done, 2 a stage failed, 3 nothing to tailor), `run --resume RUN|latest` (done units
 skipped, outputs on disk verified again, never a second export; a dead run's lock is taken
 over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. `scripts/ai_pass.sh` is

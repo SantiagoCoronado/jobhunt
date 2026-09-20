@@ -14,6 +14,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 from ..config import CONFIG_DIR
@@ -40,7 +41,8 @@ _DEFAULTS: dict[str, dict[str, Any]] = {
 }
 _RUN_KEYS = ("concurrency", "timeout_s", "retries")
 _MIN = {"concurrency": 1, "timeout_s": 1, "retries": 0, "min_pile": 0, "chunk": 1, "min_bucket": 0,
-        "second_pass_min_bucket": 0, "budget_units": 0}
+        "second_pass_min_bucket": 0, "budget_units": 0,
+        "global_concurrency": 1}    # a cap of 0 would let no unit start
 
 
 @dataclass(frozen=True)
@@ -216,12 +218,14 @@ def defaults() -> HuntConfig:
 
 
 # ---- writing (the TUI's harness tab, docs/spec-tui.md decision 13) -----------------------
-# Only two kinds of value are ever written: `[harness].default` and a fanned stage's `model`.
+# What is written: `[harness].default`, a fanned stage's `model` (strings) and, since 2026-09-20,
+# `[harness].global_concurrency` and a fanned stage's `concurrency` (integers).
 # The file is edited as text, one line per value, so every comment and every other key stays
 # exactly as the human left it; the result must pass `parse` before it replaces the file.
 
 _TABLE_RE = re.compile(r"^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$")
 _STRING = r"""(?:"(?:[^"\\]|\\.)*"|'[^']*')"""
+_INTEGER = r"[+-]?\d[\d_]*"
 
 
 def _toml_string(value: str) -> str:
@@ -234,8 +238,19 @@ def set_string(text: str, table: str, key: str, value: str) -> str:
     """`text` with `[table] key` set to the string `value`. The line's trailing comment keeps
     its column when the new value leaves room. A missing key goes in right under the table
     header, a missing table at the end of the file."""
+    return _set(text, table, key, _toml_string(value), _STRING, "string")
+
+
+def set_int(text: str, table: str, key: str, value: int) -> str:
+    """The integer form of `set_string`: same line, same comment, same column."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"[{table}] {key} must be an integer, got {value!r}")
+    return _set(text, table, key, str(value), _INTEGER, "integer")
+
+
+def _set(text: str, table: str, key: str, literal: str, shape: str, kind: str) -> str:
     lines = text.splitlines()
-    new = f"{key} = {_toml_string(value)}"
+    new = f"{key} = {literal}"
     start = next((i for i, ln in enumerate(lines)
                   if (m := _TABLE_RE.match(ln)) and m.group(1) == table), None)
     if start is None:
@@ -247,9 +262,9 @@ def set_string(text: str, table: str, key: str, value: str) -> str:
         m = key_re.match(lines[i])
         if not m:
             continue
-        rest = re.match(rf"^{_STRING}(\s*)(#.*)?$", m.group(2))
+        rest = re.match(rf"^{shape}(\s*)(#.*)?$", m.group(2))
         if rest is None:
-            raise ValueError(f"[{table}] {key} is not a plain string on one line; edit the file by hand")
+            raise ValueError(f"[{table}] {key} is not a plain {kind} on one line; edit the file by hand")
         line = m.group(1) + new
         if rest.group(2):
             column = len(lines[i]) - len(rest.group(2))
@@ -260,13 +275,14 @@ def set_string(text: str, table: str, key: str, value: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write(changes: dict[tuple[str, str], str], path: Path | None = None) -> HuntConfig:
-    """Apply {(table, key): string} to hunt.toml and return the config it now holds. Nothing
-    is written unless the edited text is a valid hunt config; the write is atomic."""
+def write(changes: Mapping[tuple[str, str], str | int], path: Path | None = None) -> HuntConfig:
+    """Apply {(table, key): string or integer} to hunt.toml and return the config it now holds.
+    Nothing is written unless the edited text is a valid hunt config (so a concurrency under its
+    minimum is refused with `parse`'s own message); the write is atomic."""
     path = path or HUNT_TOML
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     for (table, key), value in changes.items():
-        text = set_string(text, table, key, value)
+        text = set_string(text, table, key, value) if isinstance(value, str) else set_int(text, table, key, value)
     try:
         cfg = parse(tomllib.loads(text), path)
     except tomllib.TOMLDecodeError as e:
@@ -290,3 +306,15 @@ def set_stage_model(stage: str, model: str | None, path: Path | None = None) -> 
     if stage not in FANNED:
         raise ValueError(f"'{stage}' runs no model (fanned stages: {', '.join(s for s in STAGES if s in FANNED)})")
     return write({(f"stages.{stage}", "model"): (model or "").strip()}, path)
+
+
+def set_stage_concurrency(stage: str, n: int, path: Path | None = None) -> HuntConfig:
+    """The most harness processes the orchestrator runs in parallel for one fanned stage
+    (decision 10). The global cap still bounds it at run time."""
+    if stage not in FANNED:
+        raise ValueError(f"'{stage}' is one Python process (fanned stages: {', '.join(s for s in STAGES if s in FANNED)})")
+    return write({(f"stages.{stage}", "concurrency"): n}, path)
+
+
+def set_global_concurrency(n: int, path: Path | None = None) -> HuntConfig:
+    return write({("harness", "global_concurrency"): n}, path)

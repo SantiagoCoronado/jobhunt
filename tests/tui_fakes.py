@@ -11,7 +11,7 @@ import pytest
 from src import db, reconcile, research
 from src.hunt import config as hunt_config
 from src.hunt import ledger as hunt_ledger
-from src.tui import commands, settings
+from src.tui import commands, sections, settings
 
 
 @pytest.fixture
@@ -28,6 +28,8 @@ def tmp_db(tmp_path, monkeypatch):
     # a captured command is a child process: it would not see these patches and would read the real DB
     monkeypatch.setattr(commands, "capture", _capture)
     monkeypatch.setattr(commands, "pbcopy", COPIED.append)   # nor writes the real clipboard
+    # nor depends on which editors this machine has: a pilot test's editor is a name, found as given
+    monkeypatch.setattr(commands, "find_program", lambda name: name)
     monkeypatch.setattr(settings, "TUI_TOML", tmp_path / "config" / "tui.toml")   # nor the real settings
     monkeypatch.setattr(hunt_config, "HUNT_TOML", tmp_path / "config" / "hunt.toml")   # nor how the hunt runs
     monkeypatch.setattr(hunt_ledger, "HUNT_DIR", tmp_path / "hunt")                    # nor a real run's ledger
@@ -54,6 +56,11 @@ def _add(**cols) -> int:
     conn.commit()
     conn.close()
     return int(cur.lastrowid or 0)
+
+
+def _key(mode: str) -> str:
+    """The number key that opens a section, read from the table so a renumbering cannot strand a test."""
+    return str(sections.number(mode))
 
 
 def _run(coro):

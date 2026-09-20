@@ -20,24 +20,24 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 1 | Framework | Textual (Python), with `src/tui/data.py` as the only module touching SQLite so a ratatui front end could replace the view later | Same venv, imports the existing write paths, no second implementation of `set_status`. A fast TUI never blocks on I/O, stays alive between uses and draws only dirty cells; Textual gives the last one, the first two are architecture and apply regardless of language. No Rust or Go toolchain on the machine. |
 | 2 | Notion | Full delete: `src/notion_pull.py`, its test, `/jh-notion-sync`, `query crm`, hints in run.sh, setup.sh, notify footer, docs wording. History docs keep past-tense mentions. Santiago disconnects the claude.ai Notion connector himself (it is not configured in the repo). | Half-killed code gets picked up by an agent one day. |
 | 3 | What it replaces | The Flask viewer and the Flask dependency. `report.html` stays as the offline, shareable dashboard. | A TUI cannot be opened on a phone or sent to someone. |
-| 4 | Sections | 1 board, 2 shortlist, 3 follow-ups, 4 apps, 5 stats (placeholder only), 6 run, 7 settings | Sections 1 to 3 are presets on one shared three-pane screen. |
+| 4 | Sections | 1 board, 2 follow-ups, 3 apps, 4 stats (placeholder only), 5 run, 6 settings. (Amended 2026-09-20: the shortlist section, once `2`, is gone; it showed the board's `shortlisted` rows under a left pane with nothing to pick. The board's `shortlisted` view took over its one rule, the hunt's picks leading the list.) | Board and follow-ups are presets on one shared three-pane screen. |
 | 5 | Claude Code | The TUI runs no model itself. LLM stages run through the hunt orchestrator (`docs/spec-hunt-orchestrator.md`): `python -m src.hunt run --only <stage>` or a full `run`, as a subprocess exactly like a Python stage, stdout tailed in the log pane. The harness behind it is chosen in `config/hunt.toml`, never in the TUI code. Copy-to-clipboard of the slash command stays as the secondary verb. (Amended 2026-09-07; before that, v1 was copy-only and harness execution was deferred.) | Shelling an interactive agent out of Textual is a terminal-ownership rabbit hole; a headless orchestrator with log files is not. |
 | 6 | Phone access | Lost, accepted. `textual serve` is the one-line escape hatch later. | The hunt stopped pushing to Notion on 2026-09-02 anyway. |
 | 7 | Process | Spec first, review in a separate session, one PR per phase, several commits per PR (one story each). | House workflow. |
 | 8 | Multiplexer integration | None. Standalone `python -m src.tui`, opened in any terminal or tmux pane by hand. | A multiplexer plugin would buy one keybinding and an auto-start; it over-complicates v1 (Santiago, 2026-09-19). |
-| 9 | Navigation | Sections 1 to 3 share one three-pane screen (status list, jobs table, detail pane). Sections 4 to 7 are their own screens. | Board, shortlist and follow-ups are the same rows with different filters. |
+| 9 | Navigation | Board and follow-ups share one three-pane screen (status list, jobs table, detail pane). Apps, stats, run and settings are their own screens. | Board and follow-ups are the same rows with different filters. |
 | 10 | Board shape | Three-pane. Eleven kanban columns do not fit a terminal. | The status list is the counts strip turned vertical. |
-| 11 | Hunt picks (was: stars) | Computed, never stored: a row is a pick iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. There is no star mark (amended 2026-09-19): a mark nobody can set by hand reads as broken, so the picks arrive as a pre-selection, the same `●` as a hand-made one, in yellow. `space` takes one off, `esc` takes them all off, `C` brings them back. The pre-selection feeds `c` only; `s` and `b` act on hand-made marks, so a stray `b` never backlogs five rows. | What the TUI shows pre-selected is what a hunt would tailor. |
-| 12 | Runner scope | The stage list is the `src.hunt` registry (discover, triage, match, inbox, pick, research, tailor, report, plus the full hunt) and the extra Python stages (reconcile, stats). `enter` runs any of them as a subprocess with a streamed log; `c` still copies the slash command. A run list shows `data/hunt/*/state.json` with state and started time; selecting a run shows its stages and units and tails the selected unit's log. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. | One process at a time keeps SQLite writes serialized, and the orchestrator's lockfile enforces it for hunts. |
+| 11 | Hunt picks (was: stars) | Computed, never stored: a row is a pick iff `src.pick` would choose it right now (up to 5, dream slots respected, companies in play skipped). Gone the moment a row leaves `shortlisted`. There is no star mark (amended 2026-09-19): a mark nobody can set by hand reads as broken, so the picks arrive as a pre-selection, the same `●` as a hand-made one, in yellow. `space` takes one off, `esc` takes them all off, `C` brings them back. The pre-selection feeds `c` and the runner only (the runner since 2026-09-20); `s` and `b` act on hand-made marks, so a stray `b` never backlogs five rows. | What the TUI shows pre-selected is what a hunt would tailor. |
+| 12 | Runner scope | The stage list is the `src.hunt` registry (discover, triage, match, inbox, pick, research, tailor, report, plus the full hunt) and the extra Python stages (reconcile, stats). `enter` runs any of them as a subprocess with a streamed log; `c` still copies the slash command. A run list shows `data/hunt/*/state.json` with state and started time; selecting a run shows its stages and units and tails the selected unit's log. Per-job copy from the detail pane. Multi-select and a key that copies every starred role. (Amended 2026-09-20: the runner takes the selection. A `selection` block under the stage list shows the marked rows, `space` or `backspace` takes one off, `enter` on one lands on it in the board; `enter` on `tailor` or `research` runs `hunt run --only <stage> --ids ...` on exactly those rows, toasts and starts nothing when none is marked, and spends the selection only when the run exits 0. The full hunt and every other stage ignore the selection and say so.) | One process at a time keeps SQLite writes serialized, and the orchestrator's lockfile enforces it for hunts. |
 | 13 | Settings | `config/tui.toml`, committed. Tabbed modal opened with `,`: tabs `theme`, `sections`, `harness`, `follow-ups`, `editor`, a list, `enter` applies, `esc` closes. The `harness` tab edits `config/hunt.toml` (`harness.default` and one model per stage, picked from the harness's live catalog via `hunt models`), not `tui.toml`, and offers a `doctor` action. Plus a read-only view of `profile.yaml`, `sources.yaml`, `hunt.toml`, `tui.toml` with open-in-`$EDITOR`. No YAML editing through forms. | `profile.yaml` is the single authority for scoring and `hunt.toml` for how a hunt runs; open them in the editor rather than build forms. |
 | 14 | Cold rows | `discovered` hidden behind a dimmed `all` entry that loads lazily with search. `irrelevant` and `expired` never shown (`stats drops` audits them). | 26k discovered, 10k irrelevant, 7k expired. |
-| 15 | Multi-select | `space` toggles, `v` selects all visible, `esc` clears. Bulk verbs: status change, backlog (hand-made marks only), copy commands (`c`: every marked row listed, pre-selected or hand-made, one `/jh-tailor <id>` per line, in table order). | Multi-line paste into a Claude Code prompt runs in order; `/jh-tailor` weaves the dossier in when one exists. |
+| 15 | Multi-select | The selection is the app's, not a table's (amended 2026-09-20, `src/tui/selection.py`): board and follow-ups draw the same marks, another filter or section never drops one, the footer of every section carries the count, and a hand-made mark goes only when its row leaves the statuses the TUI lists. `space` toggles, `v` selects all visible, `esc` clears. Bulk verbs: status change, backlog (hand-made marks only), copy commands (`c`: every marked row listed, pre-selected or hand-made, one `/jh-tailor <id>` per line, in table order). | Multi-line paste into a Claude Code prompt runs in order; `/jh-tailor` weaves the dossier in when one exists. |
 | 16 | Detail pane | Header (title, company, location, source, dream flag, salary when present), status line (score, status, dates, folder bucket), dossier path when one exists, verdict (strengths and missing skills from `match_verdict`), notes, last 5 events, description scrolling. | Events are the only memory of what happened when. |
 | 17 | Status keys | `s` opens a picker with a type-to-filter box, `enter` applies through `set_status` (folder moves with it). `b` is the one direct key (backlog: frequent and reversible). Any move that leaves `applied` or later asks for a one-key confirm. | Direct letters for terminal statuses are how a row gets fat-fingered into rejected. |
 | 18 | Search | `/` searches title, company and notes inside the current filter. In the `all` view a `d:` prefix also searches descriptions. | The common path stays instant. |
 | 19 | Apps section | Every folder under `applications/{pending,applied,other}` joined to its DB row: bucket, company, title, DB status, files present, build verdict when `build.json` exists, drift flag when bucket and status disagree. Pending first. `o` opens posting and Finder folder together, `p` opens the resume PDF, `s` status picker, `R` runs reconcile. | Pending rows are the ones waiting on a human click. |
 | 20 | Live refresh | Poll the `jobs.db` mtime every 2 s, reload the current view on change, `r` forces it. `db.connect` gains `busy_timeout=5000` and `journal_mode=WAL`. | A hunt in another pane must show up without a keypress and must not hand the TUI "database is locked". |
-| 21 | Keybindings | Single keys, focus-based modes (while an input has focus, letters type; `esc` returns focus to the table). `?` opens a help overlay grouped by section. The footer always shows the bindings that apply right now, drawn from the same binding table so it cannot drift. No prefix key. Avoid `ctrl+b` (the tmux prefix). | The TUI is a leaf, not a multiplexer: nothing underneath it needs the keys. |
+| 21 | Keybindings | Single keys, focus-based modes (while an input has focus, letters type; `esc` returns focus to the table). `?` opens a help overlay grouped by section. The footer always shows the bindings that apply right now, drawn from the same binding table so it cannot drift. (Amended 2026-09-20: the footer carries only the keys a reader needs in front of them, a handful per section with one or two word labels; every other binding is `show=False` and lives under `?`, which lists all of them. A shown binding keeps its long form in `tooltip`, on the same `Binding`, and the overlay prints that.) No prefix key. Avoid `ctrl+b` (the tmux prefix). | The TUI is a leaf, not a multiplexer: nothing underneath it needs the keys. |
 
 Routine calls made without a question: notes edit the whole field in a text modal (events keep
 history); `f` takes a date or `+N`; `t` records contact, `T` records contact and bumps the
@@ -45,11 +45,11 @@ follow-up; mouse enabled; stats placeholder shows the plain output of `stats fun
 
 ## 3. Layout
 
-Sections 1 to 3 (board shown; shortlist pins `shortlisted` with the hunt's picks leading;
-follow-ups pins `applied · screen · interview`, sorts by follow-up date, overdue in red):
+Board and follow-ups (board shown; its `shortlisted` view leads with the hunt's picks unless a
+sort was chosen; follow-ups pins `applied · screen · interview`, sorts by follow-up date, overdue in red):
 
 ```
- 1 board  2 shortlist  3 follow-ups  4 apps  5 stats  6 run  7 settings          jobhunt · 2026-09-04
+ 1 board  2 follow-ups  3 apps  4 stats  5 run  6 settings                       jobhunt · 2026-09-04
 ──────────────────────────────────────────────────────────────────────────────────────────────────
  status         │ score co    company           title                       loc          fup      │ #3625 ElevenLabs
  ▸ shortlisted 622 │ ★ 94   ElevenLabs        Forward Deployed Engineer    Remote LATAM  ·        │ Forward Deployed Engineer
@@ -85,10 +85,10 @@ Settings modal:
 
 ## 4. Keybindings
 
-Global: `1`..`7` sections, `?` help, `,` settings, `r` refresh, `q` quit, `esc` home
+Global: `1`..`6` sections, `?` help, `,` settings, `r` refresh, `q` quit, `esc` home
 (focus back to the table, selection cleared, any modal closed).
 
-Jobs table (sections 1 to 3): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` detail overlay
+Jobs table (board and follow-ups): `j`/`k`/arrows move, `g`/`G` top/bottom, `enter` detail overlay
 (narrow) or focus detail (wide), `space` select, `v` select all visible, `s` status picker,
 `b` backlog, `n` notes, `f` follow-up date, `t` touch, `T` touch and bump, `o` open posting,
 `O` open folder (or dossier when no folder), `c` copy `/jh-tailor <id>` (every marked row when any),
@@ -99,18 +99,18 @@ on a column header sorts by it and a second click flips. The sorted header carri
 The order is made in SQL (`data.rows(..., sort)`, whitelisted columns, empty values last in
 both directions), so search, the `all` cap and live refresh keep it.
 
-Apps (4): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile (the dry
+Apps (3): `j`/`k`, `o` posting + Finder, `p` resume PDF, `s` status, `R` reconcile (the dry
 run first; one `y` applies it when there is something it can fix, and what only a human can
 settle stays in the toast).
 
-Run (6): `j`/`k` pick a stage, `enter` runs it (any stage, the full hunt included), `c` copies
+Run (5): `j`/`k` pick a stage, `enter` runs it (any stage, the full hunt included), `c` copies
 the slash command (the shell line when there is none), `R` resumes the highlighted run, `o` opens
 `report.html`, `tab` walks stages, runs, units and the log, `ctrl+c` stops the running stage
 (SIGTERM; a second one kills the process group). `q` asks first while a stage is running.
 
-Stats (5): `j`/`k`/`g` scroll, `r` runs the command again.
+Stats (4): `j`/`k`/`g` scroll, `r` runs the command again.
 
-Config files (7): `tab` / `h` / `l` walk the files, `j`/`k`/`g` scroll, `e` opens the file in
+Config files (6): `tab` / `h` / `l` walk the files, `j`/`k`/`g` scroll, `e` opens the file in
 the configured editor, `r` reads it again.
 
 Settings modal (`,`): `tab` / `shift+tab` walk the tabs, `j`/`k`/arrows move, `enter` applies
@@ -127,14 +127,15 @@ src/tui/
   __main__.py        python -m src.tui
   app.py             App, section switching, global bindings, refresh timer
   data.py            the ONLY module that opens SQLite; pure functions returning dataclasses
-  presets.py         board / shortlist / follow-ups filter + sort definitions
+  presets.py         board / follow-ups filter + sort definitions
+  sections.py        the section table (key order) and `number(mode)`
   commands.py        slash-command strings, `src.hunt` argv builders, clipboard
   settings.py        config/tui.toml load/save, defaults, kanagawa theme
   screens/
-    jobs.py          three-pane screen (sections 1 to 3)
-    apps.py          section 4
-    stats.py         section 5 placeholder
-    run.py           section 6
+    jobs.py          three-pane screen (board and follow-ups)
+    apps.py          the apps section
+    stats.py         the stats placeholder
+    run.py           the runner
     config_view.py   read-only config + open in editor
   widgets/
     status_list.py   left pane
@@ -271,6 +272,61 @@ replace with tiny Python scripts, so no test reads the real DB or starts an agen
 Known cost: the harness tab and the modal write tracked files (`config/hunt.toml`,
 `config/tui.toml`), so a changed model or theme shows up in `git status`, and
 `tests/test_hunt_config.py::test_shipped_file_loads_with_the_spec_values` pins the shipped models.
+
+### PR 5b: `feat/tui-polish` (added 2026-09-20, after Santiago used PR 5; Linear PRA-108)
+
+Built in the order 6, 3, 8, then the rest; the numbers are the stories' own.
+
+1. **Clickable section tabs**: a click on a tab's label is its number key; the hit areas come from the table the bar draws from (`section_bar.tabs()`, itself from `SECTIONS`).
+2. **Runner stage notes**: `haiku on claude · 8 parallel` and a hunt line that names the global cap; the harness tab edits each fanned stage's `concurrency` and `global_concurrency` through the comment-keeping writer, which gained an integer form.
+3. **The selection follows you into the runner**: the marks are held on the app, the runner shows them in a `selection` block and `enter` on `tailor` or `research` runs `hunt run --only <stage> --ids ...` on them (decisions 11, 12, 15; hunt spec section 8).
+6. **Remove the shortlist section**: six sections; the board's `shortlisted` view leads with the hunt's picks under its own sort (decisions 4, 9).
+4. **Footer**: board and follow-ups show `space select`, `/ search`, `s status`, `c copy`, `? help`; apps `o open`, `s status`, `R reconcile`; run `enter run`, `^c stop`, `R resume`; stats `r again`; config files `tab next`, `e edit`; `,` and `q` left the footer too. Nothing is cut at 120 columns with a selection note.
+5. **No command palette**: `ENABLE_COMMAND_PALETTE = False`; the theme changes only in the settings modal, so `tui.toml` is its one record.
+7. **Thin scrollbars**: one cell, set once in the app's CSS, colours from the theme; the jobs table's title column takes the table's slack (never under `TITLE_MIN`), so the horizontal bar goes where the columns fit.
+8. **An editor round trip never quits the TUI**: `e` with nvim closed the app.
+9. **The settings modal keeps one size**: a fixed box (29 rows, `max-height: 90%` on a short terminal) with the list scrolling inside; no edge moves on `tab`.
+10. **Legend**: under the status list of board and follow-ups, drawn from the table's own constants (`widgets/legend.py`), only the lines the section can show, first to give way on a short terminal.
+11. **Loading state**: `src/tui/loading.py`. A first load that takes over 0.2 s puts Textual's indicator on the widget it fills; a reload keeps the rows and spins a mark in the footer note; the model picker and `hunt doctor` say they are running on the modal's hint line; every load clears its sign in a `finally`, and a token keeps a superseded worker from clearing the newer load's.
+
+As built, story 8: `e` builds the argv from the template (`settings.editor_argv`), suspends the
+app (`App.suspend`: the driver leaves application mode and stops reading input), runs the editor
+in the foreground on the real terminal (`commands.run_editor`), and resumes. An editor like nvim
+asks the terminal questions on its way in and out (cursor style, colours, keyboard protocol); an
+answer that arrives after the editor is gone waits in the terminal's input queue and the resumed
+TUI read it as keys. The cursor-style answer is `ESC P 1 $ r 2 SP q ESC \`, and `q` quits, which
+is what "nvim closes the TUI" was; nano asks nothing, so it never showed. Two guards, both in the
+round trip and nowhere else: `commands.flush_terminal_input` (`tcflush(TCIFLUSH)` on the fd the
+driver reads) runs after the editor exits and BEFORE `resume_application_mode`, and
+`JobhuntApp.deafen` drops every input event for `DEAF_SECONDS` (0.3 s) after the resume, for
+what trickles in later; a `q` typed after that quits as ever. `tests/test_tui_pty.py` (marker
+`pty`, skipped where there is no pty) runs the real `run()` path in a child on a
+pseudo-terminal, with a fake terminal editor that reads nothing while the test injects that
+answer plus a bare `q`: the TUI must be alive afterwards and a later `q` must exit 0. With the
+two guards removed the test fails on "the late reply was read as `q`".
+
+After Santiago tried the branch (2026-09-20): nvim was fine, `code -w` and `cursor -w` did not
+launch. Neither CLI was on PATH: a GUI editor's command lives inside its app bundle on macOS and
+reaches PATH only through the editor's own "install shell command" action. `commands.find_program`
+looks on PATH, then in the bundles under `/Applications` and `~/Applications` (globbed, a second
+install is "Visual Studio Code 2.app"); `resolve_editor` runs before the terminal is given away,
+an editor nothing can find is an error toast that says what to do, and the settings modal's editor
+tab marks it `not installed`. A window editor (VS Code, Cursor, Zed, Sublime: `commands.is_window_editor`) is started detached and the TUI stays up beside it; only a terminal editor suspends the app. The config view polls the shown file's mtime every 2 s, so it follows each save, and an edit to `tui.toml` takes effect as it is saved. The runner's selection block became a checklist the same day:
+`space` takes a row off and puts it back (it stays listed, `○` and struck through), `x` clears,
+the title counts what is on and off, the footer names the keys while the block has the focus, and
+a run takes the marked rows in the block's order.
+
+As built, the rest: decisions 4, 9, 11, 12, 15 and 21 carry their amendments inline. The
+selection (story 3) outlives a filter as well as a section, which the story left open: the
+footer counts it everywhere, so a bulk `s` or `b` acts on every hand-made mark, listed in the
+current view or not. Section numbers in on-screen text come from `sections.number(mode)`, and
+pilot tests press `_key(mode)`, so the next renumbering is one table. Story 11 measured section
+3 before adding any indicator: the seconds were not the folder walk but `config.resume_basename()`
+called once per folder, a full parse of `profile.yaml` each time (155 folders, 2.0 s); read once
+per load it is 0.06 s, so no per-folder cache was needed. Textual posts `ScreenResume` twice on
+a mode's first show, which started every section's first load twice; a load already on its way
+is now the load. `hunt.toml` gained a minimum of 1 for `global_concurrency` (a cap of 0 let no
+unit start).
 
 ## 9. Later (not scheduled)
 

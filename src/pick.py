@@ -85,6 +85,46 @@ def busy_companies(conn, cooldown_days: int = COOLDOWN_DAYS, today: date | None 
     return busy
 
 
+def record(r, dream: bool) -> dict:
+    """One pick as `picks.json` carries it, from a jobs row."""
+    try:
+        v = json.loads(r["match_verdict"] or "{}")
+    except (ValueError, TypeError):
+        v = {}
+    if not isinstance(v, dict):
+        v = {}
+    return {
+        "id": r["id"], "company": r["company"], "title": r["title"], "location": r["location"],
+        "match": r["match_score"], "dream": dream, "recommendation": v.get("recommendation"),
+        "location_ok": v.get("location_ok"), "visa_path": v.get("visa_path"),
+    }
+
+
+def chosen(ids: list[int], conn: sqlite3.Connection | None = None) -> tuple[list[dict], list[str]]:
+    """(picks, refusals) for rows a human chose by id (`hunt run --ids`), in the order given.
+    The star rule does not apply: no slots, no one-per-company, no in-play or cooldown skip, an
+    unscored row is fine. What still holds: the row exists and is `shortlisted` (the matcher's
+    hard blocks, export control among them, never reach that status), and a dream row outside
+    the relocation regions stays out, as it does for `pick`. Any refusal means nothing runs."""
+    conn = conn or connect()
+    scope = relocation_scope()
+    picks: list[dict] = []
+    refused: list[str] = []
+    for job_id in dict.fromkeys(ids):
+        r = conn.execute("SELECT id, company, title, location, status, match_score, match_verdict "
+                         "FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if r is None:
+            refused.append(f"#{job_id} is not a row in the jobs table")
+        elif r["status"] != "shortlisted":
+            refused.append(f"#{job_id} {r['company'] or '?'} is {r['status']}, not shortlisted")
+        elif is_dream(r["company"]) and outside_relocation_regions(r["location"], scope):
+            refused.append(f"#{job_id} {r['company'] or '?'} is a dream row outside the relocation regions "
+                           f"(work_authorization.relocation_regions)")
+        else:
+            picks.append(record(r, is_dream(r["company"])))
+    return picks, refused
+
+
 def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
          today: date | None = None, spares: int = SPARES, conn: sqlite3.Connection | None = None,
          apps_dir: Path | None = None) -> tuple[list[dict], list[dict], list[dict]]:
@@ -113,17 +153,7 @@ def pick(n: int = 5, dream_slots: int = 2, cooldown_days: int = COOLDOWN_DAYS,
         if key in taken or r["id"] in evaluated:
             return False
         evaluated.add(r["id"])
-        try:
-            v = json.loads(r["match_verdict"] or "{}")
-        except (ValueError, TypeError):
-            v = {}
-        if not isinstance(v, dict):
-            v = {}
-        rec = {
-            "id": r["id"], "company": r["company"], "title": r["title"], "location": r["location"],
-            "match": r["match_score"], "dream": dream, "recommendation": v.get("recommendation"),
-            "location_ok": v.get("location_ok"), "visa_path": v.get("visa_path"),
-        }
+        rec = record(r, dream)
         if key in busy:
             rec["why"] = busy[key]
             skipped.append(rec)

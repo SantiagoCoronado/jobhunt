@@ -10,7 +10,7 @@ import json
 import re
 import sqlite3
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -189,6 +189,18 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
         return select(conn, (status,) if status else p.statuses, None)
 
 
+def rows_by_id(ids: set[int] | frozenset[int]) -> list[JobRow]:
+    """The marked rows that are still ones the TUI lists, whatever view is on screen: the app's
+    selection outlives a filter, and a row that went `irrelevant` or `expired` leaves it."""
+    if not ids:
+        return []
+    listed = (*HOT, *COLD)
+    with _conn() as conn:
+        sql = (f"SELECT {_ROW_COLS} FROM jobs WHERE id IN ({','.join('?' for _ in ids)}) "
+               f"AND status IN ({','.join('?' for _ in listed)})")
+        return [_job_row(r) for r in conn.execute(sql, [*sorted(ids), *listed])]
+
+
 def picks() -> list[int]:
     """The rows `src.pick` would choose right now, in the order a hunt would take them (spec
     decision 11): computed on every load, never stored, so a pick is gone the moment its row
@@ -292,7 +304,7 @@ def detail(job_id: int) -> JobDetail | None:
     )
 
 
-# Applications (section 4): every folder under applications/{pending,applied,other} joined to
+# Applications (the apps section): every folder under applications/{pending,applied,other} joined to
 # its DB row by the `-<id>` suffix.
 
 APP_FILES = ("resume", "pdf", "letter", "answers")   # the order the files column lists them in
@@ -313,8 +325,7 @@ class AppRow:
     drift: str                  # "" when folder and DB agree, else what `reconcile` would say
 
 
-def _app_files(folder: Path) -> tuple[tuple[str, ...], Path | None]:
-    stem = config.resume_basename()
+def _app_files(folder: Path, stem: str) -> tuple[tuple[str, ...], Path | None]:
     names = {p.name for p in folder.iterdir() if p.is_file()}
     # An earlier profile name leaves another stem behind (`reconcile` lists those): still a resume.
     yamls = sorted(n for n in names if n.endswith("Resume.yaml"))
@@ -367,6 +378,9 @@ def apps() -> list[AppRow]:
             found = {r["id"]: r for r in conn.execute(
                 f"SELECT id, company, title, status, url FROM jobs WHERE id IN ({marks})", list(seen))}
 
+    # Once per load, not once per folder: `resume_basename` parses profile.yaml each time it is
+    # asked, and 155 folders made that 2 s of a 2 s load (measured 2026-09-20, PRA-119).
+    stem = config.resume_basename()
     out: list[tuple[tuple[int, float, str], AppRow]] = []
     for (bucket, path), job_id in zip(folders, ids, strict=True):
         r = found.get(job_id) if job_id is not None else None
@@ -379,7 +393,7 @@ def apps() -> list[AppRow]:
         else:
             drift = _drift(bucket, r["status"] or "")
         try:
-            files, pdf = _app_files(path)
+            files, pdf = _app_files(path, stem)
             build, mtime = _build_verdict(path), path.stat().st_mtime
         except OSError:
             continue    # moved between the scan and here (a status change, a hunt): the next load has it
@@ -549,6 +563,7 @@ class StageModel:
     stage: str
     harness: str               # the stage's own override, else the default
     model: str | None          # None: the harness default
+    concurrency: int = 1       # the most harness processes the orchestrator runs at once for it
 
 
 @dataclass(frozen=True)
@@ -557,6 +572,7 @@ class HarnessView:
     harnesses: tuple[str, ...] = ()        # shipped adapters plus the file's [harness.<name>] templates
     stages: tuple[StageModel, ...] = ()    # fanned stages only: a Python stage runs no model
     error: str = ""                        # hunt.toml does not load; nothing else is set
+    global_concurrency: int = 8            # the cap over every stage's own number
 
 
 def harness_view() -> HarnessView:
@@ -565,9 +581,9 @@ def harness_view() -> HarnessView:
     except ValueError as e:
         return HarnessView(error=str(e))
     names = tuple(dict.fromkeys([*hunt_harness.SHIPPED, *sorted(cfg.harness_templates), cfg.harness]))
-    stages = tuple(StageModel(s, cfg.harness_for(s), cfg.stage(s).model)
+    stages = tuple(StageModel(s, cfg.harness_for(s), cfg.stage(s).model, cfg.stage(s).concurrency)
                    for s in hunt_config.STAGES if cfg.stage(s).fanned)
-    return HarnessView(cfg.harness, names, stages)
+    return HarnessView(cfg.harness, names, stages, global_concurrency=cfg.global_concurrency)
 
 
 @dataclass(frozen=True)
@@ -607,7 +623,18 @@ def set_stage_model(stage: str, model: str | None) -> str:
 # registry plus the full hunt and the two Python extras; a run is a ledger folder under
 # `data/hunt/`. Nothing here starts a process: a stage carries its argv, the screen runs it.
 
+def set_stage_concurrency(stage: str, n: int) -> str:
+    hunt_config.set_stage_concurrency(stage, n)
+    return f"{stage}: {n} parallel (config/hunt.toml)"
+
+
+def set_global_concurrency(n: int) -> str:
+    hunt_config.set_global_concurrency(n)
+    return f"at most {n} harness processes at once, over every stage (config/hunt.toml)"
+
+
 HUNT = "hunt"                                   # the whole loop, `python -m src.hunt run`
+ON_SELECTION = ("research", "tailor")           # `--only` these needs picks: the selection is them
 SLASH = {HUNT: "/jh-hunt", "discover": "/jh-discover", "triage": "/jh-triage", "match": "/jh-match",
          "inbox": "/jh-gmail-sync", "report": "/jh-report"}   # research and tailor need an id: `c` on a job
 
@@ -625,6 +652,14 @@ class RunStage:
         """What `c` puts on the clipboard: the slash command, else the shell line."""
         return self.slash or commands.shell_line(self.argv)
 
+    @property
+    def takes_selection(self) -> bool:
+        """Runs on the rows marked in the jobs sections (`hunt run --ids`), never on its own."""
+        return self.name in ON_SELECTION
+
+    def argv_for(self, job_ids: Sequence[int]) -> tuple[str, ...]:
+        return (*self.argv, "--ids", ",".join(str(int(i)) for i in job_ids)) if self.takes_selection else self.argv
+
 
 def stages() -> list[RunStage]:
     from ..hunt.stages import REGISTRY    # imports every stage module: only when the runner opens
@@ -634,10 +669,12 @@ def stages() -> list[RunStage]:
     except ValueError:
         cfg = hunt_config.defaults()      # the harness tab names the error; the list still draws
     out = [RunStage(HUNT, "hunt", tuple(commands.hunt_argv("run")),
-                    f"every stage in order, on {cfg.harness}", SLASH[HUNT])]
+                    f"every stage, on {cfg.harness} · cap {cfg.global_concurrency} parallel", SLASH[HUNT])]
     for name, stage in REGISTRY.items():
         sc = cfg.stage(name)
-        note = f"{sc.model or 'harness default'} on {cfg.harness_for(name)}, {sc.concurrency} at a time" \
+        # `N parallel` is `concurrency` in hunt.toml, a setting (the harness tab edits it), not a
+        # limit of the runner: the most harness processes the orchestrator fans out at once.
+        note = f"{sc.model or 'harness default'} on {cfg.harness_for(name)} · {sc.concurrency} parallel" \
             if sc.fanned else "python, in process"
         out.append(RunStage(name, stage.kind, tuple(commands.hunt_argv("run", "--only", name)),
                             note, SLASH.get(name, "")))

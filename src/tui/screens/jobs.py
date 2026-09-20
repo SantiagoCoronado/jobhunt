@@ -1,4 +1,4 @@
-"""Sections 1 to 3: one three-pane screen (status list, jobs table, detail) under a preset."""
+"""Board and follow-ups: one three-pane screen (status list, jobs table, detail) under a preset."""
 from __future__ import annotations
 
 from textual import events, work
@@ -9,10 +9,10 @@ from textual.widgets import Input
 from textual.worker import get_current_worker
 
 from .. import commands, data
-from ..presets import PRESETS, SORT_COLUMNS, Sort
+from ..presets import ALL, PICKS_LEAD, PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
-from ..widgets.footer import SectionFooter
 from ..widgets.jobs_table import JobsTable
+from ..widgets.legend import Legend
 from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
 from ..widgets.status_list import StatusList
 from .base import SectionScreen
@@ -26,28 +26,29 @@ class JobsScreen(SectionScreen):
 
     DEFAULT_CSS = """
     JobsScreen #panes { height: 1fr; }
+    JobsScreen #left { width: 22; height: 1fr; border-right: solid $panel; }
     JobsScreen #middle { width: 1fr; height: 1fr; }
     JobsScreen #search { display: none; height: 1; border: none; padding: 0 1; background: $boost; }
     JobsScreen #search.open { display: block; }
     """
 
     BINDINGS = [
-        Binding("r", "refresh", "refresh"),
-        Binding("slash", "search", "search"),
-        Binding("greater_than_sign", "sort_move(1)", "sort by next column", key_display=">"),
+        Binding("r", "refresh", "refresh", show=False),
+        Binding("slash", "search", "search", tooltip="search title, company, notes inside the filter"),
+        Binding("greater_than_sign", "sort_move(1)", "sort by next column", key_display=">", show=False),
         Binding("less_than_sign", "sort_move(-1)", "sort by previous column", key_display="<", show=False),
-        Binding("minus", "sort_flip", "ascending / descending", key_display="-"),
+        Binding("minus", "sort_flip", "ascending / descending", key_display="-", show=False),
         Binding("equals_sign", "sort_reset", "back to the section's own sort", key_display="=", show=False),
         Binding("escape", "home", "home: back to the table, search and selection cleared", show=False),
         Binding("tab", "app.focus_next", "next pane: status list, table, detail", show=False),
-        Binding("s", "status", "status"),
-        Binding("b", "backlog", "backlog"),
-        Binding("o", "open(False)", "open posting"),
-        Binding("O", "open(True)", "open folder"),
-        Binding("c", "copy", "copy /jh-tailor"),
-        Binding("n", "notes", "note"),
-        Binding("f", "followup", "follow-up"),
-        Binding("t", "touch(False)", "touch"),
+        Binding("s", "status", "status", tooltip="status: the picker, on the selection or this row"),
+        Binding("b", "backlog", "backlog", show=False),
+        Binding("o", "open(False)", "open posting", show=False),
+        Binding("O", "open(True)", "open folder", show=False),
+        Binding("c", "copy", "copy", tooltip="copy /jh-tailor lines for the marked rows, or this row"),
+        Binding("n", "notes", "note", show=False),
+        Binding("f", "followup", "follow-up", show=False),
+        Binding("t", "touch(False)", "touch", show=False),
         Binding("T", "touch(True)", "touch and bump the follow-up", show=False),
     ]
 
@@ -58,10 +59,13 @@ class JobsScreen(SectionScreen):
         self.query_text = ""
         self.sort: Sort | None = None      # None = the preset's own order
         self.seen_mtime = 0.0
+        self.goto: int | None = None       # a row to put the cursor on once it is listed
 
     def body(self) -> ComposeResult:
         with Horizontal(id="panes"):
-            yield StatusList(PRESETS[self.preset].entries, id="status-list")
+            with Vertical(id="left"):
+                yield StatusList(PRESETS[self.preset].entries, id="status-list")
+                yield Legend(self.preset, id="legend")
             with Vertical(id="middle"):
                 yield Input(placeholder="search title, company, notes (d: adds descriptions in all)",
                             id="search")
@@ -70,6 +74,8 @@ class JobsScreen(SectionScreen):
 
     def on_mount(self) -> None:
         self.query_one(JobsTable).focus()
+        self.query_one(JobsTable).marks = self.app.selection  # type: ignore[attr-defined]
+        self.query_one(Legend).show(self.app.settings.overdue_style)  # type: ignore[attr-defined]
         self.query_one(JobsTable).overdue_style = self.app.settings.overdue_style  # type: ignore[attr-defined]
         self.call_after_refresh(self.set_sort, None)      # the arrow on the preset's lead column
         self.seen_mtime = data.db_mtime()
@@ -86,11 +92,39 @@ class JobsScreen(SectionScreen):
     def on_screen_resume(self) -> None:
         """Back from a modal or another section: the settings may have changed meanwhile."""
         self.apply_settings()
-        self.poll()
+        self.query_one(JobsTable).redraw_marks()       # another section may have changed them
+        if not self.take_jump():
+            self.poll()
+
+    def sync_selection(self) -> None:
+        super().sync_selection()
+        self.query_one(JobsTable).redraw_marks()
+
+    def take_jump(self) -> bool:
+        """The runner asked for a row (`app.show_job`): list its status and land on it."""
+        app = self.app
+        job_id, app.jump_to = app.jump_to, None  # type: ignore[attr-defined]
+        row = app.selection.rows.get(job_id) if job_id is not None else None  # type: ignore[attr-defined]
+        if row is None:
+            return False
+        preset = PRESETS[self.preset]
+        entry = row.status if row.status in preset.entries else ALL
+        if entry not in preset.entries:
+            return False
+        self.goto = row.id
+        box = self.query_one("#search", Input)
+        box.remove_class("open")
+        self.query_text = box.value = ""
+        self.status_filter = entry
+        self.query_one(StatusList).highlighted = preset.entries.index(entry)   # a no-op when already there
+        self.query_one(JobsTable).focus()
+        self.load_rows()
+        return True
 
     def apply_settings(self) -> None:
         s = self.app.settings  # type: ignore[attr-defined]
         self.query_one("#detail", DetailPane).display = self.wide
+        self.query_one(Legend).show(s.overdue_style)       # the overdue sample follows the setting
         table = self.query_one(JobsTable)
         if table.overdue_style != s.overdue_style:
             table.overdue_style = s.overdue_style
@@ -108,29 +142,58 @@ class JobsScreen(SectionScreen):
         self.query_one("#detail", DetailPane).display = (
             event.size.width >= WIDE and self.app.settings.detail_pane)  # type: ignore[attr-defined]
 
-    @work(thread=True, group="counts", exclusive=True)
     def load_counts(self) -> None:
-        counts = data.counts()
-        preset = PRESETS[self.preset]
-        counts[self.preset] = sum(counts.get(s, 0) for s in preset.statuses)   # the head entry
-        self.app.call_from_thread(self.query_one(StatusList).set_counts, counts)
+        self.read_counts(self.busy.start("counts"))          # the list has its entries: only the mark
+
+    @work(thread=True, group="counts", exclusive=True)
+    def read_counts(self, token: int) -> None:
+        try:
+            counts = data.counts()
+            preset = PRESETS[self.preset]
+            counts[self.preset] = sum(counts.get(s, 0) for s in preset.statuses)   # the head entry
+            self.app.call_from_thread(self.query_one(StatusList).set_counts, counts)
+        except Exception as e:  # noqa: BLE001, a load that fails says why and never leaves the indicator on
+            self.load_failed("counts", e)
+        finally:
+            self.busy.done_from_thread(self.app, "counts", token)
+
+    def load_rows(self, keep: bool = False) -> None:
+        """The marked ids are read here, on the UI thread, and handed to the worker."""
+        token = self.busy.start("rows", self.query_one(JobsTable))
+        self.read_rows(keep, frozenset(self.app.selection.selected), token)  # type: ignore[attr-defined]
 
     @work(thread=True, group="rows", exclusive=True)
-    def load_rows(self, keep: bool = False) -> None:
+    def read_rows(self, keep: bool, marked: frozenset[int], token: int) -> None:
         """SQLite off the UI thread. A thread cannot be interrupted, so a load that was
         superseded (the cursor moved on in the status list) drops its result instead."""
         worker = get_current_worker()
-        rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
-        picks = set(data.picks())
-        if PRESETS[self.preset].picks_first and self.sort is None:    # a chosen sort is obeyed as is
-            rows = data.picks_first(rows, picks)
-        if not worker.is_cancelled:
-            today = self.app.today  # type: ignore[attr-defined]
-            self.app.call_from_thread(self.query_one(JobsTable).load, rows, today, keep, picks)
+        try:
+            rows = data.rows(self.preset, self.status_filter, self.query_text, self.sort)
+            picks = data.picks()
+            held = data.rows_by_id(marked | frozenset(picks))      # the selection outlives this view
+            if self.status_filter == PICKS_LEAD and self.sort is None:    # a chosen sort is obeyed as is
+                rows = data.picks_first(rows, set(picks))
+            if not worker.is_cancelled:
+                self.app.call_from_thread(self.show_rows, rows, keep, picks, held, marked)
+        except Exception as e:  # noqa: BLE001
+            self.load_failed("jobs", e)
+        finally:
+            self.busy.done_from_thread(self.app, "rows", token)
+
+    def show_rows(self, rows: list[data.JobRow], keep: bool, picks: list[int], held: list[data.JobRow],
+                  asked: frozenset[int]) -> None:
+        table = self.query_one(JobsTable)
+        table.load(rows, self.app.today, keep, picks, held, asked)  # type: ignore[attr-defined]
+        if self.goto is not None and self.goto in table.rows_by_id:
+            table.move_cursor(row=table.job_ids.index(self.goto))
+        self.goto = None
 
     def on_status_list_picked(self, event: StatusList.Picked) -> None:
         # The head entry carries the preset's name and means "no pick": the preset's statuses.
-        self.status_filter = None if event.status == self.preset else event.status
+        picked = None if event.status == self.preset else event.status
+        if self.goto is not None and picked == self.status_filter:
+            return                                  # `take_jump` moved the highlight and is loading
+        self.status_filter = picked
         self.load_rows()
 
     def on_data_table_row_highlighted(self, event: JobsTable.RowHighlighted) -> None:
@@ -143,20 +206,30 @@ class JobsScreen(SectionScreen):
         else:
             self.load_detail(self.query_one(JobsTable).current_id, overlay=True)
 
-    @work(thread=True, group="detail", exclusive=True)
     def load_detail(self, job_id: int | None, overlay: bool) -> None:
-        worker = get_current_worker()
-        detail = data.detail(job_id) if job_id is not None else None
-        if worker.is_cancelled:
-            return
-        if overlay:
-            if detail is not None:
-                self.app.call_from_thread(self.app.push_screen, DetailOverlay(detail))
-        else:
-            self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
+        pane = self.query_one("#detail", DetailPane)
+        self.read_detail(job_id, overlay, self.busy.start("detail", *(() if overlay else (pane,))))
 
-    # Status changes. The hand-made selection when there is one, else the row under the cursor;
-    # never the hunt's pre-selection, so a stray `b` cannot backlog five rows.
+    @work(thread=True, group="detail", exclusive=True)
+    def read_detail(self, job_id: int | None, overlay: bool, token: int) -> None:
+        worker = get_current_worker()
+        try:
+            detail = data.detail(job_id) if job_id is not None else None
+            if worker.is_cancelled:
+                return
+            if overlay:
+                if detail is not None:
+                    self.app.call_from_thread(self.app.push_screen, DetailOverlay(detail))
+            else:
+                self.app.call_from_thread(self.query_one("#detail", DetailPane).show, detail)
+        except Exception as e:  # noqa: BLE001
+            self.load_failed("the detail", e)
+        finally:
+            self.busy.done_from_thread(self.app, "detail", token)
+
+    # Status changes. The hand-made selection when there is one (the app's, so rows marked under
+    # another filter or in the other jobs section count, as the footer says), else the row under
+    # the cursor; never the hunt's pre-selection, so a stray `b` cannot backlog five rows.
 
     def current_row(self) -> data.JobRow | None:
         return self.query_one(JobsTable).current_row
@@ -285,7 +358,7 @@ class JobsScreen(SectionScreen):
             return
         self.app.call_from_thread(self.toast, line)
 
-    # Copy: `c` every marked row listed (the hunt's picks arrive marked, so on a fresh shortlist
+    # Copy: `c` every marked row listed (the hunt's picks arrive marked, so on a fresh `shortlisted`
     # that is what a hunt would tailor), else the row under the cursor. One `/jh-tailor <id>`
     # per line, in table order; a multi-line paste runs in order.
 
@@ -328,11 +401,6 @@ class JobsScreen(SectionScreen):
         table = self.query_one(JobsTable)
         table.clear_marks()
         table.focus()
-
-    def on_jobs_table_selection_changed(self, event: JobsTable.SelectionChanged) -> None:
-        parts = [f"{event.selected} selected" if event.selected else "",
-                 f"{event.picked} hunt pick{'' if event.picked == 1 else 's'}" if event.picked else ""]
-        self.query_one(SectionFooter).note = " · ".join(p for p in parts if p)
 
     # Sort. `>` `<` pick the column, `-` flips, `=` returns to the preset; a header click does
     # both (first click sorts by that column, the next one flips). The order is made in SQL.

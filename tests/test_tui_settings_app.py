@@ -2,7 +2,7 @@
 from datetime import date
 
 import pytest
-from tui_fakes import _add, _run, _settle
+from tui_fakes import _add, _key, _run, _settle
 
 from src.tui import settings
 from src.tui.app import JobhuntApp
@@ -56,7 +56,7 @@ def test_enter_applies_and_saves_and_the_check_moves():
             await pilot.press("tab")                          # sections
             lines = _labels(modal)
             assert lines[lines.index("  board ✓")] and "  followups" in lines
-            await pilot.press("j", "j", "enter")              # board -> shortlist -> followups
+            await pilot.press("j", "enter")                   # board -> followups
             await pilot.pause()
             assert app.settings.default_section == "followups"
             assert settings.load().default_section == "followups"
@@ -67,13 +67,13 @@ def test_enter_applies_and_saves_and_the_check_moves():
 
 
 def test_the_saved_launch_section_is_where_the_next_launch_opens(tmp_db):
-    settings.save(settings.Settings(default_section="shortlist"))
+    settings.save(settings.Settings(default_section="followups"))
 
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 30)) as pilot:
             await _settle(app, pilot)
-            assert app.current_mode == "shortlist"
+            assert app.current_mode == "followups"
     _run(scenario())
 
 
@@ -120,7 +120,7 @@ def test_overdue_style_and_the_followup_hint_come_from_the_settings():
     async def scenario():
         app = JobhuntApp(today=date(2026, 9, 19))
         async with app.run_test(size=(160, 40)) as pilot:
-            await pilot.press("3")
+            await pilot.press(_key("followups"))
             await _settle(app, pilot)
             table = app.screen.query_one(JobsTable)
             assert str(table.get_row_at(0)[-1].style) == "red"
@@ -207,3 +207,27 @@ def test_the_saved_theme_is_the_theme_of_the_next_launch(tmp_db):
             await _settle(app, pilot)
             assert app.theme == "gruvbox"
     _run(scenario())
+
+
+def test_the_box_keeps_one_size_and_place_on_every_tab_and_fits_a_short_terminal():
+    """PRA-117: the box used to be as tall as the tab's list, so every `tab` moved its edges."""
+    from src.tui.widgets.settings_modal import TABS
+
+    async def walk(size):
+        app = JobhuntApp()
+        async with app.run_test(size=size) as pilot:
+            modal = await _open(app, pilot)
+            seen = []
+            for _ in TABS:
+                box, keys = modal.query_one("#settings-box"), modal.query_one("#settings-keys")
+                assert keys.region.bottom == box.region.bottom - 1          # the hint sits on the box's last line
+                assert modal.query_one("#settings-list").region.height >= 3
+                seen.append((box.region.y, box.region.height))
+                await pilot.press("tab")
+                await pilot.pause()
+            return seen
+
+    tall = _run(walk((140, 44)))
+    assert len(set(tall)) == 1 and tall[0][1] == 29                          # never a resize, never a jump
+    short = _run(walk((140, 24)))
+    assert len(set(short)) == 1 and short[0][1] <= 0.9 * 24 + 1              # the cap wins, the list scrolls

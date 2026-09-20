@@ -14,11 +14,11 @@ from .base import SectionScreen
 
 class AppsScreen(SectionScreen):
     BINDINGS = [
-        Binding("r", "refresh", "refresh"),
-        Binding("o", "open", "open posting + folder"),
-        Binding("p", "pdf", "resume PDF"),
+        Binding("r", "refresh", "refresh", show=False),
+        Binding("o", "open", "open", tooltip="open the posting and the folder"),
+        Binding("p", "pdf", "resume PDF", show=False),
         Binding("s", "status", "status"),
-        Binding("R", "reconcile", "reconcile"),
+        Binding("R", "reconcile", "reconcile", tooltip="reconcile folders and statuses: the dry run, then y applies"),
     ]
 
     def __init__(self) -> None:
@@ -29,24 +29,32 @@ class AppsScreen(SectionScreen):
 
     def on_mount(self) -> None:
         self.query_one(AppsTable).focus()
-        self.reload()
 
     def on_screen_resume(self) -> None:
-        """Back from another section or a modal: a hunt may have tailored a folder meanwhile."""
-        self.reload()
+        """Every time the section comes up, the first included (ScreenResume fires on a mode's
+        first show too, so loading in `on_mount` as well ran the walk twice): a hunt may have
+        tailored a folder meanwhile. Textual posts ScreenResume twice on that first show, and
+        the second would start the same walk again: a load already on its way is the load."""
+        if not self.busy.running("apps"):
+            self.reload()
 
     def action_refresh(self) -> None:
         self.reload()
 
     def reload(self) -> None:
-        self.load_apps()
+        self.load_apps(self.busy.start("apps", self.query_one(AppsTable)))
 
     @work(thread=True, group="apps", exclusive=True)
-    def load_apps(self) -> None:
+    def load_apps(self, token: int) -> None:
         worker = get_current_worker()
-        apps = data.apps()
-        if not worker.is_cancelled:
-            self.app.call_from_thread(self.query_one(AppsTable).load, apps)
+        try:
+            apps = data.apps()
+            if not worker.is_cancelled:
+                self.app.call_from_thread(self.query_one(AppsTable).load, apps)
+        except Exception as e:  # noqa: BLE001, a load that fails says why and never leaves the indicator on
+            self.load_failed("applications", e)
+        finally:
+            self.busy.done_from_thread(self.app, "apps", token)
 
     def current(self) -> data.AppRow | None:
         return self.query_one(AppsTable).current

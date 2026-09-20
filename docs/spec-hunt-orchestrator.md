@@ -279,7 +279,8 @@ the 5 picks with dossier and application paths, each build's RESUME and LETTER v
 
 ```
 python -m src.hunt run      [--harness NAME] [--from STAGE] [--to STAGE] [--only STAGE]
-                            [--skip STAGE ...] [--resume RUN|latest] [--dry-run] [--quiet]
+                            [--skip STAGE ...] [--ids ID,ID,...] [--resume RUN|latest]
+                            [--dry-run] [--quiet]
 python -m src.hunt status   [RUN|latest]
 python -m src.hunt report   [RUN|latest]
 python -m src.hunt runs     # list run folders with state and started time
@@ -293,6 +294,19 @@ harness and model each would use. `run` prints one line per transition to stdout
 the same lines) and exits 0 when every non-skipped stage is done, 2 when any stage failed, 3 when
 the pick stage found nothing to tailor. A lockfile (`data/hunt/.lock`, mkdir-atomic like
 `ai_pass.sh`) refuses a second concurrent run.
+
+`--ids 3625,9118` (added 2026-09-20, PRA-111) runs research and tailor on rows a human chose,
+in the order given: `--only research`, `--only tailor`, `--from research --to tailor` (the
+report may follow). The ids stand in for the pick stage: `src.pick.chosen` builds the same
+records `pick` writes and the run starts with them in its `picks.json` (`"source": "ids"`), so
+the stages and the report read them as they read a hunt's picks, and `--resume` keeps them
+because the file is the run's. Refused by name before a ledger exists: an id that is not a row,
+a row that is not `shortlisted`, a dream row outside the relocation regions (the block `pick`
+applies; export-control rows never reach `shortlisted`, the matcher's hard block), a range that
+holds a stage that does not read picks (`pick` and everything before it), and `--ids` with
+`--resume`. The star rule does not apply: no slot count, no dream slots, no one-per-company, no
+in-play or cooldown skip, an unscored row is fine. The human chose. The TUI's runner is the
+caller: `enter` on `tailor` or `research` passes the rows marked in the jobs sections.
 
 ## 9. Interactive use after this lands
 
