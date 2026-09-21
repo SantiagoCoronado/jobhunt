@@ -3,6 +3,7 @@ import pytest
 from tui_fakes import _run, _settle
 
 from src.hunt import config as hunt_config
+from src.hunt import harness as hunt_harness
 from src.tui import commands, data
 from src.tui.app import JobhuntApp
 from src.tui.widgets.modals import OutputModal, Picker
@@ -44,7 +45,7 @@ async def _harness_tab(app, pilot) -> SettingsModal:
 
 def test_harness_view_reads_the_default_the_templates_and_the_fanned_stages(hunt_toml):
     view = data.harness_view()
-    assert view.default == "claude" and view.harnesses == ("claude", "mine") and not view.error
+    assert view.default == "claude" and view.harnesses == (*hunt_harness.SHIPPED, "mine") and not view.error
     assert [s.stage for s in view.stages] == ["triage", "match", "inbox", "research", "tailor"]
     by = {s.stage: s for s in view.stages}
     assert by["triage"].model == "haiku" and by["match"].model is None

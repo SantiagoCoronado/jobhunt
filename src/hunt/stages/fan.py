@@ -14,11 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from .. import prompts
-from ..harness import Harness, Invocation, Result
+from ..harness import SHIPPED, Harness, Invocation, Result
 from ..pool import Outcome, UnitSpec
 from .base import Context, Stage
 
-SHIPPED: tuple[str, ...] = ("claude",)          # adapters in this build; PR 4 adds the rest
 REPLY_CAP = "Reply with one line. Your reply is not read; the output file is."
 SCHEMA_CAP = "Your reply is the output: return only the JSON object the schema describes, no prose around it."
 

@@ -1,8 +1,8 @@
 """Harness adapters (spec section 5): the one thing every agent CLI has in common is a
 process that takes a prompt, a system prompt, a model and a tool allowlist and prints a JSON
 envelope. An adapter builds that command line and reads that envelope; nothing else about a
-harness leaks into the orchestrator. `claude` is the reference (this PR); codex, opencode, pi,
-agy and the generic template arrive in PR 4.
+harness leaks into the orchestrator. `claude` is the reference; codex, opencode, pi, agy and
+the generic template are PR 4 (`docs/spec-hunt-orchestrator.md` section 12).
 
 Tools are named in the orchestrator's own vocabulary, `TOOLS` below, and each adapter maps them
 to its flags: `bash` always means "python only", `web` is a capability a stage can require
@@ -10,6 +10,7 @@ to its flags: `bash` always means "python only", `web` is a capability a stage c
 """
 from __future__ import annotations
 
+import importlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -72,15 +73,20 @@ class Harness(Protocol):
     def models(self) -> list[Model] | None: ...
 
 
-SHIPPED: tuple[str, ...] = ("claude",)      # adapters `get` knows by name
+_ADAPTERS: dict[str, tuple[str, str]] = {    # name: (module, class), imported on first use
+    "claude": ("claude", "ClaudeHarness"),
+    "codex": ("codex", "CodexHarness"),
+}
+SHIPPED: tuple[str, ...] = tuple(_ADAPTERS)  # adapters `get` knows by name
 
 
 def get(name: str, **options: Any) -> Harness:
-    """The adapter for a harness name; the shipped ones by name, anything else is PR 4's
-    `[harness.<name>]` template (not yet) or unknown."""
-    if name == "claude":
-        from .claude import ClaudeHarness
-        return ClaudeHarness(**options)
+    """The adapter for a harness name; the shipped ones by name, anything else is a
+    `[harness.<name>]` template (PR 4 story 5, not yet) or unknown."""
+    if name in _ADAPTERS:
+        module, cls = _ADAPTERS[name]
+        adapter: Harness = getattr(importlib.import_module(f"{__name__}.{module}"), cls)(**options)
+        return adapter
     raise ValueError(f"unknown harness '{name}' (shipped: {', '.join(SHIPPED)})")
 
 
