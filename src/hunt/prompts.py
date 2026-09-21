@@ -155,6 +155,53 @@ def render_pi(role: Role, cfg: HuntConfig) -> str:
     return "\n".join(lines)
 
 
+_GEMINI_TOOLS: dict[str, list[str]] = {
+    "read": ["read_file"], "write": ["write_file"], "edit": ["replace"], "bash": ["run_shell_command"],
+    "web": ["google_web_search", "web_fetch"],
+}
+
+
+def render_gemini(role: Role, cfg: HuntConfig) -> str:
+    """The `.gemini/agents/<role>.md` text: the Gemini CLI's documented local-subagent
+    frontmatter (`name`, `description`, `kind: local`, `tools` by their Gemini names, `model`).
+    Not checked against a loader: gemini 0.46.0 has no command that lists agents. gemini has
+    no shipped adapter (spec decision 5: the generic template only), so a model is written
+    only when a `[harness.gemini]` template runs the stage."""
+    names = [n for t in TOOL_ORDER if t in role.tools for n in _GEMINI_TOOLS[t]]
+    lines = ["---", f"name: {role.name}", f"description: {_yaml_str(role.description)}", "kind: local"]
+    if names:
+        lines += ["tools:", *(f"  - {n}" for n in names)]
+    model = _stage_model(role, cfg, "gemini")
+    if model:
+        lines.append(f"model: {model}")
+    lines += ["---", "", GENERATED_MARK.format(name=role.name), "", role.body.rstrip("\n"), ""]
+    return "\n".join(lines)
+
+
+def _toml_basic(text: str) -> str:
+    """`text` as a TOML basic string: `tomllib` reads back exactly what went in."""
+    out = text.replace("\\", "\\\\").replace('"', '\\"')
+    out = "".join(c if c >= " " or c in "\n\t" else f"\\u{ord(c):04x}" for c in out)
+    return out.replace("\t", "\\t")
+
+
+def render_codex(role: Role, cfg: HuntConfig) -> str:
+    """The `.codex/agents/<role>.toml` text: codex's documented agent role (`name`,
+    `description`, `developer_instructions`, `sandbox_mode`, `model`). Not checked against a
+    loader: this codex is not logged in. The sandbox is codex's one grant, as in the adapter:
+    workspace-write when the role may write, edit or run python, read-only otherwise."""
+    sandbox = "workspace-write" if role.tools & {"write", "edit", "bash"} else "read-only"
+    lines = ["# " + GENERATED_MARK.format(name=role.name).removeprefix("<!-- ").removesuffix(" -->"),
+             f'name = "{_toml_basic(role.name)}"', f'description = "{_toml_basic(role.description)}"',
+             f'sandbox_mode = "{sandbox}"']
+    model = _stage_model(role, cfg, "codex")
+    if model:
+        lines.append(f'model = "{_toml_basic(model)}"')
+    body = _toml_basic(role.body.rstrip("\n"))
+    lines += [f'developer_instructions = """\n{body}\n"""', ""]
+    return "\n".join(lines)
+
+
 def _yaml_str(text: str) -> str:
     """A description as a YAML scalar that cannot be misread (a colon, a leading quote)."""
     return yaml.safe_dump(text, default_flow_style=True, width=10_000, allow_unicode=True).strip().removesuffix("...").strip()
@@ -165,6 +212,8 @@ NATIVE: dict[str, tuple[str, str, Callable[[Role, HuntConfig], str]]] = {
     "claude": (".claude/agents", ".md", render_claude),
     "opencode": (".opencode/agents", ".md", render_opencode),
     "pi": (".pi/agents", ".md", render_pi),
+    "gemini": (".gemini/agents", ".md", render_gemini),
+    "codex": (".codex/agents", ".toml", render_codex),
 }
 
 

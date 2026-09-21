@@ -170,6 +170,14 @@ def doctor(cfg: HuntConfig, harness_name: str | None = None, get: Callable[[str]
         checks.append(Check("version", "ok" if cp.returncode == 0 and ver else "FAIL", ver or f"exit {cp.returncode}"))
     except (OSError, subprocess.SubprocessError) as e:
         checks.append(Check("version", "FAIL", f"{type(e).__name__}: {e}"))
+    if hasattr(h, "checks"):
+        # what an adapter can find out before a call is spent (agy: signed in, and whether the
+        # user's settings let python run headless). A FAIL stops here: the smoke prompt on a
+        # signed-out agy would wait for a login until its timeout.
+        own = [Check(*row) for row in h.checks()]
+        checks += own
+        if any(c.status == "FAIL" for c in own):
+            return checks, 2
     models, reason = catalog(h)
     if models is None:
         aliases = h.aliases() if hasattr(h, "aliases") else []
