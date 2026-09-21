@@ -123,6 +123,32 @@ def test_doctor_stops_at_a_signed_out_agy_before_it_spends_a_call(monkeypatch, t
     assert "launch `agy` once" in checks[2].detail and "—" not in doctor.render("agy", checks, rc)
 
 
+def test_the_pre_run_check_fails_a_signed_out_agy_without_spending_a_smoke_prompt(monkeypatch, tmp_path):
+    """`hunt run` has one gate, `validate_models`, and never calls `checks()`. A catalog that
+    exists and cannot be read is a FAIL there, not "no catalog": the smoke prompt on a
+    signed-out agy prints a login URL and waits 120 s, once per distinct model (PR 31 review)."""
+    monkeypatch.setattr(agy_mod, "run_catalog", _cp(1, "", "Fetching available models...\nError: Please sign in to view available models.\n"))
+    cfg = hc.parse({"harness": {"default": "agy"}, "stages": {"triage": {"model": "gemini-flash"}, "match": {"model": "gemini-pro"}}})
+    smoked = []
+    checks = doctor.validate_models(cfg, ["triage", "match", "pick"], "agy", get=lambda n: AgyHarness(settings=tmp_path / "none.json"),
+                                    smoke_fn=lambda *a: smoked.append(a) or (None, None, 0.0))
+    assert smoked == []
+    assert [(c.name, c.status) for c in checks] == [("triage", "FAIL"), ("match", "FAIL")]
+    assert "the model catalog could not be read" in checks[0].detail and "sign in: launch `agy` once" in checks[0].detail
+    assert "doctor --harness agy" in checks[0].detail and "\u2014" not in checks[0].detail
+
+
+def test_a_harness_with_honestly_no_catalog_still_smokes(tmp_path):
+    class NoCatalog(AgyHarness):
+        def models(self):
+            return None
+    smoked = []
+    checks = doctor.validate_models(hc.parse({"harness": {"default": "agy"}, "stages": {"triage": {"model": "m"}}}), ["triage"], "agy",
+                                    get=lambda n: NoCatalog(settings=tmp_path / "none.json"),
+                                    smoke_fn=lambda h, model: smoked.append(model) or (None, None, 1.5))
+    assert smoked == ["m"] and checks[0].status == "ok" and "no catalog on agy" in checks[0].detail
+
+
 def test_doctor_goes_on_when_agy_is_signed_in(monkeypatch, tmp_path):
     monkeypatch.setattr(agy_mod, "run_catalog", _cp(0, "gemini-pro-latest\n"))
     monkeypatch.setattr(doctor.shutil, "which", lambda b: f"/bin/{b}")

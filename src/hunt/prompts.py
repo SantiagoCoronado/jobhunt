@@ -117,12 +117,32 @@ def render_claude(role: Role, cfg: HuntConfig) -> str:
     return "\n".join(lines)
 
 
-def render_opencode(role: Role, cfg: HuntConfig) -> str:
+HUNT_PREFIX = "hunt-"      # `.opencode/agents/hunt-<role>.md`: the grant of the hunt's stage, see `hunt_grants`
+
+
+def hunt_grants(roles: dict[str, Role]) -> dict[str, frozenset[str]]:
+    """{role: the stage's tools} for every role whose hunt stage grants LESS than the role
+    file (today the matcher: it keeps bash for interactive ingest, and under the orchestrator
+    ingest is Python's, decision 13). claude, pi and codex narrow the grant on the command
+    line; opencode applies tools only through an agent file, so those roles get a second file
+    the hunt runs on, and the first stays what interactive use needs."""
+    from .stages import REGISTRY                      # here, not at the top: stages.fan imports this module
+    out: dict[str, frozenset[str]] = {}
+    for stage in REGISTRY.values():
+        if stage.role in roles and stage.tools < roles[stage.role].tools:
+            out[stage.role] = stage.tools
+    return out
+
+
+def render_opencode(role: Role, cfg: HuntConfig, tools: frozenset[str] | None = None) -> str:
     """The `.opencode/agents/<role>.md` text (format checked on opencode 1.18.29: `opencode
     agent list` resolves these rules as written, the last matching pattern wins). The file
     name is the agent's name; `mode: all` lets `opencode run --agent` and an @mention both use
-    it; `edit` is opencode's one permission for write and edit; `bash` is "python only"."""
+    it; `edit` is opencode's one permission for write and edit; `bash` is "python only".
+    `tools` narrows the grant for the `hunt-<role>` file."""
     allow = {True: "allow", False: "deny"}
+    description = role.description if tools is None else f"The hunt orchestrator's grant of {role.name} (a unit of `python -m src.hunt run`). {role.description}"
+    role = role if tools is None else Role(role.name, description, tools, role.output, role.body, role.path)
     lines = ["---", f"description: {_yaml_str(role.description)}", "mode: all"]
     model = _stage_model(role, cfg, "opencode")
     if model:
@@ -220,9 +240,13 @@ NATIVE: dict[str, tuple[str, str, Callable[[Role, HuntConfig], str]]] = {
 def targets(cfg: HuntConfig, prompts_dir: Path | None = None, root: Path | None = None) -> dict[Path, str]:
     """Every generated file and its expected content, for every harness in `NATIVE`."""
     root = root or AGENTS_ROOT
-    roles = load_roles(prompts_dir).values()
-    return {root / folder / f"{role.name}{suffix}": render(role, cfg)
-            for folder, suffix, render in NATIVE.values() for role in roles}
+    roles = load_roles(prompts_dir)
+    out = {root / folder / f"{role.name}{suffix}": render(role, cfg)
+           for folder, suffix, render in NATIVE.values() for role in roles.values()}
+    folder, suffix, _render = NATIVE["opencode"]
+    for name, tools in hunt_grants(roles).items():
+        out[root / folder / f"{HUNT_PREFIX}{name}{suffix}"] = render_opencode(roles[name], cfg, tools)
+    return out
 
 
 def sync(cfg: HuntConfig, check: bool = False, prompts_dir: Path | None = None,

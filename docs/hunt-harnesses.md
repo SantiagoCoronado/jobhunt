@@ -22,6 +22,10 @@ python -m src.hunt doctor --harness NAME     # binary, version, sign-in, catalog
 python -m src.hunt models --harness NAME     # the live catalog, to pick each stage's model from
 ```
 
+A harness whose catalog exists but cannot be read (agy signed out, a CLI offline) fails the run
+before it starts, without spending a call; only a harness with honestly no catalog (claude, a
+template) is validated by the smoke prompt.
+
 A model id means something only to the harness whose catalog it came from. The shipped
 `hunt.toml` names claude aliases; on another harness `doctor` fails those at minute zero and
 `hunt models` shows what to write instead. Leave `model` out to take the harness default.
@@ -66,7 +70,11 @@ opencode run --format json [-m PROVIDER/MODEL] --agent ROLE PROMPT
 ```
 
 `run` has no tool flags. `.opencode/agents/ROLE.md` (generated, see below) carries the
-permissions and the role body, and `--agent` applies them, so the prompt is the task alone. A
+permissions and the role body, and `--agent` applies them, so the prompt is the task alone.
+Where the hunt's stage grants less than the role file, `sync-agents` also writes
+`hunt-ROLE.md` with the stage's grant and the unit runs on that one: today only
+`hunt-job-matcher`, because the matcher keeps `bash` for interactive ingest and under the
+orchestrator ingest is Python's. A
 refused tool call goes back to the model as an error; nothing prompts. `--auto` is never
 passed. No schema flag: a schema rides in the prompt. Usage is one `step_finish` per step,
 summed. Catalog: `opencode models`. Claims `web` only with `OPENCODE_ENABLE_EXA` set (the
@@ -130,7 +138,8 @@ always exactly one argument, whatever the prompt contains.
 - No system placeholder: the role body is prepended to the prompt.
 - No prompt placeholder: the prompt goes on stdin.
 - `{model}` with no model set, or `{schema_file}` on a unit with no schema: that argument is
-  dropped, and the flag before it too when it starts with `-`, so `-m {model}` vanishes whole.
+  dropped, and the flag before it too when it starts with `-`, so `-m {model}` vanishes whole
+  (`--model={model}` is its own flag and goes alone).
   A schema the command has no place for rides in the prompt.
 - A literal brace is `{{` or `}}`.
 - `envelope = "json"`: the last JSON object printed. The reply is the first string among
@@ -156,7 +165,7 @@ file.
 | Folder | Format | Read by the hunt? | Checked against a loader? |
 |---|---|---|---|
 | `.claude/agents/*.md` | claude frontmatter, tools by claude names | no (body goes in `--system-prompt`) | yes |
-| `.opencode/agents/*.md` | `mode: all`, `permission:` rules | **yes**, `--agent` | yes, `opencode agent list` |
+| `.opencode/agents/*.md` (plus `hunt-<role>.md` where the stage grants less) | `mode: all`, `permission:` rules | **yes**, `--agent` | yes, `opencode agent list` |
 | `.pi/agents/*.md` | `name`, `description`, `tools`, `model` | no | no extension installed |
 | `.gemini/agents/*.md` | `kind: local`, tools by Gemini names | no | gemini has no list command |
 | `.codex/agents/*.toml` | `developer_instructions`, `sandbox_mode` | no | codex not logged in |

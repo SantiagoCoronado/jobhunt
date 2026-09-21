@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -38,6 +39,21 @@ def test_argv_without_a_role_or_model_prepends_the_system_text():
                                                    "You are a role.\n\ndo the thing"]
     with pytest.raises(ValueError, match="unknown tool\\(s\\) shell"):
         h.argv(_inv({"shell"}))
+
+
+def test_a_tool_opencode_cannot_grant_is_refused_like_on_the_other_adapters():
+    with pytest.raises(ValueError, match="opencode grants no web tool"):
+        OpencodeHarness(web=False).argv(_inv({"read", "web"}))
+    assert OpencodeHarness(web=True).argv(_inv({"read", "web"}))[-1] == "do the thing"
+
+
+def test_a_unit_runs_on_the_narrowed_hunt_agent_where_one_was_generated(tmp_path):
+    inv = replace(_inv(role="job-matcher"), cwd=tmp_path)
+    assert OpencodeHarness().argv(inv)[-3:-1] == ["--agent", "job-matcher"]
+    (tmp_path / ".opencode" / "agents").mkdir(parents=True)
+    (tmp_path / ".opencode" / "agents" / "hunt-job-matcher.md").write_text("x")
+    assert OpencodeHarness().argv(inv)[-3:-1] == ["--agent", "hunt-job-matcher"]
+    assert OpencodeHarness().argv(replace(inv, role="triager"))[-3:-1] == ["--agent", "triager"]
 
 
 def test_a_schema_goes_into_the_prompt():

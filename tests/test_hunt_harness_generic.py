@@ -40,6 +40,10 @@ def test_no_model_drops_the_argument_and_its_flag(tmp_path):
     joined = GenericHarness("x", {"command": "tool --model={model} run {prompt}"}, scratch=tmp_path)
     assert joined.argv(_inv(model=None)) == ["tool", "run", "You are a role.\n\ndo the\n'thing' \"now\" $HOME"]   # `run` is no flag: it stays
     assert joined.argv(_inv(model="m"))[1] == "--model=m"
+    # `--opt={model}` is its own flag: an empty one goes alone, the flag before it is not its to take
+    after = GenericHarness("y", {"command": "tool --json --model={model} -p {prompt}"}, scratch=tmp_path)
+    assert after.argv(_inv(model=None, prompt="task")) == ["tool", "--json", "-p", "You are a role.\n\ntask"]
+    assert after.argv(_inv(model="m", prompt="task"))[1:3] == ["--json", "--model=m"]
 
 
 def test_files_system_placement_and_the_schema(tmp_path):

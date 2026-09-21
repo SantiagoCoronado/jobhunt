@@ -129,8 +129,10 @@ class GenericHarness:
                 values["system_file"] = self._file("system", inv.system, ".md")
             if "schema_file" in fields and inv.schema is not None:
                 values["schema_file"] = self._file("schema", json.dumps(inv.schema, separators=(",", ":")), ".json")
-            if any(values[f] is None for f in fields):          # nothing to put there: the argument goes, and its flag
-                if out and out[-1].startswith("-") and len(out) > 1:
+            if any(values[f] is None for f in fields):          # nothing to put there: the argument goes
+                # and the flag it was the value of. `--opt={model}` is its own flag: what stands
+                # before it belongs to something else and stays.
+                if not token.startswith("-") and len(out) > 1 and out[-1].startswith("-"):
                     out.pop()
                 continue
             out.append(token.format(**{f: values[f] for f in fields}) if fields else token.replace("{{", "{").replace("}}", "}"))

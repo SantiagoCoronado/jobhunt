@@ -24,7 +24,8 @@ def test_every_role_file_parses_and_matches_the_registry():
         assert role.body.strip() and role.output and "—" not in role.body
 
 
-N_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE)      # one file per role per harness
+# one file per role per harness, plus opencode's narrowed `hunt-<role>` files
+N_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
 
 
 def test_generated_agents_are_in_sync_with_the_role_files_and_hunt_toml():
@@ -58,6 +59,22 @@ def test_a_model_is_written_only_into_the_files_of_the_harness_it_was_picked_fro
     assert "model:" not in prompts.render_opencode(roles["resume-tailor"], cfg).split("\n---\n")[0]
 
 
+def test_opencode_gets_a_narrowed_hunt_agent_where_the_stage_grants_less_than_the_role_file():
+    """opencode applies tools only through an agent file, so the matcher's interactive bash
+    (ingest) would reach a hunt unit, where ingest is Python's (decision 13; PR 31 review)."""
+    roles = prompts.load_roles()
+    assert prompts.hunt_grants(roles) == {"job-matcher": frozenset({"read", "write"})}
+    yaml = __import__("yaml")
+    own = yaml.safe_load(prompts.render_opencode(roles["job-matcher"], hc.load()).split("\n---\n")[0][4:])
+    hunt = yaml.safe_load(prompts.render_opencode(roles["job-matcher"], hc.load(), frozenset({"read", "write"})).split("\n---\n")[0][4:])
+    assert own["permission"]["bash"]["python *"] == "allow" and hunt["permission"]["bash"] == "deny"
+    assert hunt["permission"]["edit"] == "allow" and hunt["description"].startswith("The hunt orchestrator's grant of job-matcher")
+    targets = prompts.targets(hc.load())
+    path = prompts.AGENTS_ROOT / ".opencode" / "agents" / "hunt-job-matcher.md"
+    assert path in targets and targets[path].endswith(roles["job-matcher"].body)
+    assert not [p for p in targets if p.name.startswith("hunt-") and ".opencode" not in p.parts]
+
+
 def test_render_opencode_carries_the_permissions_and_no_name():
     roles = prompts.load_roles()
     text = prompts.render_opencode(roles["inbox-classifier"], hc.load())
@@ -81,8 +98,9 @@ def test_sync_writes_then_check_reports_drift(tmp_path):
     assert len(changed) == N_FILES and same == []
     changed, same = prompts.sync(cfg, root=tmp_path)
     assert len(changed) == N_FILES
-    for folder, suffix, _render in prompts.NATIVE.values():
-        assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted(f"{r}{suffix}" for r in prompts.ROLE_STAGE)
+    for harness_name, (folder, suffix, _render) in prompts.NATIVE.items():
+        extra = [f"hunt-{r}{suffix}" for r in prompts.hunt_grants(prompts.load_roles())] if harness_name == "opencode" else []
+        assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted([*(f"{r}{suffix}" for r in prompts.ROLE_STAGE), *extra])
     changed, same = prompts.sync(cfg, check=True, root=tmp_path)
     assert changed == [] and sorted(same) == sorted(str(p) for p in tmp_path.rglob("*") if p.is_file())
     (out / "triager.md").write_text("edited by hand\n")

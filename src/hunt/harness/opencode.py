@@ -6,8 +6,10 @@
 - `run` has no tool flags: the generated agent file (`.opencode/agents/<role>.md`, written by
   `sync-agents`, `prompts.render_opencode`) carries the permissions and the role body, and
   `--agent` is what applies them. So a unit's prompt is the task alone; the body is not sent
-  twice. A call with no role (the smoke prompt, the doctor probe) runs on opencode's default
-  agent with the system text prepended;
+  twice. Where the hunt's stage grants less than the role file (the matcher keeps bash for
+  interactive ingest) `sync-agents` also writes `hunt-<role>.md` with the stage's grant, and
+  that is the agent a unit runs on. A call with no role (the smoke prompt, the doctor probe)
+  runs on opencode's default agent with the system text prepended;
 - a tool call the agent file refuses comes back to the model as an error ("The user has
   specified a rule which prevents you from using this specific tool call"); nothing prompts,
   nothing hangs. `--auto` is never passed;
@@ -33,8 +35,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from . import Invocation, Model, Result, Usage, check_tools
-from ._common import RATE_LIMIT, SCHEMA_LINE, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, no_envelope, one_prompt, run_catalog, table
+from . import Invocation, Model, Result, Usage
+from ._common import RATE_LIMIT, SCHEMA_LINE, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, granted, no_envelope, one_prompt, run_catalog, table
 
 
 class OpencodeHarness:
@@ -49,16 +51,23 @@ class OpencodeHarness:
         return [self.binary, "--version"]
 
     def argv(self, inv: Invocation) -> list[str]:
-        check_tools(inv.tools)
+        granted(self.name, inv.tools, self.capabilities)
         argv = [self.binary, "run", "--format", "json"]
         if inv.model:
             argv += ["-m", inv.model]
         if inv.role:
-            argv += ["--agent", inv.role]
+            argv += ["--agent", self.agent(inv)]
         prompt = inv.prompt if inv.role else one_prompt(inv)
         if inv.schema is not None:
             prompt = f"{prompt.rstrip()}\n\n{SCHEMA_LINE}\n{json.dumps(inv.schema, separators=(',', ':'))}\n"
         return [*argv, prompt]
+
+    @staticmethod
+    def agent(inv: Invocation) -> str:
+        """`hunt-<role>` where `sync-agents` wrote one (the stage grants less than the role
+        file, `prompts.hunt_grants`), else the role's own file."""
+        narrowed = f"hunt-{inv.role}"
+        return narrowed if (inv.cwd / ".opencode" / "agents" / f"{narrowed}.md").exists() else str(inv.role)
 
     def stdin(self, inv: Invocation) -> str | None:
         return None
