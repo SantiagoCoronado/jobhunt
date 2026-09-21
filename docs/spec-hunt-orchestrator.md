@@ -166,15 +166,16 @@ Reference command lines (verified against `--help` on 2026-09-07; the adapter te
 | Harness | argv |
 |---|---|
 | claude | `claude -p [--bare] --output-format json --no-session-persistence --strict-mcp-config --permission-mode acceptEdits --permission-prompts none --model {model} --system-prompt {system} --tools Read,Write,Edit,Bash[,WebSearch,WebFetch] --allowedTools Read Write Edit "Bash(python:*)" "Bash(.venv/bin/python:*)" [WebSearch WebFetch] [--json-schema {schema}]` with the prompt on stdin. Landed 2026-09-18 (PR 2 story 3, verified on 2.1.276): the prompt cannot be a trailing argument because `--allowedTools` and `--tools` are variadic; `--tools` restricts the built-in set and `--allowedTools` pre-approves it; `--permission-prompts none` denies instead of hanging; `--bare` is passed only when `ANTHROPIC_API_KEY` is set, because bare mode never reads the OAuth login and fails with `terminal_reason: api_error`, "Not logged in" |
-| codex | `codex exec --json -o {last_msg} -m {model} --sandbox workspace-write [--output-schema {file}] --ephemeral --skip-git-repo-check {system + prompt}` |
-| opencode | `opencode run --format json -m {provider/model} --agent {role} {system + prompt}` (the generated agent file carries tools and permissions; `--agent` is what applies them) |
-| pi | `pi -p --mode json --no-session --provider {provider} --model {model} --system-prompt {system} --tools read,write,edit,bash {prompt}` |
-| agy | `agy -p --output-format json --model {model} --agent {role} [--json-schema {schema}] --print-timeout {timeout} {prompt}`; shell stays soft-denied unless `permissions.allow` in the user's settings covers `python`; `doctor` checks that and says so |
-| generic | `[harness.<name>] command = "..."` template with `{model} {system_file} {prompt_file} {schema_file}` placeholders and `envelope = "json" | "text"`; usage is null on `text` |
+| codex | `codex exec --json -o {last_msg} [-m {model}] --sandbox {workspace-write or read-only} [--output-schema {file}] --ephemeral --skip-git-repo-check -` with `{system + prompt}` on stdin. Landed 2026-09-21 (PR 4 story 1, 0.153.4): a prompt argument with a closed stdin still prints "Reading additional input from stdin"; the sandbox is the only grant, read-only when the unit writes nothing; seen on a failed call only, the install was not logged in |
+| opencode | `opencode run --format json [-m {provider/model}] --agent {role} {prompt}` (the generated agent file carries tools, permissions AND the role body; `--agent` is what applies them, so the prompt is the task alone). Landed 2026-09-21 (PR 4 story 2, 1.18.29, real calls): `Invocation` gained `role`; no schema flag, the schema rides in the prompt; usage is summed over one `step_finish` per step |
+| pi | `pi -p --mode json --no-session --no-context-files --no-skills --no-prompt-templates --no-approve [--model {provider/id}] --system-prompt {system} (--tools read,write,edit,bash or --no-tools)` with the prompt on stdin. Landed 2026-09-21 (PR 4 story 3, 0.85.1, real calls): an argument starting with `@` is a file and one starting with `-` an option; `--model` takes `provider/id`, so no `--provider` |
+| agy | `agy --output-format json [--model {model}] [--mode accept-edits] [--json-schema {schema}] --print-timeout {timeout}s --print={system + prompt}`; shell stays auto-denied unless `permissions.allow` in `~/.gemini/antigravity-cli/settings.json` covers `python`; `doctor` checks that and sign-in before it spends a call. Landed 2026-09-21 (PR 4 story 4, 1.1.27, signed out): `-p` takes the prompt as its value, so the line first written here exits 2; no `--agent`, the `agent.md` layout could not be confirmed; a signed-out headless call waits past `--print-timeout`; the success envelope is not yet seen |
+| generic | `[harness.<name>] command = "..."` template with `{model} {system_file} {prompt_file} {schema_file}` placeholders (plus `{prompt}` and `{system}` as text, landed 2026-09-21: most CLIs take the prompt as an argument, not a file), `envelope = "json" | "text"` and `capabilities = [...]`; usage is null on `text`. Per-harness detail: `docs/hunt-harnesses.md` |
 
 `web` is a capability: only harnesses that grant a web tool can run `research`. The stage falls
-back to the first configured harness with `web` (claude, codex with `browser_use`, agy, gemini) and
-logs the substitution.
+back to the first configured harness with `web` and logs the substitution. As landed
+(2026-09-21) only claude, opencode with `OPENCODE_ENABLE_EXA`, and a template that declares it
+claim `web`: codex and agy could not be verified headless, so they do not.
 
 ### Live model catalog
 

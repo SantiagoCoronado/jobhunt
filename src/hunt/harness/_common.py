@@ -14,6 +14,8 @@ RATE_LIMIT = re.compile(r"rate.?limit|too many requests|overloaded|usage limit|q
 
 SMOKE_PROMPT = "Reply with the single word ok"
 SMOKE_SYSTEM = "You are a smoke test."
+# for a harness with no schema flag: the schema rides in the prompt and the reply is read as the object
+SCHEMA_LINE = "Return only one JSON object that validates against this JSON schema, with no prose and no code fence:"
 
 
 def events(stdout: str) -> list[dict[str, Any]]:
@@ -31,6 +33,23 @@ def events(stdout: str) -> list[dict[str, Any]]:
         if isinstance(data, dict):
             out.append(data)
     return out
+
+
+def last_object(stdout: str) -> dict[str, Any] | None:
+    """The one JSON object a single-envelope CLI prints: all of stdout, or the last line that
+    is one when a banner came first."""
+    text = stdout.strip()
+    for candidate in (text, *reversed(text.splitlines())):
+        candidate = candidate.strip()
+        if not candidate.startswith("{"):
+            continue
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
 
 
 def table(value: Any) -> dict[str, Any]:

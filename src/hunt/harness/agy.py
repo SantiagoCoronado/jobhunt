@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from . import Invocation, Model, Result, Usage
-from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, granted, no_envelope, one_prompt, run_catalog, table
+from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, granted, last_object, no_envelope, one_prompt, run_catalog, table
 
 SETTINGS = Path.home() / ".gemini" / "antigravity-cli" / "settings.json"
 _PYTHON_RULE = re.compile(r"^command\(\s*(?:\S*/)?python[\d.]*(?:\s[^)]*)?\)$")
@@ -74,7 +74,7 @@ class AgyHarness:
         return None
 
     def parse(self, stdout: str, stderr: str, rc: int) -> Result:
-        data = _envelope(stdout)
+        data = last_object(stdout)
         if data is None:
             res = no_envelope(stdout, stderr, rc, what="JSON envelope")
             if _SIGN_IN.search(stderr):
@@ -150,19 +150,3 @@ class AgyHarness:
             return ("shell", "ok", f"permissions.allow covers python ({', '.join(covering[:3])})")
         return ("shell", "warn", f"permissions.allow does not cover python, so inbox, research and tailor units "
                                  f"cannot run it headless; {fix}")
-
-
-def _envelope(stdout: str) -> dict[str, Any] | None:
-    """The one JSON object agy prints; the last line that is one, when a banner came first."""
-    text = stdout.strip()
-    for candidate in (text, *reversed(text.splitlines())):
-        candidate = candidate.strip()
-        if not candidate.startswith("{"):
-            continue
-        try:
-            data = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict):
-            return data
-    return None

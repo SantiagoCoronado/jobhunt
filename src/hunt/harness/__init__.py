@@ -11,6 +11,7 @@ to its flags: `bash` always means "python only", `web` is a capability a stage c
 from __future__ import annotations
 
 import importlib
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -85,14 +86,23 @@ _ADAPTERS: dict[str, tuple[str, str]] = {    # name: (module, class), imported o
 SHIPPED: tuple[str, ...] = tuple(_ADAPTERS)  # adapters `get` knows by name
 
 
-def get(name: str, **options: Any) -> Harness:
-    """The adapter for a harness name; the shipped ones by name, anything else is a
-    `[harness.<name>]` template (PR 4 story 5, not yet) or unknown."""
+def get(name: str, templates: Mapping[str, dict[str, Any]] | None = None, **options: Any) -> Harness:
+    """The adapter for a harness name: a shipped one by name, else the `[harness.<name>]`
+    command template of that name (`templates`: the loaded config's, read from
+    `config/hunt.toml` when the caller has none at hand)."""
     if name in _ADAPTERS:
         module, cls = _ADAPTERS[name]
         adapter: Harness = getattr(importlib.import_module(f"{__name__}.{module}"), cls)(**options)
         return adapter
-    raise ValueError(f"unknown harness '{name}' (shipped: {', '.join(SHIPPED)})")
+    if templates is None:
+        from .. import config as hunt_config
+        templates = hunt_config.load().harness_templates
+    if name in templates:
+        from .generic import GenericHarness
+        return GenericHarness(name, templates[name], **options)
+    known = ", ".join([*SHIPPED, *sorted(templates)])
+    raise ValueError(f"unknown harness '{name}' (known: {known}; anything else is a [harness.{name}] command "
+                     f"template in config/hunt.toml, docs/hunt-harnesses.md)")
 
 
 def check_tools(tools: frozenset[str] | set[str]) -> frozenset[str]:

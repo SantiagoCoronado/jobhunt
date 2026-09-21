@@ -34,9 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from . import Invocation, Model, Result, Usage, check_tools
-from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, no_envelope, one_prompt, run_catalog, table
-
-SCHEMA_LINE = "Return only one JSON object that validates against this JSON schema, with no prose and no code fence:"
+from ._common import RATE_LIMIT, SCHEMA_LINE, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, no_envelope, one_prompt, run_catalog, table
 
 
 class OpencodeHarness:

@@ -208,7 +208,7 @@ def cmd_models(harness_name: str | None, grep: str | None) -> int:
     from . import harness as harness_mod
     try:
         cfg = hunt_config.load()
-        h = harness_mod.get(harness_name or cfg.harness)
+        h = harness_mod.get(harness_name or cfg.harness, templates=cfg.harness_templates)
     except ValueError as e:
         print(f"hunt models: {e}", file=sys.stderr)
         return 2

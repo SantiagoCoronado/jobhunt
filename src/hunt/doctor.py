@@ -88,7 +88,8 @@ def validate_models(cfg: HuntConfig, stages: list[str], harness_default: str,
                     get: Callable[[str], Harness] | None = None, smoke_fn=smoke) -> list[Check]:
     """One Check per fanned stage in `stages`: its model is in the harness's live catalog, or
     (no catalog) answered the smoke prompt. Same harness + same model is checked once."""
-    get = get or harness_mod.get              # resolved at call time (tests swap the registry)
+    # resolved at call time (tests swap the registry); the templates are this config's
+    get = get or (lambda name: harness_mod.get(name, templates=cfg.harness_templates))
     checks: list[Check] = []
     cats: dict[str, tuple[list[Model] | None, str | None]] = {}
     smoked: dict[tuple[str, str | None], tuple[str, str]] = {}
@@ -153,7 +154,7 @@ def tool_probe(h: Harness, model: str | None, cwd: Path = ROOT) -> Check:
 def doctor(cfg: HuntConfig, harness_name: str | None = None, get: Callable[[str], Harness] | None = None,
            smoke_fn=smoke, probe_fn=tool_probe, cwd: Path = ROOT) -> tuple[list[Check], int]:
     """Every check for one harness; (checks, exit code: 0 ok, 2 any FAIL)."""
-    get = get or harness_mod.get
+    get = get or (lambda name: harness_mod.get(name, templates=cfg.harness_templates))
     hname = harness_name or cfg.harness
     checks: list[Check] = []
     try:
