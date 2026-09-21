@@ -33,6 +33,11 @@ def events(stdout: str) -> list[dict[str, Any]]:
     return out
 
 
+def table(value: Any) -> dict[str, Any]:
+    """`value` when it is a JSON object, else an empty one: event fields are never trusted."""
+    return value if isinstance(value, dict) else {}
+
+
 def no_envelope(stdout: str, stderr: str, rc: int, what: str = "JSON events") -> Result:
     tail = (stderr.strip() or stdout.strip())[-300:]
     return Result(Usage(), f"exit {rc}, no {what}: {tail or 'empty output'}", bool(RATE_LIMIT.search(tail)),

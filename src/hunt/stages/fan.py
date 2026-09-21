@@ -95,7 +95,7 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
         user = f"{p.task.rstrip()}\n{SCHEMA_CAP if p.schema is not None else REPLY_CAP}\n"
         (prompt_dir / f"{p.id}.md").write_text(f"{role.body.rstrip()}\n\n{user}", encoding="utf-8")
         inv = Invocation(prompt=user, system=role.body, model=model, tools=stage.tools, cwd=ctx.cwd,
-                         timeout_s=scfg.timeout_s, schema=p.schema)
+                         timeout_s=scfg.timeout_s, schema=p.schema, role=role.name)
         specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result, _retry(p, prompt_dir, role.body)))
     return ctx.pool(harness).run_stage(name, specs, scfg.concurrency, scfg.attempts)
 

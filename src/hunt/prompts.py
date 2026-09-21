@@ -3,14 +3,18 @@
 `prompts/agents/<role>.md` is the one place a role's system prompt lives: a small YAML
 frontmatter (`name`, `description`, `tools` in the orchestrator's vocabulary, `output`, the
 contract the unit must satisfy) and the body. `python -m src.hunt sync-agents` renders every
-harness's native agent file from it; claude's `.claude/agents/<role>.md` is here, the other
-harnesses arrive in PR 4. The generated files are committed so interactive use works after a
-clone, and `sync-agents --check` (CI) fails when they drift from the role files or from the
-stage models in `config/hunt.toml`. Never edit a generated file; edit the role file.
+harness's native agent file from it (`NATIVE` below: one folder and one renderer per harness).
+The generated files are committed so interactive use works after a clone, and `sync-agents
+--check` (CI) fails when they drift from the role files or from the stage models in
+`config/hunt.toml`. Never edit a generated file; edit the role file.
+
+A model id means something only to the harness whose catalog it came from, so a generated
+file carries the stage's `model` only when that stage runs on that file's harness.
 """
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,7 +25,7 @@ from .config import HuntConfig
 from .harness import TOOL_ORDER, TOOLS
 
 PROMPTS_DIR = ROOT / "prompts" / "agents"
-CLAUDE_AGENTS_DIR = ROOT / ".claude" / "agents"
+AGENTS_ROOT = ROOT                     # the generated folders hang off the repo root (tests move it)
 ROLE_STAGE: dict[str, str] = {
     "triager": "triage", "job-matcher": "match", "inbox-classifier": "inbox",
     "company-researcher": "research", "resume-tailor": "tailor",
@@ -94,6 +98,11 @@ def load_roles(prompts_dir: Path | None = None) -> dict[str, Role]:
     return roles
 
 
+def _stage_model(role: Role, cfg: HuntConfig, harness: str) -> str | None:
+    """The stage's model, when the stage runs on `harness` (whose catalog it was picked from)."""
+    return cfg.stage(role.stage).model if cfg.harness_for(role.stage) == harness else None
+
+
 def render_claude(role: Role, cfg: HuntConfig) -> str:
     """The `.claude/agents/<role>.md` text: claude frontmatter (tools by their claude names,
     the stage's model from hunt.toml when one is set) and the body under a generated mark."""
@@ -101,26 +110,61 @@ def render_claude(role: Role, cfg: HuntConfig) -> str:
     lines = ["---", f"name: {role.name}", f"description: {role.description}"]
     if names:
         lines.append(f"tools: {', '.join(names)}")
-    model = cfg.stage(role.stage).model
+    model = _stage_model(role, cfg, "claude")
     if model:
         lines.append(f"model: {model}")
     lines += ["---", "", GENERATED_MARK.format(name=role.name), "", role.body.rstrip("\n"), ""]
     return "\n".join(lines)
 
 
-def targets(cfg: HuntConfig, prompts_dir: Path | None = None, agents_dir: Path | None = None) -> dict[Path, str]:
-    """Every generated file and its expected content."""
-    agents_dir = agents_dir or CLAUDE_AGENTS_DIR
-    return {agents_dir / f"{role.name}.md": render_claude(role, cfg) for role in load_roles(prompts_dir).values()}
+def render_opencode(role: Role, cfg: HuntConfig) -> str:
+    """The `.opencode/agents/<role>.md` text (format checked on opencode 1.18.29: `opencode
+    agent list` resolves these rules as written, the last matching pattern wins). The file
+    name is the agent's name; `mode: all` lets `opencode run --agent` and an @mention both use
+    it; `edit` is opencode's one permission for write and edit; `bash` is "python only"."""
+    allow = {True: "allow", False: "deny"}
+    lines = ["---", f"description: {_yaml_str(role.description)}", "mode: all"]
+    model = _stage_model(role, cfg, "opencode")
+    if model:
+        lines.append(f"model: {model}")
+    lines += ["permission:", f"  read: {allow['read' in role.tools]}",
+              f"  edit: {allow[bool(role.tools & {'write', 'edit'})]}"]
+    if "bash" in role.tools:
+        lines += ["  bash:", '    "*": deny', '    "python *": allow', '    ".venv/bin/python *": allow']
+    else:
+        lines.append("  bash: deny")
+    lines += [f"  webfetch: {allow['web' in role.tools]}", f"  websearch: {allow['web' in role.tools]}"]
+    lines += ["---", "", GENERATED_MARK.format(name=role.name), "", role.body.rstrip("\n"), ""]
+    return "\n".join(lines)
+
+
+def _yaml_str(text: str) -> str:
+    """A description as a YAML scalar that cannot be misread (a colon, a leading quote)."""
+    return yaml.safe_dump(text, default_flow_style=True, width=10_000, allow_unicode=True).strip().removesuffix("...").strip()
+
+
+# harness: (folder under the repo root, file suffix, renderer)
+NATIVE: dict[str, tuple[str, str, Callable[[Role, HuntConfig], str]]] = {
+    "claude": (".claude/agents", ".md", render_claude),
+    "opencode": (".opencode/agents", ".md", render_opencode),
+}
+
+
+def targets(cfg: HuntConfig, prompts_dir: Path | None = None, root: Path | None = None) -> dict[Path, str]:
+    """Every generated file and its expected content, for every harness in `NATIVE`."""
+    root = root or AGENTS_ROOT
+    roles = load_roles(prompts_dir).values()
+    return {root / folder / f"{role.name}{suffix}": render(role, cfg)
+            for folder, suffix, render in NATIVE.values() for role in roles}
 
 
 def sync(cfg: HuntConfig, check: bool = False, prompts_dir: Path | None = None,
-         agents_dir: Path | None = None) -> tuple[list[str], list[str]]:
+         root: Path | None = None) -> tuple[list[str], list[str]]:
     """(written or drifted paths, unchanged paths). With `check`, nothing is written and the
     first list is what would change."""
     changed: list[str] = []
     same: list[str] = []
-    for path, text in targets(cfg, prompts_dir, agents_dir).items():
+    for path, text in targets(cfg, prompts_dir, root).items():
         rel = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
         current = path.read_text(encoding="utf-8") if path.exists() else None
         if current == text:

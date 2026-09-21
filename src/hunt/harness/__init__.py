@@ -28,6 +28,8 @@ class Invocation:
     cwd: Path
     timeout_s: int
     schema: dict[str, Any] | None = None   # JSON schema when the reply itself is the output (inbox)
+    role: str | None = None            # prompts/agents/<role>.md, for a harness that applies tools through
+                                       # its generated agent file (opencode, agy); None: smoke and probe calls
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,7 @@ class Harness(Protocol):
 _ADAPTERS: dict[str, tuple[str, str]] = {    # name: (module, class), imported on first use
     "claude": ("claude", "ClaudeHarness"),
     "codex": ("codex", "CodexHarness"),
+    "opencode": ("opencode", "OpencodeHarness"),
 }
 SHIPPED: tuple[str, ...] = tuple(_ADAPTERS)  # adapters `get` knows by name
 

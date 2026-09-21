@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from . import Invocation, Model, Result, Usage, check_tools
-from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, no_envelope, one_prompt, run_catalog
+from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, no_envelope, one_prompt, run_catalog, table
 
 _WRITES = frozenset({"write", "edit", "bash"})
 
@@ -83,13 +83,12 @@ class CodexHarness:
         usage, text, failed, last_error, completed = Usage(), None, None, None, False
         for ev in evs:
             kind = ev.get("type")
-            raw_item = ev.get("item")
-            item: dict[str, Any] = raw_item if isinstance(raw_item, dict) else {}
+            item = table(ev.get("item"))
             if kind == "turn.completed":
                 completed = True
-                usage = _usage(ev.get("usage") or {})
+                usage = _usage(table(ev.get("usage")))
             elif kind == "turn.failed":
-                failed = str((ev.get("error") or {}).get("message") or "turn failed")
+                failed = str(table(ev.get("error")).get("message") or "turn failed")
             elif kind == "error":
                 last_error = str(ev.get("message") or "error")
             elif kind == "item.completed" and item.get("type") == "agent_message" and isinstance(item.get("text"), str):
