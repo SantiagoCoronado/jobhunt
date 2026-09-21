@@ -14,11 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from .. import prompts
-from ..harness import Harness, Invocation, Result
+from ..harness import SHIPPED, Harness, Invocation, Result
 from ..pool import Outcome, UnitSpec
 from .base import Context, Stage
 
-SHIPPED: tuple[str, ...] = ("claude",)          # adapters in this build; PR 4 adds the rest
 REPLY_CAP = "Reply with one line. Your reply is not read; the output file is."
 SCHEMA_CAP = "Your reply is the output: return only the JSON object the schema describes, no prose around it."
 
@@ -96,7 +95,7 @@ def fan_out(ctx: Context, stage: Stage, planned: Sequence[Planned]) -> list[Outc
         user = f"{p.task.rstrip()}\n{SCHEMA_CAP if p.schema is not None else REPLY_CAP}\n"
         (prompt_dir / f"{p.id}.md").write_text(f"{role.body.rstrip()}\n\n{user}", encoding="utf-8")
         inv = Invocation(prompt=user, system=role.body, model=model, tools=stage.tools, cwd=ctx.cwd,
-                         timeout_s=scfg.timeout_s, schema=p.schema)
+                         timeout_s=scfg.timeout_s, schema=p.schema, role=role.name)
         specs.append(UnitSpec(name, p.id, inv, p.verify, p.on_result, _retry(p, prompt_dir, role.body)))
     return ctx.pool(harness).run_stage(name, specs, scfg.concurrency, scfg.attempts)
 

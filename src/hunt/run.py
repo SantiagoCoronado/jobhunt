@@ -31,6 +31,7 @@ from ..config import ROOT
 from . import ledger as ledger_mod
 from .config import HuntConfig
 from .doctor import validate_models
+from . import harness as harness_mod
 from .harness import Harness
 from .ledger import Ledger, new_run_id
 from .stages import REGISTRY, Context, StageResult
@@ -144,8 +145,8 @@ def run(cfg: HuntConfig, stages: Sequence[str], harness: str | None, *, hunt_dir
             if closed:
                 say(f"closed what the earlier run left running: {', '.join(closed)}")
         ctx = Context(cfg, led, harness, cwd, say, pool_options=pool_options or {})
-        if get_harness is not None:
-            ctx.get_harness = get_harness
+        # the run's own config names the templates, not whatever hunt.toml holds by now
+        ctx.get_harness = get_harness or (lambda name: harness_mod.get(name, templates=cfg.harness_templates))
         try:
             return _run_stages(ctx, list(stages))
         except KeyboardInterrupt:

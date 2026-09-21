@@ -74,6 +74,7 @@ def test_a_short_file_is_run_again_then_everything_is_ingested(env):
     assert prompt.rstrip().endswith("Reply with one line. Your reply is not read; the output file is.")
     inv = fake.calls[0]
     assert inv.tools == frozenset({"read", "write"}) and inv.timeout_s == 300 and inv.system.startswith("You are a triage screener")
+    assert inv.role == "triager"                            # what `--agent` is given on opencode and agy
     assert "Exported 25 jobs" in (run_dir / "logs" / "triage" / "export.log").read_text()
     assert "Triage ingest" in (run_dir / "logs" / "triage" / "ingest.log").read_text()
     assert "\u2014" not in prompt + "\n".join(lines)

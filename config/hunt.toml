@@ -4,8 +4,14 @@
 # checks it against the harness that is actually installed.
 
 [harness]
-default = "claude"                # any [harness.<name>] below or a shipped adapter
+default = "claude"                # claude | codex | opencode | pi | agy, or a [harness.<name>] template
 global_concurrency = 8
+
+# Any other agent CLI is a command template, no Python (docs/hunt-harnesses.md):
+# [harness.gemini]
+# command = "gemini -m {model} --approval-mode auto_edit -o json -p {prompt}"
+# envelope = "json"
+# capabilities = ["read", "write", "edit", "bash", "web"]
 
 # Models: pick from `python -m src.hunt models`, the live catalog of the harness.
 # Leave `model` out to take the harness default. Rolling aliases are the safest choice.

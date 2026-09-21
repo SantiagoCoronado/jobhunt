@@ -87,8 +87,11 @@ def _nearest(model: str, ids: list[str], n: int = 3) -> list[str]:
 def validate_models(cfg: HuntConfig, stages: list[str], harness_default: str,
                     get: Callable[[str], Harness] | None = None, smoke_fn=smoke) -> list[Check]:
     """One Check per fanned stage in `stages`: its model is in the harness's live catalog, or
-    (no catalog) answered the smoke prompt. Same harness + same model is checked once."""
-    get = get or harness_mod.get              # resolved at call time (tests swap the registry)
+    (the harness honestly has none: `models()` is None) answered the smoke prompt. A catalog
+    that exists and could not be read fails the stage without a call. Same harness + same
+    model is checked once."""
+    # resolved at call time (tests swap the registry); the templates are this config's
+    get = get or (lambda name: harness_mod.get(name, templates=cfg.harness_templates))
     checks: list[Check] = []
     cats: dict[str, tuple[list[Model] | None, str | None]] = {}
     smoked: dict[tuple[str, str | None], tuple[str, str]] = {}
@@ -114,10 +117,17 @@ def validate_models(cfg: HuntConfig, stages: list[str], harness_default: str,
                 checks.append(Check(name, "FAIL", f"{s.model!r} is not in the {hname} catalog ({len(ids)} models; "
                                                   f"nearest: {', '.join(_nearest(s.model, ids))}); pick one from `hunt models`"))
             continue
+        if reason is not None:
+            # the harness HAS a catalog and it could not be read (agy signed out, a CLI offline).
+            # That is not "no catalog": smoking here would hold a signed-out agy on its login
+            # URL until the timeout, once per model, and `hunt run` has no other gate.
+            checks.append(Check(name, "FAIL", f"{label} ({hname}): the model catalog could not be read, {reason}; "
+                                              f"`python -m src.hunt doctor --harness {hname}` says what to do"))
+            continue
         key = (hname, s.model)
         if key not in smoked:
             _res, err, secs = smoke_fn(h, s.model)
-            why = f"no catalog on {hname}" + (f" ({reason})" if reason else "")
+            why = f"no catalog on {hname}"
             smoked[key] = ("ok", f"{label} ({hname}, smoke prompt ok in {secs:.1f}s, {why})") if err is None else \
                           ("FAIL", f"{label} ({hname}): smoke prompt failed, {err}")
         status, detail = smoked[key]
@@ -153,7 +163,7 @@ def tool_probe(h: Harness, model: str | None, cwd: Path = ROOT) -> Check:
 def doctor(cfg: HuntConfig, harness_name: str | None = None, get: Callable[[str], Harness] | None = None,
            smoke_fn=smoke, probe_fn=tool_probe, cwd: Path = ROOT) -> tuple[list[Check], int]:
     """Every check for one harness; (checks, exit code: 0 ok, 2 any FAIL)."""
-    get = get or harness_mod.get
+    get = get or (lambda name: harness_mod.get(name, templates=cfg.harness_templates))
     hname = harness_name or cfg.harness
     checks: list[Check] = []
     try:
@@ -170,6 +180,14 @@ def doctor(cfg: HuntConfig, harness_name: str | None = None, get: Callable[[str]
         checks.append(Check("version", "ok" if cp.returncode == 0 and ver else "FAIL", ver or f"exit {cp.returncode}"))
     except (OSError, subprocess.SubprocessError) as e:
         checks.append(Check("version", "FAIL", f"{type(e).__name__}: {e}"))
+    if hasattr(h, "checks"):
+        # what an adapter can find out before a call is spent (agy: signed in, and whether the
+        # user's settings let python run headless). A FAIL stops here: the smoke prompt on a
+        # signed-out agy would wait for a login until its timeout.
+        own = [Check(*row) for row in h.checks()]
+        checks += own
+        if any(c.status == "FAIL" for c in own):
+            return checks, 2
     models, reason = catalog(h)
     if models is None:
         aliases = h.aliases() if hasattr(h, "aliases") else []

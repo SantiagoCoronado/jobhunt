@@ -154,8 +154,12 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 ## Commands
 All commands are `jh-` prefixed; see `.claude/commands/`.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
-`python -m src.hunt sync-agents` regenerates `.claude/agents/*.md` from them with each stage's model
-from `config/hunt.toml`, and CI runs `sync-agents --check`. Never edit a generated agent file.
+`python -m src.hunt sync-agents` regenerates every harness's native files from them (`.claude/agents`,
+`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`; a file carries a stage's model only
+when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent file.
+Harnesses (`docs/hunt-harnesses.md`): adapters claude, codex, opencode, pi, agy in `src/hunt/harness/`, anything
+else a `[harness.<name>]` command template in `config/hunt.toml`; an adapter refuses a tool it cannot grant,
+and only opencode reads its generated file at run time (`--agent`). Real-CLI smoke: `HUNT_SMOKE=1 pytest -m harness_smoke`.
 Hunt orchestrator: `python -m src.hunt run [--from S] [--to S] [--only S] [--skip S] [--ids ID,ID] [--harness H]`
 (`--ids` = research/tailor rows a human chose instead of the pick stage, `src.pick.chosen`)
 (exit 0 done, 2 a stage failed, 3 nothing to tailor), `run --resume RUN|latest` (done units

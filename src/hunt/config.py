@@ -167,9 +167,13 @@ def parse(raw: dict[str, Any], source: Path | None = None) -> HuntConfig:
     if not isinstance(harness, dict):
         raise ValueError(f"{where}: [harness] must be a table")
     templates = {k: v for k, v in harness.items() if isinstance(v, dict)}
+    from .harness import SHIPPED
+    from .harness.generic import check_template
     for tname, block in templates.items():
-        if "command" not in block:
-            raise ValueError(f"{where}: [harness.{tname}] needs a `command` template (spec section 5)")
+        if tname in SHIPPED:
+            raise ValueError(f"{where}: [harness.{tname}] would shadow the shipped {tname} adapter; name the template "
+                             f"something else")
+        check_template(tname, block, where)
     default = _name(harness, "default", f"{where} [harness]") or "claude"
     stray = sorted(set(harness) - set(templates) - {"default", "global_concurrency"})
     if stray:

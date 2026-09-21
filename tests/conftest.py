@@ -62,5 +62,7 @@ class _NoAgentPopen(_RealPopen):
 
 
 @pytest.fixture(autouse=True)
-def _no_real_agent_cli(monkeypatch):
+def _no_real_agent_cli(monkeypatch, request):
+    if request.node.get_closest_marker("harness_smoke"):   # opt-in, see tests/test_hunt_harness_smoke.py
+        return
     monkeypatch.setattr(subprocess, "Popen", _NoAgentPopen)

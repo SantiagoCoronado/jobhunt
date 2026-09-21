@@ -24,11 +24,15 @@ def test_every_role_file_parses_and_matches_the_registry():
         assert role.body.strip() and role.output and "—" not in role.body
 
 
-def test_generated_claude_agents_are_in_sync_with_the_role_files_and_hunt_toml():
-    """The CI gate: `python -m src.hunt sync-agents --check`."""
+# one file per role per harness, plus opencode's narrowed `hunt-<role>` files
+N_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
+
+
+def test_generated_agents_are_in_sync_with_the_role_files_and_hunt_toml():
+    """The CI gate: `python -m src.hunt sync-agents --check`, every harness's folder."""
     changed, same = prompts.sync(hc.load(), check=True)
     assert changed == [], f"run: python -m src.hunt sync-agents ({changed})"
-    assert len(same) == len(prompts.ROLE_STAGE)
+    assert len(same) == N_FILES
 
 
 def test_render_claude_carries_tools_model_and_the_generated_mark():
@@ -45,16 +49,62 @@ def test_render_claude_carries_tools_model_and_the_generated_mark():
     assert "tools: Read, Write, Bash, WebSearch, WebFetch" in text and "model: sonnet" in text
 
 
+def test_a_model_is_written_only_into_the_files_of_the_harness_it_was_picked_from():
+    roles = prompts.load_roles()
+    cfg = hc.parse({"harness": {"default": "opencode"},
+                    "stages": {"match": {"model": "openrouter/x"}, "tailor": {"model": "fable", "harness": "claude"}}})
+    assert "model: openrouter/x" in prompts.render_opencode(roles["job-matcher"], cfg)
+    assert "model:" not in prompts.render_claude(roles["job-matcher"], cfg).split("\n---\n")[0]
+    assert "model: fable" in prompts.render_claude(roles["resume-tailor"], cfg)
+    assert "model:" not in prompts.render_opencode(roles["resume-tailor"], cfg).split("\n---\n")[0]
+
+
+def test_opencode_gets_a_narrowed_hunt_agent_where_the_stage_grants_less_than_the_role_file():
+    """opencode applies tools only through an agent file, so the matcher's interactive bash
+    (ingest) would reach a hunt unit, where ingest is Python's (decision 13; PR 31 review)."""
+    roles = prompts.load_roles()
+    assert prompts.hunt_grants(roles) == {"job-matcher": frozenset({"read", "write"})}
+    yaml = __import__("yaml")
+    own = yaml.safe_load(prompts.render_opencode(roles["job-matcher"], hc.load()).split("\n---\n")[0][4:])
+    hunt = yaml.safe_load(prompts.render_opencode(roles["job-matcher"], hc.load(), frozenset({"read", "write"})).split("\n---\n")[0][4:])
+    assert own["permission"]["bash"]["python *"] == "allow" and hunt["permission"]["bash"] == "deny"
+    assert hunt["permission"]["edit"] == "allow" and hunt["description"].startswith("The hunt orchestrator's grant of job-matcher")
+    targets = prompts.targets(hc.load())
+    path = prompts.AGENTS_ROOT / ".opencode" / "agents" / "hunt-job-matcher.md"
+    assert path in targets and targets[path].endswith(roles["job-matcher"].body)
+    assert not [p for p in targets if p.name.startswith("hunt-") and ".opencode" not in p.parts]
+
+
+def test_render_opencode_carries_the_permissions_and_no_name():
+    roles = prompts.load_roles()
+    text = prompts.render_opencode(roles["inbox-classifier"], hc.load())
+    head, body = text.split("\n---\n", 1)
+    front = __import__("yaml").safe_load(head.removeprefix("---\n"))
+    assert front == {"description": roles["inbox-classifier"].description, "mode": "all",
+                     "permission": {"read": "allow", "edit": "deny", "webfetch": "deny", "websearch": "deny",
+                                    "bash": {"*": "deny", "python *": "allow", ".venv/bin/python *": "allow"}}}
+    assert list(front["permission"]["bash"])[0] == "*"            # the last matching pattern wins: deny first
+    assert prompts.GENERATED_MARK.format(name="inbox-classifier") in body and body.endswith(roles["inbox-classifier"].body)
+    front = __import__("yaml").safe_load(prompts.render_opencode(roles["company-researcher"], hc.load()).split("\n---\n")[0][4:])
+    assert front["permission"]["websearch"] == "allow" and front["permission"]["edit"] == "allow"
+    front = __import__("yaml").safe_load(prompts.render_opencode(roles["triager"], hc.load()).split("\n---\n")[0][4:])
+    assert front["permission"]["bash"] == "deny" and front["permission"]["edit"] == "allow"
+
+
 def test_sync_writes_then_check_reports_drift(tmp_path):
     cfg = hc.load()
-    out = tmp_path / "agents"
-    changed, same = prompts.sync(cfg, check=True, agents_dir=out)
-    assert len(changed) == 5 and same == []
-    changed, same = prompts.sync(cfg, agents_dir=out)
-    assert len(changed) == 5 and sorted(p.name for p in out.glob("*.md")) == sorted(f"{r}.md" for r in prompts.ROLE_STAGE)
-    assert prompts.sync(cfg, check=True, agents_dir=out) == ([], sorted(str(p) for p in out.glob("*.md")))
+    out = tmp_path / ".claude" / "agents"
+    changed, same = prompts.sync(cfg, check=True, root=tmp_path)
+    assert len(changed) == N_FILES and same == []
+    changed, same = prompts.sync(cfg, root=tmp_path)
+    assert len(changed) == N_FILES
+    for harness_name, (folder, suffix, _render) in prompts.NATIVE.items():
+        extra = [f"hunt-{r}{suffix}" for r in prompts.hunt_grants(prompts.load_roles())] if harness_name == "opencode" else []
+        assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted([*(f"{r}{suffix}" for r in prompts.ROLE_STAGE), *extra])
+    changed, same = prompts.sync(cfg, check=True, root=tmp_path)
+    assert changed == [] and sorted(same) == sorted(str(p) for p in tmp_path.rglob("*") if p.is_file())
     (out / "triager.md").write_text("edited by hand\n")
-    changed, same = prompts.sync(cfg, check=True, agents_dir=out)
+    changed, same = prompts.sync(cfg, check=True, root=tmp_path)
     assert changed == [str(out / "triager.md")] and (out / "triager.md").read_text() == "edited by hand\n"
 
 
@@ -74,13 +124,13 @@ def test_role_file_validation(tmp_path, text, needle):
 
 
 def test_cli_sync_agents_check_and_write(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(prompts, "CLAUDE_AGENTS_DIR", tmp_path / "agents")
+    monkeypatch.setattr(prompts, "AGENTS_ROOT", tmp_path)
     assert main(["sync-agents", "--check"]) == 1
     assert "out of sync (run `python -m src.hunt sync-agents`)" in capsys.readouterr().out
     assert main(["sync-agents"]) == 0
     out = capsys.readouterr().out
-    assert out.count("wrote    ") == 5 and out.endswith("5 written, 0 unchanged\n")
+    assert out.count("wrote    ") == N_FILES and out.endswith(f"{N_FILES} written, 0 unchanged\n")
     assert main(["sync-agents", "--check"]) == 0
-    assert capsys.readouterr().out.strip() == "agents in sync (5 files)"
-    assert (tmp_path / "agents" / "inbox-classifier.md").read_text().startswith("---\nname: inbox-classifier\n")
+    assert capsys.readouterr().out.strip() == f"agents in sync ({N_FILES} files)"
+    assert (tmp_path / ".claude" / "agents" / "inbox-classifier.md").read_text().startswith("---\nname: inbox-classifier\n")
     assert Path(".claude/agents/triager.md").exists()

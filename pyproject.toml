@@ -33,4 +33,7 @@ no_implicit_optional = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["pty: drives the real TUI on a pseudo-terminal (skipped where there is none; `-m \"not pty\"` skips it by hand)"]
+markers = [
+    "pty: drives the real TUI on a pseudo-terminal (skipped where there is none; `-m \"not pty\"` skips it by hand)",
+    "harness_smoke: one real 10-token call on an agent CLI (runs only with HUNT_SMOKE=1 and the binary on PATH; the one place the conftest guard lets a real agent start)",
+]
