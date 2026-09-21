@@ -37,8 +37,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from . import Invocation, Model, Result, Usage, check_tools
-from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, no_envelope, one_prompt, run_catalog, table
+from . import Invocation, Model, Result, Usage
+from ._common import RATE_LIMIT, SMOKE_PROMPT, SMOKE_SYSTEM, as_object, events, granted, no_envelope, one_prompt, run_catalog, table
 
 _WRITES = frozenset({"write", "edit", "bash"})
 
@@ -59,7 +59,7 @@ class CodexHarness:
         return [self.binary, "--version"]
 
     def argv(self, inv: Invocation) -> list[str]:
-        tools = check_tools(inv.tools)
+        tools = granted(self.name, inv.tools, self.capabilities)
         self.scratch.mkdir(parents=True, exist_ok=True)
         last = self.scratch / f"last_{_key(f'{inv.model}|{self.stdin(inv)}')}.txt"
         argv = [self.binary, "exec", "--json", "-o", str(last)]

@@ -79,6 +79,7 @@ _ADAPTERS: dict[str, tuple[str, str]] = {    # name: (module, class), imported o
     "claude": ("claude", "ClaudeHarness"),
     "codex": ("codex", "CodexHarness"),
     "opencode": ("opencode", "OpencodeHarness"),
+    "pi": ("pi", "PiHarness"),
 }
 SHIPPED: tuple[str, ...] = tuple(_ADAPTERS)  # adapters `get` knows by name
 

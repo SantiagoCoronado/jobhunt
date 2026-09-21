@@ -8,7 +8,7 @@ import re
 import subprocess
 from typing import Any
 
-from . import Invocation, Result, Usage
+from . import Invocation, Result, Usage, check_tools
 
 RATE_LIMIT = re.compile(r"rate.?limit|too many requests|overloaded|usage limit|quota|\b429\b|\b529\b", re.I)
 
@@ -36,6 +36,17 @@ def events(stdout: str) -> list[dict[str, Any]]:
 def table(value: Any) -> dict[str, Any]:
     """`value` when it is a JSON object, else an empty one: event fields are never trusted."""
     return value if isinstance(value, dict) else {}
+
+
+def granted(name: str, tools: frozenset[str] | set[str], capabilities: frozenset[str]) -> frozenset[str]:
+    """The unit's tools, refused by name when the harness cannot grant one: dropping `web`
+    in silence would run a research unit that can never pass its check. `fan.resolve_harness`
+    routes a stage before this can happen; this is the adapter saying so itself."""
+    tools = check_tools(tools)
+    lacking = sorted(tools - capabilities)
+    if lacking:
+        raise ValueError(f"{name} grants no {', '.join(lacking)} tool; run this stage on a harness that does")
+    return tools
 
 
 def no_envelope(stdout: str, stderr: str, rc: int, what: str = "JSON events") -> Result:

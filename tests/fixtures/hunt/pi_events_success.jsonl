@@ -1,0 +1,14 @@
+{"type":"session","version":3,"id":"01a0c51c-cea2-74ef-a435-218e7e7e7843","timestamp":"2026-09-21T17:56:34.595Z","cwd":"/tmp/probe"}
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"Read probe.txt and reply with exactly its text, nothing else."}],"timestamp":1790013394671}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The user wants me to read a file called \"probe.txt\" and reply with exactly its text, nothing else. I'm currently in the directory `/tmp/probe`, so I should read the file from there.\n\nLet me use the read function to read probe.txt."},{"type":"toolCall","id":"toolu_bdrk_01675PZ2avEyQGNLd4ccxakF","name":"read","arguments":{"path":"probe.txt"}}],"api":"openai-completions","provider":"openrouter","model":"~anthropic/claude-haiku-latest","usage":{"input":796,"output":165,"cacheRead":0,"cacheWrite":0,"reasoning":109,"totalTokens":961,"cost":{"input":0.0007959999999999999,"output":0.0008250000000000001,"cacheRead":0,"cacheWrite":0,"total":0.001621}},"stopReason":"toolUse","timestamp":1790013394701,"responseId":"gen-1790013395-iMzVzRuchLqwmxF4vIZH","responseModel":"anthropic/claude-haiku-4.5","rawStopReason":"tool_calls"}}
+{"type":"tool_execution_start","toolCallId":"toolu_bdrk_01675PZ2avEyQGNLd4ccxakF","toolName":"read","args":{"path":"probe.txt"}}
+{"type":"tool_execution_end","toolCallId":"toolu_bdrk_01675PZ2avEyQGNLd4ccxakF","toolName":"read","result":{"content":[{"type":"text","text":"probe 5c2e77\n"}]},"isError":false}
+{"type":"message_end","message":{"role":"toolResult","toolCallId":"toolu_bdrk_01675PZ2avEyQGNLd4ccxakF","toolName":"read","content":[{"type":"text","text":"probe 5c2e77\n"}],"isError":false,"timestamp":1790013396658}}
+{"type":"turn_end"}
+{"type":"turn_start"}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"text","text":"probe 5c2e77"}],"api":"openai-completions","provider":"openrouter","model":"~anthropic/claude-haiku-latest","usage":{"input":840,"output":10,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":850,"cost":{"input":0.0008399999999999999,"output":5e-05,"cacheRead":0,"cacheWrite":0,"total":0.00089}},"stopReason":"stop","timestamp":1790013396659,"responseId":"gen-1790013396-l7jfLWMomOtFqSfQk9Pq","responseModel":"anthropic/claude-haiku-4.5","rawStopReason":"stop"}}
+{"type":"turn_end"}
+{"type":"agent_end","messages":[],"willRetry":false}
+{"type":"agent_settled"}

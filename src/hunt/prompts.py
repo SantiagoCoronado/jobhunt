@@ -138,6 +138,23 @@ def render_opencode(role: Role, cfg: HuntConfig) -> str:
     return "\n".join(lines)
 
 
+def render_pi(role: Role, cfg: HuntConfig) -> str:
+    """The `.pi/agents/<role>.md` text, the frontmatter pi's subagent extensions document
+    (`name`, `description`, `tools` as a comma list of pi's own tool names, `model`). Not
+    checked against a loaded extension: none is installed here (2026-09-21). The hunt does
+    not read these files, `hunt run` passes the body as `--system-prompt`; they are for
+    interactive use. pi has no web tool, so a role's `web` has nothing to map to."""
+    names = [t for t in TOOL_ORDER if t in role.tools and t != "web"]
+    lines = ["---", f"name: {role.name}", f"description: {_yaml_str(role.description)}"]
+    if names:
+        lines.append(f"tools: {', '.join(names)}")
+    model = _stage_model(role, cfg, "pi")
+    if model:
+        lines.append(f"model: {model}")
+    lines += ["---", "", GENERATED_MARK.format(name=role.name), "", role.body.rstrip("\n"), ""]
+    return "\n".join(lines)
+
+
 def _yaml_str(text: str) -> str:
     """A description as a YAML scalar that cannot be misread (a colon, a leading quote)."""
     return yaml.safe_dump(text, default_flow_style=True, width=10_000, allow_unicode=True).strip().removesuffix("...").strip()
@@ -147,6 +164,7 @@ def _yaml_str(text: str) -> str:
 NATIVE: dict[str, tuple[str, str, Callable[[Role, HuntConfig], str]]] = {
     "claude": (".claude/agents", ".md", render_claude),
     "opencode": (".opencode/agents", ".md", render_opencode),
+    "pi": (".pi/agents", ".md", render_pi),
 }
 
 
