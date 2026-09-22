@@ -83,3 +83,64 @@ def test_prefix_lookup_prefers_the_newest_match(tmp_path, monkeypatch, capsys):
     os.utime(new, (now, now))
     assert ta.resolve("abc", latest=False) == new
     assert "2 sessions match" in capsys.readouterr().err
+
+
+def _hunt(hunt_dir: Path):
+    """A ledger with two model stages on two harnesses, one retry, and a deterministic stage."""
+    from src.hunt import ledger
+    led = ledger.Ledger.create("20260922-0900", "claude", {}, ["discover", "triage", "tailor"], hunt_dir)
+    led.move_stage("discover", "running")
+    led.add_units("discover", [{"id": "discover", "input": None, "output": None}])
+    led.move_unit("discover", "discover", "running")
+    led.move_unit("discover", "discover", "done")
+    led.move_stage("discover", "done")
+    led.move_stage("triage", "running")
+    led.add_units("triage", [{"id": f"chunk_00{i}", "input": None, "output": None, "harness": "claude", "model": "haiku"} for i in range(2)])
+    led.move_unit("triage", "chunk_000", "running")
+    led.move_unit("triage", "chunk_000", "done", usage={"input": 1000, "output": 100, "cache_read": 4000, "cost_usd": 0.10})
+    led.move_unit("triage", "chunk_001", "running")
+    led.move_unit("triage", "chunk_001", "failed", verdict="short", usage={"input": 900, "output": 10})
+    led.move_unit("triage", "chunk_001", "running")
+    led.move_unit("triage", "chunk_001", "done", usage={"input": 1100, "output": 120, "cost_usd": 0.12})
+    led.move_stage("triage", "done")
+    led.move_stage("tailor", "running")
+    led.add_units("tailor", [{"id": "job_7", "input": None, "output": None, "harness": "codex", "model": None}])
+    led.move_unit("tailor", "job_7", "running")
+    led.move_unit("tailor", "job_7", "done", usage={"input": 20000, "output": 3000, "cache_create": 5000})
+    led.move_stage("tailor", "done")
+    led.finish()
+    return led
+
+
+def test_hunt_mode_reads_the_ledger_per_stage_harness_and_unit(tmp_path, monkeypatch, capsys):
+    from src.hunt import ledger
+    monkeypatch.setattr(ledger, "HUNT_DIR", tmp_path)
+    _hunt(tmp_path)
+    ta.main.__globals__["sys"].argv = ["token_audit.py", "--hunt", "latest", "--top", "2", "--json", str(tmp_path / "out.json")]
+    ta.main()
+    out = capsys.readouterr().out
+    assert out.startswith("# Token audit: hunt 20260922-0900 (claude, done)\n")
+    assert "  units            3  (4 attempts, 1 retries)" in out
+    assert "  context read     32.0k  (input 23.0k + cache_read 4.0k + cache_create 5.0k)" in out
+    assert "  cost usd         0.22" in out and "  models           default, haiku" in out
+    assert "  triage           2        3       7.0k      4.0k         -      230    0.22  haiku" in out
+    assert "  codex            1        1      25.0k         -      5.0k     3.0k       -  default" in out
+    assert out.count("  total            3        4      32.0k") == 2            # one total row per table
+    biggest = out.split("## 2 biggest units by context read")[1].split("\n\n")[0].splitlines()
+    assert biggest[2].startswith("  tailor/job_7") and "codex/default" in biggest[2]
+    assert biggest[3].startswith("  triage/chunk_000") and len(biggest) == 4        # --top 2, chunk_001 cut
+    assert "(json written to" in out
+    rep = json.loads((tmp_path / "out.json").read_text())
+    assert rep["total"]["context_total"] == 32000 and [u["id"] for u in rep["units"]] == ["job_7", "chunk_000", "chunk_001"]
+    assert rep["units"][2]["attempts"] == 2 and rep["units"][2]["context_total"] == 2000
+
+
+def test_hunt_mode_names_the_missing_run_and_the_ledger_dir(tmp_path, monkeypatch):
+    from src.hunt import ledger
+    monkeypatch.setattr(ledger, "HUNT_DIR", tmp_path)
+    with pytest.raises(SystemExit) as e:
+        ta.resolve_hunt("latest")
+    assert str(e.value).startswith("no hunt runs yet under")
+    with pytest.raises(SystemExit) as e:
+        ta.resolve_hunt("20260101-0000")
+    assert "no run '20260101-0000'" in str(e.value)

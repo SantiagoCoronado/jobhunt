@@ -15,8 +15,15 @@ Usage:
     python scripts/token_audit.py [session_id_or_path] [--top 15] [--json out.json]
     python scripts/token_audit.py --latest          # newest session in this project
     python scripts/token_audit.py --all             # one summary row per session
+    python scripts/token_audit.py --hunt RUN|latest # a hunt run, from its ledger
 
-Costs are reported in tokens only; multiply by your plan's prices yourself.
+``--hunt`` reads ``data/hunt/<run>/state.json`` (the orchestrator's ledger, spec row 16)
+instead of a transcript: per stage, per harness and the biggest units, whatever harness ran
+them. The transcript mode stays for interactive sessions, where the tokens are the
+session's own.
+
+Costs are reported in tokens only; multiply by your plan's prices yourself. A hunt's
+``cost_usd`` column is what the harness printed, when it prints one.
 """
 from __future__ import annotations
 
@@ -28,8 +35,11 @@ import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))         # --hunt reads the ledger through src.hunt.ledger
 
 
 def project_dir_for(repo: Path = REPO) -> Path:
@@ -349,6 +359,86 @@ def print_report(rep: dict, top: int) -> None:
             print(f"  {fmt(n):>8} B  ~{fmt(n//4):>6} tok  {label}")
 
 
+# ---- hunt ledger mode ----------------------------------------------------------------------
+
+def _ctx(usage: dict[str, Any] | None) -> int | None:
+    from src.hunt import ledger
+    return ledger.context_total(usage)
+
+
+def _num(n: int | float | None) -> str:
+    if n is None:
+        return "-"
+    return f"{n:.2f}" if isinstance(n, float) else fmt(n)
+
+
+def scan_hunt(run_dir: Path) -> dict:
+    """One hunt run from its ledger: the rollup per stage and per harness, and every model
+    unit with its own numbers, biggest context first."""
+    from src.hunt import ledger
+
+    st = ledger.load_state(run_dir)
+    roll = ledger.rollup(st)
+    units: list[dict[str, Any]] = []
+    for s in st.get("stages", []):
+        for u in s.get("units") or []:
+            if not u.get("harness"):
+                continue
+            use = u.get("usage") or {}
+            units.append({"stage": s["name"], "id": u["id"], "harness": u["harness"], "model": u.get("model") or "default",
+                          "state": u.get("state"), "attempts": int(u.get("attempts") or 0),
+                          "context_total": _ctx(use), "output": use.get("output"), "cost_usd": use.get("cost_usd")})
+    units.sort(key=lambda r: -(r["context_total"] or 0))
+    stages = [{"name": name, **e, "context_total": _ctx(e)} for name, e in roll["stages"].items()]
+    harnesses = [{"name": name, **e, "context_total": _ctx(e)} for name, e in roll["harnesses"].items()]
+    total = {**roll["total"], "context_total": _ctx(roll["total"])}
+    return {"run_id": st.get("run_id"), "path": str(run_dir), "state": ledger.run_state(st),
+            "harness": st.get("harness"), "started": st.get("started"), "ended": st.get("ended"),
+            "stages": stages, "harnesses": harnesses, "units": units, "total": total}
+
+
+def print_hunt_report(rep: dict, top: int) -> None:
+    tot = rep["total"]
+    print(f"# Token audit: hunt {rep['run_id']} ({rep['harness'] or '-'}, {rep['state']})")
+    print(f"  span: {rep['started'] or '-'} .. {rep['ended'] or '-'}")
+    print(f"  ledger: {rep['path']}")
+    print()
+    if not tot["units"]:
+        print("No model unit ran.")
+        return
+    print("## Totals (model units)")
+    print(f"  units            {tot['units']}  ({tot['attempts']} attempts, {tot['attempts'] - tot['units']} retries)")
+    print(f"  context read     {_num(tot['context_total'])}  (input {_num(tot['input'])} + cache_read {_num(tot['cache_read'])} "
+          f"+ cache_create {_num(tot['cache_create'])})")
+    print(f"  output           {_num(tot['output'])}")
+    print(f"  cost usd         {_num(tot['cost_usd'])}")
+    print(f"  models           {', '.join(tot['models'])}")
+    hdr = f"  {'':<12} {'units':>5} {'attempts':>8} {'ctx_total':>10} {'cache_rd':>9} {'cache_cr':>9} {'output':>8} {'cost':>7}  models"
+    for title, rows in (("## Per stage", rep["stages"]), ("## Per harness", rep["harnesses"])):
+        print()
+        print(title)
+        print(hdr)
+        for r in rows + [{"name": "total", **tot}]:
+            print(f"  {r['name']:<12} {r['units']:>5} {r['attempts']:>8} {_num(r['context_total']):>10} {_num(r['cache_read']):>9} "
+                  f"{_num(r['cache_create']):>9} {_num(r['output']):>8} {_num(r['cost_usd']):>7}  {', '.join(r['models'])}")
+    print()
+    print(f"## {top} biggest units by context read")
+    print(f"  {'stage/unit':<34} {'state':<7} {'attempts':>8} {'ctx_total':>10} {'output':>8} {'cost':>7}  harness/model")
+    for u in rep["units"][:top]:
+        print(f"  {u['stage'] + '/' + u['id']:<34} {u['state'] or '-':<7} {u['attempts']:>8} {_num(u['context_total']):>10} "
+              f"{_num(u['output']):>8} {_num(u['cost_usd']):>7}  {u['harness']}/{u['model']}")
+
+
+def resolve_hunt(run: str) -> Path:
+    from src.hunt import ledger
+
+    path = ledger.resolve(run)
+    if path is None:
+        what = "no hunt runs yet" if run in ("", "latest") else f"no run {run!r}"
+        sys.exit(f"{what} under {ledger.HUNT_DIR} (this mode reads the orchestrator's ledger)")
+    return path
+
+
 def resolve(arg: str | None, latest: bool) -> Path:
     if latest or not arg:
         files = sorted(PROJECT_DIR.glob("*.jsonl"), key=lambda p: p.stat().st_mtime)
@@ -372,9 +462,17 @@ def main() -> None:
     ap.add_argument("session", nargs="?")
     ap.add_argument("--latest", action="store_true")
     ap.add_argument("--all", action="store_true", help="one summary row per session")
+    ap.add_argument("--hunt", metavar="RUN", help="a hunt run id or 'latest': read data/hunt/<run>/state.json instead of a transcript")
     ap.add_argument("--top", type=int, default=15)
     ap.add_argument("--json", help="also dump the full report as JSON")
     a = ap.parse_args()
+    if a.hunt is not None:
+        rep = scan_hunt(resolve_hunt(a.hunt))
+        print_hunt_report(rep, a.top)
+        if a.json:
+            Path(a.json).write_text(json.dumps(rep, indent=1, default=str))
+            print(f"\n(json written to {a.json})")
+        return
     if a.all:
         print(f"{'session':<10} {'first_ts':<22} {'calls':>5} {'ctx_total':>10} {'cache_cr':>9} {'output':>8} {'subagents':>9}  models")
         for f in sorted(PROJECT_DIR.glob("*.jsonl"), key=lambda p: p.stat().st_mtime):
