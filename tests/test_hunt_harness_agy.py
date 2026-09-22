@@ -1,5 +1,5 @@
-"""The agy adapter: argv (the prompt attached to `--print=`, last), the claude-shaped envelope
-by the binary's own field names, the signed-out failure seen on the real CLI (2026-09-21), the
+"""The agy adapter: argv (the prompt attached to `--print=`, last), the envelope on three
+captured calls (2026-09-22), the signed-out failure seen on the real CLI (2026-09-21), the
 catalog, the doctor's sign-in and shell-permission checks, and the gemini and codex agent
 files story 4 adds to `sync-agents`."""
 from __future__ import annotations
@@ -20,6 +20,9 @@ from src.hunt.harness.agy import AgyHarness
 
 SIGNED_OUT = ("Authentication required. Please visit the URL to log in:\n"
               "  https://accounts.google.com/o/oauth2/auth?access_type=offline&client_id=x\n")
+
+
+FIX = Path(__file__).resolve().parent / "fixtures" / "hunt"
 
 
 def _inv(tools=frozenset(), model="gemini-pro-latest", schema=None, prompt="do the thing") -> Invocation:
@@ -51,21 +54,29 @@ def test_argv_never_uses_a_bare_p_an_agent_or_the_permission_bypass():
         AgyHarness().argv(_inv({"read", "web"}))
 
 
-def test_parse_the_envelope_by_the_binarys_field_names():
+def test_parse_the_three_captured_envelopes():
+    """Real calls on 2026-09-22: a smoke prompt, a schema unit, a model agy does not know."""
     h = AgyHarness()
-    env = {"result": "ok", "is_error": False, "subtype": "success", "session_id": "s", "num_turns": 1,
-           "usage": {"input_tokens": 1200, "output_tokens": 4}, "structured_output": {"word": "ok"}}
-    r = h.parse(json.dumps(env), "", 0)
-    assert r.error is None and r.text == "ok" and r.structured == {"word": "ok"}
-    assert r.usage == Usage(input=1200, output=4)
-    r = h.parse("a banner line\n" + json.dumps({**env, "structured_output": None, "result": '{"a": 1}'}) + "\n", "", 0)
-    assert r.error is None and r.structured == {"a": 1}                       # the reply itself, when it is the object
-    r = h.parse(json.dumps({**env, "is_error": True, "subtype": "error_max_turns", "result": "gave up"}), "", 1)
-    assert r.error == "error_max_turns: gave up" and r.rate_limited is False
-    r = h.parse(json.dumps({**env, "is_error": True, "subtype": "success", "result": "429 quota exhausted"}), "", 1)
-    assert r.error == "error: 429 quota exhausted" and r.rate_limited is True
-    assert h.parse(json.dumps(env), "boom\n", 3).error == "exit 3: boom"
-    assert h.parse(json.dumps(env), "", 3).error == "exit 3"
+    r = h.parse((FIX / "agy_envelope_success.json").read_text(), "", 0)
+    assert r.error is None and r.text == "ok" and r.structured is None and r.envelope is True
+    assert r.usage == Usage(input=11839, output=68, cache_read=0)              # output counts the 67 thinking tokens; no cost
+    r = h.parse((FIX / "agy_envelope_schema.json").read_text(), "", 0)
+    assert r.error is None and r.structured == {"word": "ok"} and r.text.startswith("ok\n{")
+    r = h.parse((FIX / "agy_envelope_error.json").read_text(), "", 1)
+    assert r.error.startswith('error: invalid model selection (--model "no-such-model-xyz"')
+    assert "\n" not in r.error and r.text is None and r.rate_limited is False and r.usage.input == 0
+
+
+def test_parse_the_other_failure_shapes():
+    h = AgyHarness()
+    ok = json.loads((FIX / "agy_envelope_success.json").read_text())
+    r = h.parse("a banner line\n" + json.dumps({**ok, "response": ' {"a": 1} '}) + "\n", "", 0)
+    assert r.error is None and r.structured == {"a": 1}                        # the reply itself, when it is the object
+    r = h.parse(json.dumps({**ok, "status": "ERROR", "response": "", "error": "429 quota exhausted for today"}), "", 1)
+    assert r.error == "error: 429 quota exhausted for today" and r.rate_limited is True
+    assert h.parse(json.dumps({**ok, "status": "TIMEOUT", "response": ""}), "", 1).error == "timeout"
+    assert h.parse(json.dumps(ok), "boom\n", 3).error == "exit 3: boom"
+    assert h.parse(json.dumps(ok), "", 3).error == "exit 3"
 
 
 def test_parse_the_signed_out_failure_and_garbage():
@@ -84,8 +95,10 @@ def test_models_and_the_sign_in_message(monkeypatch):
         AgyHarness().models()
     models, reason = doctor.catalog(AgyHarness())
     assert models is None and reason.startswith("ValueError: sign in")
-    monkeypatch.setattr(agy_mod, "run_catalog", _cp(0, "Fetching available models...\nAvailable models:\n  * gemini-pro-latest  (default)\n  - gemini-flash-latest\n"))
-    assert AgyHarness().models() == [Model("gemini-pro-latest", "(default)"), Model("gemini-flash-latest", "")]
+    real = "Fetching available models...\ngemini-3.8-flash-high\tGemini 3.8 Flash (High)\nclaude-opus-4.6-thinking\tClaude Opus 4.6 (Thinking)\n"
+    monkeypatch.setattr(agy_mod, "run_catalog", _cp(0, real))
+    assert AgyHarness().models() == [Model("gemini-3.8-flash-high", "Gemini 3.8 Flash (High)"),
+                                     Model("claude-opus-4.6-thinking", "Claude Opus 4.6 (Thinking)")]
     monkeypatch.setattr(agy_mod, "run_catalog", _cp(3, "", "network down"))
     with pytest.raises(ValueError, match="exit 3: network down"):
         AgyHarness().models()
@@ -150,7 +163,7 @@ def test_a_harness_with_honestly_no_catalog_still_smokes(tmp_path):
 
 
 def test_doctor_goes_on_when_agy_is_signed_in(monkeypatch, tmp_path):
-    monkeypatch.setattr(agy_mod, "run_catalog", _cp(0, "gemini-pro-latest\n"))
+    monkeypatch.setattr(agy_mod, "run_catalog", _cp(0, "Fetching available models...\ngemini-pro-latest\tGemini Pro\n"))
     monkeypatch.setattr(doctor.shutil, "which", lambda b: f"/bin/{b}")
     monkeypatch.setattr(doctor.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 0, "1.1.27\n", ""))
     h = AgyHarness(settings=tmp_path / "none.json")

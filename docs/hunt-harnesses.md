@@ -113,8 +113,9 @@ Two things to do by hand, both checked by `doctor` before it spends a call:
    `"command(.venv/bin/python)"`, or the inbox, research and tailor units cannot run it.
 
 Does not claim `web`. `--dangerously-skip-permissions` is never passed. Catalog: `agy models`.
-**Not yet seen answering** (1.1.27, signed out here): the envelope is parsed by the field names
-in the binary, which are claude's shape.
+Verified with real calls (1.1.27, 2026-09-22): a smoke prompt, a schema unit (the object comes
+back under `structured_output`), a model it does not know (an `ERROR` envelope carrying the
+catalog). `output_tokens` counts thinking tokens; no cost is reported.
 
 ### Anything else: a command template
 
