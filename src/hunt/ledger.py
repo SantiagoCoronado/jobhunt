@@ -1,7 +1,8 @@
 """The run ledger: `data/hunt/<run_id>/` (spec section 7, decision 8).
 
     state.json      run_id, started, ended, harness, config snapshot,
-                    stages[{name, state, started, ended, note, units[...], summary}]
+                    stages[{name, state, started, ended, note, units[...], summary}],
+                    usage {stages{}, harnesses{}, total} rolled up over the model units
     events.jsonl    one line per transition: {ts, stage, unit, from, to, note}
     prompts/<stage>/<unit>.md, logs/<stage>/<unit>.log
     picks.json, report.md
@@ -213,6 +214,50 @@ def add_usage(total: dict[str, Any] | None, usage: dict[str, Any] | None) -> dic
     return out
 
 
+def context_total(usage: dict[str, Any] | None) -> int | None:
+    """Every token the model read: input + cache read + cache create, the number a long
+    agentic run pays for (`docs/token-efficiency.md`); None when nothing was reported."""
+    if not usage:
+        return None
+    parts = [usage.get(k) for k in ("input", "cache_read", "cache_create")]
+    if all(p is None for p in parts):
+        return None
+    return sum(int(p) for p in parts if p is not None)
+
+
+def _rollup_entry() -> dict[str, Any]:
+    return {"units": 0, "attempts": 0, "models": [], **{k: None for k in USAGE_KEYS}}
+
+
+def _fold(entry: dict[str, Any], unit: dict[str, Any]) -> None:
+    entry["units"] += 1
+    entry["attempts"] += int(unit.get("attempts") or 0)
+    model = str(unit.get("model") or "default")
+    if model not in entry["models"]:
+        entry["models"] = sorted([*entry["models"], model])
+    entry.update(add_usage(entry, unit.get("usage")) or {})
+
+
+def rollup(state: dict[str, Any]) -> dict[str, Any]:
+    """Usage rolled up over the model units (the ones with a harness; a deterministic stage
+    reads no model): per stage in stage order, per harness, and in total (spec row 16). Each
+    entry counts units and attempts (attempts minus units is the retries), lists the models
+    those units named, and sums the usage fields, a field no adapter reported staying None.
+    Derived from the units every time, so it never drifts from them; `state.json` carries
+    the result under `usage` so a reader need not sum."""
+    stages: dict[str, dict[str, Any]] = {}
+    harnesses: dict[str, dict[str, Any]] = {}
+    total = _rollup_entry()
+    for s in state.get("stages", []):
+        for u in s.get("units") or []:
+            if not u.get("harness"):
+                continue
+            for entry in (stages.setdefault(str(s["name"]), _rollup_entry()),
+                          harnesses.setdefault(str(u["harness"]), _rollup_entry()), total):
+                _fold(entry, u)
+    return {"stages": stages, "harnesses": dict(sorted(harnesses.items())), "total": total}
+
+
 def _locked(method):
     def wrapper(self, *args, **kwargs):
         with self.lock:
@@ -246,6 +291,7 @@ class Ledger:
             "run_id": run_id, "started": clock(), "ended": None, "harness": harness, "config": config,
             "stages": [{"name": n, "state": "pending", "started": None, "ended": None, "note": None,
                         "units": [], "summary": {}} for n in stages],
+            "usage": rollup({}),
         }
         led = cls(run_dir, state, clock)
         led._save()
@@ -378,6 +424,7 @@ class Ledger:
 
     # -- persistence
     def _save(self) -> None:
+        self.state["usage"] = rollup(self.state)          # per stage, per harness, total: always current
         write_state(self.run_dir, self.state)
 
     def _event(self, stage: str | None, unit: str | None, frm: str | None, to: str,

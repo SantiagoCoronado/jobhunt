@@ -214,3 +214,29 @@ def test_add_usage_keeps_unreported_fields_none():
     total = ledger.add_usage({"input": 5, "output": None, "cache_read": None, "cache_create": None, "cost_usd": None},
                              {"input": 2, "output": 3})
     assert total == {"input": 7, "output": 3, "cache_read": None, "cache_create": None, "cost_usd": None}
+
+
+def test_usage_rolls_up_per_stage_per_harness_and_in_total_on_every_save(tmp_path):
+    led = _drive(tmp_path)
+    st = ledger.load_state(led.run_dir)
+    assert st["usage"] == ledger.rollup(st)                   # what state.json carries is the derived rollup
+    triage = {"units": 3, "attempts": 4, "models": ["haiku"], "input": 285, "output": 50,
+              "cache_read": None, "cache_create": None, "cost_usd": 0.03}
+    assert st["usage"]["stages"] == {"triage": triage}         # discover ran no model, so it has no row
+    assert st["usage"]["harnesses"] == {"claude": triage} and st["usage"]["total"] == triage
+    # a second harness and a unit with no usage at all (a text envelope) land in their own rows
+    led.add_units("pick", [{"id": "x", "input": None, "output": None, "harness": "codex", "model": None}])
+    led.move_stage("pick", "running")
+    led.move_unit("pick", "x", "running")
+    led.move_unit("pick", "x", "done")
+    roll = ledger.load_state(led.run_dir)["usage"]
+    assert roll["harnesses"]["codex"] == {"units": 1, "attempts": 1, "models": ["default"], "input": None, "output": None,
+                                          "cache_read": None, "cache_create": None, "cost_usd": None}
+    assert roll["total"]["units"] == 4 and roll["total"]["attempts"] == 5 and roll["total"]["input"] == 285
+    assert roll["total"]["models"] == ["default", "haiku"]
+    assert ledger.rollup({})["total"]["units"] == 0             # a ledger written before the rollup existed
+
+
+def test_context_total_is_input_plus_both_caches_or_none():
+    assert ledger.context_total(None) is None and ledger.context_total({"output": 5}) is None
+    assert ledger.context_total({"input": 5, "cache_read": None, "cache_create": 2}) == 7
