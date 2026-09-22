@@ -144,3 +144,34 @@ def test_hunt_mode_names_the_missing_run_and_the_ledger_dir(tmp_path, monkeypatc
     with pytest.raises(SystemExit) as e:
         ta.resolve_hunt("20260101-0000")
     assert "no run '20260101-0000'" in str(e.value)
+
+
+def test_hunt_mode_exits_cleanly_on_an_empty_or_broken_ledger_folder(tmp_path, monkeypatch):
+    """`ledger.resolve` hands back any run folder that exists, readable or not (Cursor review
+    of PR #33): an empty folder and a broken state.json name the folder instead of a traceback,
+    by id and as `latest` (the newest folder is the broken one)."""
+    from src.hunt import ledger
+    monkeypatch.setattr(ledger, "HUNT_DIR", tmp_path)
+    _hunt(tmp_path)
+    (tmp_path / "20260923-0900").mkdir()                                            # no state.json
+    (tmp_path / "20260924-0900").mkdir()
+    (tmp_path / "20260924-0900" / "state.json").write_text("{not json", encoding="utf-8")
+    for run in ("20260923-0900", "20260924-0900", "latest"):
+        with pytest.raises(SystemExit) as e:
+            ta.resolve_hunt(run)
+        assert str(e.value).startswith(f"unreadable ledger {tmp_path / (run if run != 'latest' else '20260924-0900')}: ")
+    assert "not valid JSON" in str(e.value)                                          # latest = the broken state.json
+    assert ta.resolve_hunt("20260922-0900") == tmp_path / "20260922-0900"          # the readable one still resolves
+
+
+def test_hunt_mode_counts_retries_per_unit_so_pending_units_never_go_negative(tmp_path, monkeypatch, capsys):
+    from src.hunt import ledger
+    monkeypatch.setattr(ledger, "HUNT_DIR", tmp_path)
+    led = ledger.Ledger.create("20260922-1000", "claude", {}, ["triage"], tmp_path)
+    led.move_stage("triage", "running")
+    led.add_units("triage", [{"id": f"chunk_00{i}", "input": None, "output": None, "harness": "claude", "model": "haiku"} for i in range(3)])
+    led.move_unit("triage", "chunk_000", "running")                               # one running, two pending
+    rep = ta.scan_hunt(tmp_path / "20260922-1000")
+    assert rep["total"]["units"] == 3 and rep["total"]["attempts"] == 1 and rep["total"]["retries"] == 0
+    ta.print_hunt_report(rep, 5)
+    assert "  units            3  (1 attempts, 0 retries)" in capsys.readouterr().out

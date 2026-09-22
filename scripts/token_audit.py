@@ -391,7 +391,9 @@ def scan_hunt(run_dir: Path) -> dict:
     units.sort(key=lambda r: -(r["context_total"] or 0))
     stages = [{"name": name, **e, "context_total": _ctx(e)} for name, e in roll["stages"].items()]
     harnesses = [{"name": name, **e, "context_total": _ctx(e)} for name, e in roll["harnesses"].items()]
-    total = {**roll["total"], "context_total": _ctx(roll["total"])}
+    # attempts beyond the first, per unit: `attempts - units` would go negative while units are pending
+    total = {**roll["total"], "context_total": _ctx(roll["total"]),
+             "retries": sum(max(u["attempts"] - 1, 0) for u in units)}
     return {"run_id": st.get("run_id"), "path": str(run_dir), "state": ledger.run_state(st),
             "harness": st.get("harness"), "started": st.get("started"), "ended": st.get("ended"),
             "stages": stages, "harnesses": harnesses, "units": units, "total": total}
@@ -407,7 +409,7 @@ def print_hunt_report(rep: dict, top: int) -> None:
         print("No model unit ran.")
         return
     print("## Totals (model units)")
-    print(f"  units            {tot['units']}  ({tot['attempts']} attempts, {tot['attempts'] - tot['units']} retries)")
+    print(f"  units            {tot['units']}  ({tot['attempts']} attempts, {tot['retries']} retries)")
     print(f"  context read     {_num(tot['context_total'])}  (input {_num(tot['input'])} + cache_read {_num(tot['cache_read'])} "
           f"+ cache_create {_num(tot['cache_create'])})")
     print(f"  output           {_num(tot['output'])}")
@@ -430,12 +432,20 @@ def print_hunt_report(rep: dict, top: int) -> None:
 
 
 def resolve_hunt(run: str) -> Path:
+    """The run folder for `RUN` or `latest`, or a clean exit naming what is wrong: no run of
+    that id, no runs at all, or a folder whose ledger cannot be read (`ledger.resolve` hands
+    those back too, `list_runs` lists them as unreadable; `hunt report` and `stats hunts`
+    treat them the same way)."""
     from src.hunt import ledger
 
     path = ledger.resolve(run)
     if path is None:
         what = "no hunt runs yet" if run in ("", "latest") else f"no run {run!r}"
         sys.exit(f"{what} under {ledger.HUNT_DIR} (this mode reads the orchestrator's ledger)")
+    try:
+        ledger.load_state(path)
+    except (FileNotFoundError, ValueError) as e:
+        sys.exit(f"unreadable ledger {path}: {e}")
     return path
 
 
