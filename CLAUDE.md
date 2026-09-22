@@ -68,7 +68,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    past debriefs. `/jh-debrief <id>`: digest an interview transcript (dropped at
    `interviews/<company>-<id>/<date>-<round>.md`, git-ignored, NEVER committed) into a debrief +
    answer-bank drafts. `/jh-review`: monthly conversion/calibration report over `python -m
-   src.stats {funnel|calibration|latency|drops|comp}`; proposes profile/rubric edits as diffs.
+   src.stats {funnel|calibration|latency|drops|comp|hunts}` (`hunts` reads the run ledgers, never the DB:
+   units, retries, failures, usage per stage per run); proposes profile/rubric edits as diffs.
    `resume/answers.yaml` is the answer bank: `draft: true` entries await human review; answers
    only ever contain master-resume facts. Every status change / contact / debrief lands in the
    `events` table (written by `db.set_status`/`touch_contact`/`log_event`).

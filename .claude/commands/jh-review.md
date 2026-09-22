@@ -12,6 +12,8 @@ Numbers come from deterministic SQL, never estimate them yourself.
    - `python -m src.stats latency`       (applied -> first response, from the event log)
    - `python -m src.stats drops --sample 15`  (triage false-drop audit)
    - `python -m src.stats comp --min-score 70` (salary landscape of good matches)
+   - `python -m src.stats hunts --last 5`  (the last hunt runs: units, retries, failures and
+     usage per stage, from the ledgers; a stage that grew or started retrying is drift)
    - `python -m src.report`  (regenerates `data/report.html`, the visual companion to
      these numbers; mention its path in the report)
 

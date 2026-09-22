@@ -7,10 +7,15 @@ SQL computes everything; the LLM only interprets. Subcommands:
   python -m src.stats comp          # salary distribution of scored roles (6.6)
   python -m src.stats drops [--sample N] [--seed S]   # triage false-drop audit sample
   python -m src.stats latency       # applied -> first-response days, from the event log
+  python -m src.stats hunts [--last N]   # every hunt run's ledger: units, retries, failures, usage per stage
 
 An "application" is any job that ever reached applied (applied_at set or a
 status_change event to applied). "Responded" = reached screen or later, OR was
 rejected (a rejection is a reply); ghosted/waiting are the silence bucket.
+
+`hunts` reads `data/hunt/*/state.json` (the orchestrator's ledger), never the DB: one line per
+run, then one line per stage that planned units, so a stage that grew, started retrying or
+started failing between two runs is visible without opening a ledger.
 """
 from __future__ import annotations
 
@@ -18,10 +23,13 @@ import argparse
 import json
 import re
 import sqlite3
+from pathlib import Path
 from statistics import median
+from typing import Any
 
 from .config import safe_profile, title_words
 from .db import connect
+from .hunt import ledger
 
 RESPONDED = ("screen", "interview", "offer")
 
@@ -278,6 +286,65 @@ def latency(conn: sqlite3.Connection) -> None:
           f"min {min(days)}, max {max(days)}")
 
 
+def _stage_line(stage: dict[str, Any], usage: dict[str, Any] | None) -> dict[str, Any]:
+    units = stage.get("units") or []
+    use = usage or {}
+    return {"name": str(stage.get("name")), "state": str(stage.get("state", "pending")), "units": len(units),
+            "retries": sum(max(int(u.get("attempts") or 0) - 1, 0) for u in units),
+            "failed": sum(1 for u in units if u.get("state") == "failed"),
+            "context": ledger.context_total(use), "output": use.get("output"), "cost_usd": use.get("cost_usd")}
+
+
+def hunts_data(hunt_dir: Path | None = None, last: int | None = None) -> list[dict[str, Any]]:
+    """One record per run folder, newest first: the run line (state, harness, started, the
+    counts and usage over every stage) and one line per stage that planned units. Retries
+    are attempts beyond the first per unit, failures the units that ended failed, usage the
+    ledger's own rollup (model units; a deterministic stage shows dashes). An unreadable
+    ledger is one line saying so, never a crash."""
+    out: list[dict[str, Any]] = []
+    for info in ledger.list_runs(hunt_dir)[: last or None]:
+        if info.state == "unreadable":
+            out.append({"run_id": info.run_id, "state": "unreadable", "harness": None, "started": None, "ended": None,
+                        "stages": [], "units": 0, "retries": 0, "failed": 0, "context": None, "output": None, "cost_usd": None})
+            continue
+        st = ledger.load_state(info.path)
+        roll = ledger.rollup(st)
+        stages = [_stage_line(s, roll["stages"].get(str(s.get("name")))) for s in st.get("stages", []) if s.get("units")]
+        total = roll["total"]
+        out.append({"run_id": info.run_id, "state": info.state, "harness": info.harness, "started": info.started,
+                    "ended": st.get("ended"), "stages": stages,
+                    "units": sum(s["units"] for s in stages), "retries": sum(s["retries"] for s in stages),
+                    "failed": sum(s["failed"] for s in stages),
+                    "context": ledger.context_total(total), "output": total.get("output"), "cost_usd": total.get("cost_usd")})
+    return out
+
+
+def _tok(n: Any) -> str:
+    if n is None:
+        return "-"
+    return f"{n:.2f}" if isinstance(n, float) else f"{n:,}"
+
+
+def hunts(hunt_dir: Path | None = None, last: int | None = None) -> None:
+    runs = hunts_data(hunt_dir, last)
+    if not runs:
+        print(f"No hunt runs under {hunt_dir or ledger.HUNT_DIR}.")
+        return
+    print(f"Hunt runs: {len(runs)} (newest first; context = input + cache read + cache write, model units only)")
+    print(f"  {'run':<14} {'state':<10} {'harness':<9} {'units':>5} {'retries':>7} {'failed':>6} {'context':>11} {'output':>9} {'cost':>7}  started")
+    for r in runs:
+        print(f"  {r['run_id']:<14} {r['state']:<10} {r['harness'] or '-':<9} {r['units']:>5} {r['retries']:>7} {r['failed']:>6} "
+              f"{_tok(r['context']):>11} {_tok(r['output']):>9} {_tok(r['cost_usd']):>7}  {r['started'] or '-'}")
+    for r in runs:
+        if not r["stages"]:
+            continue
+        print(f"\n{r['run_id']}  {r['state']}  {r['harness'] or '-'}")
+        print(f"  {'stage':<10} {'state':<8} {'units':>5} {'retries':>7} {'failed':>6} {'context':>11} {'output':>9} {'cost':>7}")
+        for s in r["stages"]:
+            print(f"  {s['name']:<10} {s['state']:<8} {s['units']:>5} {s['retries']:>7} {s['failed']:>6} "
+                  f"{_tok(s['context']):>11} {_tok(s['output']):>9} {_tok(s['cost_usd']):>7}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -289,7 +356,12 @@ def main() -> None:
     d.add_argument("--sample", type=int, default=15)
     d.add_argument("--seed", type=int, default=None)
     sub.add_parser("latency")
+    h = sub.add_parser("hunts")
+    h.add_argument("--last", type=int, default=None, help="only the N newest runs")
     a = ap.parse_args()
+    if a.cmd == "hunts":
+        hunts(last=a.last)                       # the ledger, never the DB
+        return
     conn = connect()
     if a.cmd == "funnel":
         funnel(conn)
