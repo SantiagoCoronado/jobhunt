@@ -1,7 +1,6 @@
-"""The agy (Antigravity CLI) adapter, against `agy --help` 1.1.27, the documentation embedded
-in its binary and its real signed-out behaviour on 2026-09-21. NOT yet seen answering: this
-install is signed out, so the success envelope below is read from the binary's own field
-names, not from a captured call. `HUNT_SMOKE=1 pytest -m harness_smoke` is the live check.
+"""The agy (Antigravity CLI) adapter, against `agy --help` 1.1.27 and real calls on 2026-09-21
+(signed out) and 2026-09-22 (signed in: a smoke prompt, a schema unit, a model it does not
+know, `agy models`):
 
     agy --output-format json [--model {model}] [--mode accept-edits] [--json-schema {schema}]
         --print-timeout {timeout}s --print={system + prompt}
@@ -11,11 +10,10 @@ What changed from the spec's line (section 5), each seen on the real CLI:
   "-p took "--output-format" as its prompt". The prompt is attached, `--print=...`, and goes
   last. Stdin is not an alternative (`-p` alone: "flag needs an argument");
 - no `--agent {role}`: custom agents are `agent.md` files in a layout the docs in the binary
-  do not spell out and a signed-out CLI cannot list, so no agent file is generated and the
-  role body is prepended to the task instead;
+  do not spell out, so no agent file is generated and the role body is prepended to the task;
 - signed out, a headless call prints "Authentication required. Please visit the URL" on
-  stderr and then WAITS, past `--print-timeout`. The pool's timeout kills it; `checks()` below
-  finds it first, in a tenth of a second, through `agy models`.
+  stderr and then WAITS, past `--print-timeout`. `checks()` below finds that first, in a
+  tenth of a second, through `agy models`, and `validate_models` fails the run on it.
 
 Tools: there is no allowlist flag. `--mode accept-edits` is passed when the unit may write or
 edit. Shell commands that `permissions.allow` in `~/.gemini/antigravity-cli/settings.json`
@@ -23,13 +21,18 @@ does not cover are auto-denied in headless mode (the CLI's own message: "headles
 prompt for ... Add an allow-rule under permissions.allow in settings.json"), rules look like
 `command(git status)`. So `bash` works only when the user allowed python there; `checks()`
 reads the file and says which rule to add. `--dangerously-skip-permissions` is never passed.
-`web` is not claimed: nothing about it could be verified signed out, so research falls back.
+`web` is not claimed: nothing about it was verified, so research falls back.
 
-Envelope (`--output-format json`), by the struct tags in the binary, the claude shape:
-`result`, `is_error`, `subtype`, `usage.{input_tokens, output_tokens}`, `structured_output`,
-`session_id`, `num_turns`, `duration_ms`.
+Envelope (`--output-format json`, captured in tests/fixtures/hunt/agy_envelope_*.json): one
+object, `{conversation_id, status: "SUCCESS" | "ERROR", response, error?, duration_seconds,
+num_turns, structured_output?, json_schema?, usage: {input_tokens, output_tokens,
+thinking_tokens, cache_read_tokens, total_tokens}}`. A model it does not know is an ERROR
+envelope with the catalog in `error` and exit 1. With `--json-schema` the object comes back
+under `structured_output` and `response` also carries it as text. `output_tokens` counts
+the thinking tokens. No cost.
 
-Catalog: `agy models`; signed out it exits 1 with "Please sign in to view available models".
+Catalog: `agy models`, one `id<TAB>display name` per line after a "Fetching" banner; signed
+out it exits 1 with "Please sign in to view available models".
 """
 from __future__ import annotations
 
@@ -82,20 +85,19 @@ class AgyHarness:
                               envelope=False)
             return res
         u = table(data.get("usage"))
-        usage = Usage(input=u.get("input_tokens"), output=u.get("output_tokens"),
-                      cache_read=u.get("cache_read_input_tokens"), cache_create=u.get("cache_creation_input_tokens"),
-                      cost_usd=data.get("total_cost_usd"))
-        text = data.get("result") if isinstance(data.get("result"), str) else None
-        envelope_error = bool(data.get("is_error")) or data.get("subtype") not in (None, "success")
+        usage = Usage(input=u.get("input_tokens"), output=u.get("output_tokens"), cache_read=u.get("cache_read_tokens"))
+        response = data.get("response")
+        text = response.strip() or None if isinstance(response, str) else None
+        failed = data.get("status") not in (None, "SUCCESS") or bool(data.get("error"))
         error = None
-        if envelope_error:
-            # an error envelope explains itself in `result`
-            reason = str(data["subtype"]) if data.get("subtype") not in (None, "success") else "error"
-            detail = (text or stderr.strip())[:200]
-            error = f"{reason}: {detail}" if detail else reason
+        if failed:
+            # an ERROR envelope explains itself in `error` (a bad model: the whole catalog; one line is enough)
+            reason = str(data.get("status") or "error").lower()
+            lines = str(data.get("error") or text or stderr.strip() or "").splitlines()
+            error = f"{reason}: {lines[0][:200]}" if lines else reason
         elif rc != 0:
-            detail = stderr.strip()[:200]                       # a bad exit under a clean envelope: only stderr can say why
-            error = f"exit {rc}: {detail}" if detail else f"exit {rc}"
+            tail = stderr.strip()[:200]                         # a bad exit under a clean envelope: only stderr can say why
+            error = f"exit {rc}: {tail}" if tail else f"exit {rc}"
         rate_limited = error is not None and bool(RATE_LIMIT.search(f"{error} {stderr[-500:]}"))
         structured = data.get("structured_output")
         return Result(usage, error, rate_limited, text, structured=structured if structured is not None else as_object(text))
@@ -109,9 +111,9 @@ class AgyHarness:
             raise ValueError(f"`agy models` exit {cp.returncode}: {(cp.stderr.strip() or cp.stdout.strip())[:160]}")
         ids: list[Model] = []
         for line in cp.stdout.splitlines():
-            cols = line.strip().lstrip("*-• ").split()
-            if cols and not line.lower().startswith(("fetching", "available")) and re.fullmatch(r"[\w.~/:-]+", cols[0]):
-                ids.append(Model(cols[0], " ".join(cols[1:])))
+            head, _tab, note = line.partition("\t")
+            if head.strip() and _tab and not line.lower().startswith("fetching"):
+                ids.append(Model(head.strip(), note.strip()))
         return ids
 
     def smoke(self, model: str | None, cwd: Path) -> Invocation:
