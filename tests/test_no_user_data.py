@@ -7,6 +7,8 @@ interviews/ is an example, a README, a .gitkeep, or on the product allowlist.
 Identity rule (opt-in): the patterns come from the ignored config/identity.local.yaml; this
 file contains none of them. Absent file: the rule is skipped with a notice, so a fresh clone's
 CI runs the path rule only. The release checklist runs it with the author's file present.
+Two lines are provenance, not a leak, and pass: a dated attribution under docs/ (the file's
+`attribution_regexes`) and the `Copyright (c) <year>` line of LICENSE (decision 11).
 """
 from __future__ import annotations
 
@@ -26,6 +28,7 @@ PRODUCT_ALLOWLIST = {
 }
 IDENTITY_FILE = ROOT / "config" / "identity.local.yaml"
 TEXT_SUFFIXES = {".py", ".md", ".yaml", ".yml", ".toml", ".sh", ".txt", ".json", ".html", ".css", ".js", ".cfg", ".ini", ""}
+_COPYRIGHT = re.compile(r"^Copyright \(c\) \d{4}")   # the one LICENSE line that names the author
 
 
 def tracked_files() -> list[str]:
@@ -108,6 +111,8 @@ def test_no_identity_string_in_tracked_text():
             if not rx.search(line):
                 continue
             if p.startswith("docs/") and any(a.search(line) for a in ident["attribution"]):
+                continue
+            if p == "LICENSE" and _COPYRIGHT.match(line):
                 continue
             hits.append(f"{p}:{n}")
     assert hits == [], f"identity strings in tracked files: {hits[:40]}{' ...' if len(hits) > 40 else ''}"

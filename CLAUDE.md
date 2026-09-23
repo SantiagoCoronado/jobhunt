@@ -159,6 +159,10 @@ Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools
 `python -m src.hunt sync-agents` regenerates every harness's native files from them (`.claude/agents`,
 `.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`; a file carries a stage's model only
 when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent file.
+CI also has a `clone` job (release checklist steps 1 and 2 on every push): a depth-1 clone of the tree,
+`python -m src.init` (twice, the second must copy nothing), `pytest` with Alex Example's files present,
+`hunt run --dry-run`. The identity guard (`tests/test_no_user_data.py`) allows exactly one non-docs line
+naming the author: the `Copyright (c) <year>` line of `LICENSE`.
 Harnesses (`docs/hunt-harnesses.md`): adapters claude, codex, opencode, pi, agy in `src/hunt/harness/`, anything
 else a `[harness.<name>]` command template in `config/hunt.toml`; an adapter refuses a tool it cannot grant,
 and only opencode reads its generated file at run time (`--agent`). Real-CLI smoke: `HUNT_SMOKE=1 pytest -m harness_smoke`.

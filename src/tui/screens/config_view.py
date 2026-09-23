@@ -14,6 +14,7 @@ from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from ... import config
 from .. import commands, data, settings
 from .base import SectionScreen
 
@@ -108,8 +109,11 @@ class ConfigScreen(SectionScreen):
             bar.append("  ")
         self.query_one("#config-tabs", Static).update(bar)
         f = self.current
+        # relative inside the repo: the line is one row high, and a long checkout path would push
+        # the hints off it (a clone under a temp dir showed no `e edits` at 140 columns)
+        shown_path = f.path.relative_to(config.ROOT) if f.path.is_relative_to(config.ROOT) else f.path
         self.query_one("#config-path", Static).update(
-            Text(f"{f.path}  ·  {f.role}  ·  read-only, e edits  ·  , settings"))
+            Text(f"{shown_path}  ·  {f.role}  ·  read-only, e edits  ·  , settings"))
         try:
             text = data.read_config(f)
         except ValueError as e:

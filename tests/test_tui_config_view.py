@@ -46,7 +46,8 @@ def test_section_7_shows_each_file_read_only_and_tab_walks_them(edits):
             screen = app.screen
             assert isinstance(screen, ConfigScreen) and screen.current.name == "profile.yaml"
             assert "target_titles" in _body(screen)
-            assert "read-only" in str(screen.query_one("#config-path").render())
+            path_line = str(screen.query_one("#config-path").render())
+            assert path_line.startswith("tests/fixtures/profile.yaml") and "e edits" in path_line  # relative under ROOT
             seen = []
             for _ in range(5):
                 await pilot.press("tab")

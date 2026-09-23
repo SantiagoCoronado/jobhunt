@@ -1,137 +1,179 @@
-# jobhunt 🎯
+# jobhunt
 
-A DIY, **$0**, locally-run job-search copilot that leverages **Claude Code** as its agent engine.
-It automates the parts that actually raise your callback rate, **discovery, tailoring, and
-tracking**, and deliberately keeps a **human on the submit button**.
+A job-search copilot you run on your own machine for $0 in software: free job APIs, a SQLite
+CRM, a terminal UI, and an agent CLI you already pay for (Claude Code by default; Codex,
+OpenCode, pi and Antigravity work too) doing the reading and the writing. It discovers roles,
+throws out the junk, scores what is left against your profile, researches the company, and
+drafts a tailored resume and cover letter per role. Then it stops.
 
-> **The reframe that matters:** mass auto-apply gets ~1–3% callbacks (same as manual cold-
-> applying) and gets LinkedIn/Indeed accounts banned. Targeted, tailored applications to
-> 10–20 good roles/week get ~25%. This tool optimizes for the second thing.
+**You click submit.** Nothing here submits an application, logs into LinkedIn or Indeed, or
+sends mail on your behalf. Mass auto-apply converts at about the rate of cold applying and gets
+accounts banned; ten to twenty tailored applications a week to roles that actually fit is the
+thing this tool is built to make cheap.
 
-## What it does
+Two rules every agent in the repo is held to:
 
-| Stage | How | Tool |
-|-------|-----|------|
-| ① Discover | Pull free, ToS-safe ATS APIs + aggregators → SQLite (auto-expires vanished postings) | `python -m src.discover` |
-| ② Triage | Cheap Haiku junk-cut when the pile is large; keepers get a 0-3 fit bucket | `/jh-triage` |
-| ③ Match | Score each surviving job vs your profile | `/jh-match` → `job-matcher` agent |
-| ④ Research | Cited company dossier, reused across applications | `/jh-research <company\|id>` → `company-researcher` agent |
-| ⑤ Tailor | Per-job resume + cover letter (truthful, ATS-clean) | `/jh-tailor <id>` → `resume-tailor` agent |
-| ⑥ Apply | You review the draft and submit | manual, always |
-| ⑦ Track | Local CRM, follow-up nudges, inbox sync | `python -m src.tui` · `/jh-followups` · `/jh-gmail-sync` |
+- **Nothing is invented.** A tailored resume only reframes what is in your master resume.
+  A cover letter only cites what the company dossier cites. Learning plans never feed a resume.
+- **Discovery is free and ToS-safe.** Public ATS APIs and aggregators only. The Indeed/LinkedIn
+  scraper (`jobspy`) ships off and stays off unless you turn it on and accept the risk.
 
-`/jh-hunt` runs the whole loop end to end and tailors the top 5 shortlisted.
+## Five-minute setup
 
-Sources with **zero setup**: RemoteOK, Remotive, We Work Remotely, HN "Who is Hiring",
-Get on Board (LatAm). Add your target companies' **Greenhouse/Lever/Ashby** tokens for the
-highest-signal listings.
-
-## Setup
+You need Python 3.11+, git, and one agent CLI on your PATH (`claude`, `codex`, `opencode`,
+`pi` or `agy`), signed in.
 
 ```bash
-cd ~/projects/jobhunt
-./setup.sh                       # one command: venv + deps + `python -m src.init` (your files from the examples)
-# ...or manually:
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 1. Edit your yardstick + resume (keep everything true):
-#    config/profile.yaml, target roles, real skills, locations, salary floor
-#    resume/master_resume.yaml, your master resume (RenderCV schema)
-#    config/sources.local.yaml, your Greenhouse/Lever/Ashby tokens and countries (see the .example)
-python -m src.init               # creates profile.yaml, master_resume.yaml, answers.yaml, sources.local.yaml, notify.yaml, .env from the examples
+git clone https://github.com/<you>/jobhunt.git && cd jobhunt
+./setup.sh                        # venv, deps, then `python -m src.init`
+source .venv/bin/activate
 ```
 
-## Daily use
+`python -m src.init` creates every user-owned file from its tracked example and never
+overwrites one. The person in those files is invented ("Alex Example", full-stack, Lisbon), so
+the whole pipeline runs end to end on a clone before you touch anything. Then make it yours:
+
+1. `config/profile.yaml`: what a fit is. Target titles, must-have skills, locations and the
+   location rule, comp floor, dealbreakers, dream companies, the one-line `candidate_line`
+   and the `role_families` the prompts weight by. Every key is documented inline.
+2. `resume/master_resume.yaml`: your whole career, true and complete. This is the only source
+   the tailor may draw from. `resume/answers.yaml` is the answer bank for application forms.
+3. `config/sources.local.yaml`: where to look. ATS tokens of companies you follow, countries
+   and locales for the aggregators, query lists. Everything in it ships commented out, so an
+   unedited clone searches nowhere rather than somewhere that belongs to someone else.
+
+Then pick the harness and check it:
 
 ```bash
-./run.sh                 # discover + queue + digest
+python -m src.hunt doctor                 # binary, sign-in, each stage's model, a smoke prompt, a read probe
+python -m src.hunt models                 # the live catalog, to set per-stage models in config/hunt.toml
+python -m src.init --check                # every user file present, every profile key set
 ```
-Then, in Claude Code from this folder:
+
+`config/hunt.toml` says how the hunt runs (harness, per-stage model, concurrency, timeouts,
+retries). `config/profile.yaml` says what counts. The two never overlap.
+
+Optional: `.env` holds keys for the keyed sources (Adzuna, Findwork, Careerjet, The Muse) and
+the app passwords for the read-only inbox pull (`docs/mail-setup.md`). A source with no key
+prints a hint and yields nothing; it never breaks a run.
+
+## The pipeline
+
+| Stage | What happens | Run it |
+|---|---|---|
+| Discover | Free ATS APIs and aggregators into SQLite (`data/jobs.db`); a shared title gate keeps off-family reqs out; vanished postings expire | `python -m src.discover` |
+| Triage | Cheap keep/drop against your dealbreakers, keepers get a 0 to 3 fit bucket; runs before the expensive matcher | `/jh-triage` |
+| Match | Scores each keeper against the profile with a written verdict; shortlists above your threshold | `/jh-match` |
+| Research | Cited company dossier in `research/companies/`, reused by every later step | `/jh-research <company or id>` |
+| Tailor | One-page resume plus cover letter in `applications/pending/<company>-<id>/`, built, audited and page-counted by Python | `/jh-tailor <id>` |
+| Apply | You read the draft, fix what you want, and submit | you |
+| Track | Status pipeline, follow-up dates, inbox signals, funnel stats | `python -m src.tui`, `/jh-followups`, `/jh-gmail-sync` |
+| Learn | Skill-gap analysis, interview prep briefs, interview debriefs, a monthly calibration review | `/jh-upskill`, `/jh-prep`, `/jh-debrief`, `/jh-review` |
+
+The whole loop, end to end, is one command:
+
+```bash
+python -m src.hunt run                    # discover, triage, match, inbox, pick 5, research, tailor, report
+python -m src.hunt status latest          # while it runs
+python -m src.hunt report latest          # units, retries, tokens per stage, what needs a human
+python -m src.hunt run --resume latest    # after a Ctrl+C or a crash: done units are skipped
+python -m src.hunt run --dry-run          # the plan, no calls
 ```
-/jh-triage               # Haiku junk-cut when the discovered pile is large
-/jh-match                # score newly discovered jobs
-/jh-research 42          # cited company dossier (reused by tailor)
-/jh-tailor 42            # tailor resume + cover letter for job id 42 (review before sending!)
-/jh-followups            # draft nudges for applications due a follow-up
-/jh-hunt                 # or run the whole loop end to end
-```
-Record a submission (moves the folder AND schedules the follow-up):
+
+Each unit of model work (one triage chunk, one match chunk, one dossier, one tailor) is one
+process of your agent CLI, run in parallel up to the caps in `hunt.toml`. Python decides when
+a unit is done by checking its output file, never by trusting the agent. Only Python writes the
+database. The run's ledger lives in `data/hunt/<run_id>/` (state, events, every prompt, every
+log); a question a run cannot ask you becomes a `needs_human` line in its report.
+
+The `/jh-*` slash commands are the same stages driven interactively from Claude Code, one at a
+time, with you in the loop. `python -m src.tui` is the CRM: the board, follow-ups, the
+application folders, the funnel, a runner that starts any stage or the full hunt with its log
+beside it, and the config files. `scripts/install_launcher.sh` makes it one word (`jobhunt`).
+
+Recording a submission moves the folder and schedules the follow-up in one write:
+
 ```bash
 python -m src.query set-status 42 applied
 ```
-Local CRM, a terminal UI (`docs/spec-tui.md`): board and follow-ups over one
-three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `>` `<` `-` sort, `?` every key;
-`3` the application folders, `4` the funnel, `5` runs a stage or the whole hunt with its log beside it,
-`6` the config files (`e` edits one), `,` the settings (theme, launch section, harness and models, editor):
+
+## What it costs in tokens
+
+Measured on the author's hunts (`docs/token-efficiency.md`), on a pile of a few thousand
+discovered rows; your ledger prints your own numbers (`python -m src.hunt report`,
+`python scripts/token_audit.py --hunt latest`):
+
+- Triage: about 80k context tokens per 100-row chunk on the cheapest model.
+- Match: 0.1M to 0.8M per 60-row chunk.
+- Research: 0.1M to 0.8M per dossier, once per company, then reused.
+- Tailor: 45k to 165k per application, 3 to 4 calls, because the agent reads one bundle,
+  writes one draft, and Python builds it.
+
+A full hunt that tailors five applications runs in the low tens of millions of context tokens,
+almost all of it in the fanned-out units, so the model in each stage is the lever:
+`hunt.toml` ships the cheapest model that does each job well (a small model for triage, a large
+one for the writing). Pick the models from `python -m src.hunt models` on your harness.
+
+## Adding a source
+
+A source is one Python file in `src/adapters/` exposing `fetch(cfg) -> list[Job]` and one
+block in `config/sources.yaml` with its mechanics (endpoint, page size, `enabled:`, field
+mapping). Targeting for it (tokens, countries, queries) goes in `config/sources.local.yaml`,
+which is deep-merged onto the tracked block at load time: lists replace, scalars override.
+Read a small one first (`src/adapters/jobicy.py`) and the shared title gate at the bottom of
+`sources.yaml`. Never filter by location in an adapter; `profile.yaml`'s `location_rule` is
+the one authority and the matcher applies it. `docs/new-sources.md` is the research behind
+the sources that ship and the ones that were rejected, with the reasons.
+
+## Adding a harness
+
+Any agent CLI that takes a prompt and prints a reply is a five-line command template in
+`config/hunt.toml`, no Python:
+
+```toml
+[harness.gemini]
+command = "gemini -m {model} --approval-mode auto_edit -o json -p {prompt}"
+envelope = "json"
+capabilities = ["read", "write", "edit", "bash", "web"]
+```
+
+`docs/hunt-harnesses.md` has the placeholders, the envelope rules, and what each shipped
+adapter (claude, codex, opencode, pi, agy) runs. Write a Python adapter only when the CLI
+needs what a template cannot express: a model catalog, an event stream to sum, native agent
+files. Agent prompts live once in `prompts/agents/<role>.md`; `python -m src.hunt sync-agents`
+renders each harness's native files from them, and CI checks they match.
+
+## Your data stays yours
+
+Everything derived from your career or your targeting is git-ignored and created by `init`
+from a tracked `*.example.*`: the profile, the master resume, the answer bank, the local
+sources file, `.env`, `data/`, `applications/`, `interviews/`, `research/companies/`.
+A guard test refuses to track any of them. `scripts/backup_user_data.sh` copies the lot to
+`~/jobhunt-user-data/<date>/` with counts and checksums; keeping that folder in a private repo
+of your own is a good idea.
+
+Optional: write `config/identity.local.yaml` (see the `.example`) with your name, addresses and
+phone, and the guard also refuses any tracked file that mentions them.
+
+## Development
+
 ```bash
-python -m src.tui
-```
-One word from any directory (a symlink to `bin/jobhunt` in `~/.local/bin`; pass another name if
-you would rather type something else, `--uninstall` removes it):
-```bash
-scripts/install_launcher.sh          # then: jobhunt
+.venv/bin/python -m pytest tests/       # the suite runs on a clone with no user files
+ruff check src tests scripts && mypy    # CI runs all three, plus `sync-agents --check`
 ```
 
-## Run it on a second machine (macOS / Linux)
+Tests never start a real agent CLI (`tests/conftest.py` refuses); a fake harness stands in.
+The one exception is the opt-in smoke, `HUNT_SMOKE=1 pytest -m harness_smoke`, one 10-token
+call per installed CLI. The specs under `docs/` are the design record: `spec-hunt-orchestrator.md`,
+`spec-tui.md`, `spec-tailor-lean.md`, `spec-open-source.md`. `CLAUDE.md` is the project guide
+the agents read.
 
-The repo is portable and the `.claude/` skills travel with it. Local state (`data/`,
-`applications/`, `config/notify.yaml`) is git-ignored and stays per-machine; SQLite on the
-machine that runs the hunt is the CRM.
+## Ground rules, once more
 
-```bash
-git clone https://github.com/<you>/jobhunt.git
-cd jobhunt
-./setup.sh                       # venv + deps + scaffolds config/notify.yaml
-# paste your Gmail app password into config/notify.yaml (git-ignored, never committed)
-./run.sh --force                 # first discovery run on this machine
-```
-Recommended split: keep the **scheduled** daily run on one always-on machine; use the other
-as an **interactive** client (`/jh-match`, `/jh-tailor` by hand) to avoid double emails. Sync code changes with plain `git pull` / `git push`.
+- Never fabricate. Tailoring reframes; it does not add.
+- Never auto-submit, never automate a logged-in job board.
+- Free, sanctioned endpoints only.
+- ATS-clean output: one column, standard headings, no tables or images, no white-text tricks.
 
-## Schedule it
-
-Run `./run.sh` daily; its built-in ~18h guard collapses duplicate triggers into one real run.
-
-**Windows 11 + WSL** (in-WSL cron dies when the VM idles, so trigger from Task Scheduler):
-- Program: `wsl.exe`
-- Arguments: `-d Ubuntu -e bash -lc "$HOME/projects/jobhunt/run.sh"`
-- Trigger: daily 08:00 (tick "Wake the computer to run this task")
-
-**macOS** (launchd; runs on the next wake if the Mac was asleep at 08:00):
-```bash
-./mac/install-schedule.sh        # plain daily: discover + queue + digest (run.sh)
-./mac/install-schedule.sh --ai   # OR the AI pass: discover + headless Claude triage/match,
-                                 # THEN the digest, so the email contains today's scores
-launchctl start com.jobhunt.daily   # optional: test the job right now (aipass label with --ai)
-```
-The two variants are mutually exclusive; installing one removes the other.
-
-## Ground rules (baked into the agents)
-
-- **Never fabricate** experience, tailoring only reframes what's in your master resume.
-  Fabrication → rescinded offers; interviews expose what you can't defend.
-- **Never auto-submit** or automate **logged-in LinkedIn/Indeed**, that's the account-ban path
-  (LinkedIn User Agreement §8.2) and it converts *worse* than targeted applying anyway.
-- Discovery uses **only free, sanctioned** endpoints. `jobspy` (Indeed/LinkedIn scraping) is
-  **off by default**; it breaks often and carries ToS/ban risk, enable only for low-volume
-  personal use, never while logged in.
-- No keyword stuffing / white-text tricks, parsers strip formatting, so it's visible to the
-  recruiter and reads as dishonest.
-
-## Layout
-
-```
-config/        profile.yaml (incl. location_rule + shortlist_threshold) · sources.yaml · notify.yaml
-resume/        master_resume.yaml   (single source of truth)
-src/           discover · triage · match · notify · query · research · reconcile · pick
-               · maintain · render_docx · db · models · adapters/ · tui/
-.claude/       agents/ (job-matcher, resume-tailor, company-researcher)
-               commands/ (/jh-hunt /jh-discover /jh-triage /jh-match /jh-research /jh-tailor …)
-research/      companies/<slug>.md   cited dossiers (committed, reusable)
-applications/  {pending,applied,other}/<company>-<id>/  tailored output (git-ignored)
-tests/         pytest suite (`.venv/bin/python -m pytest tests/`)
-data/          jobs.db + queue files (git-ignored)
-```
-
-Not legal advice. Respect each site's Terms of Service; you're responsible for how you use this.
+MIT licensed (`LICENSE`). Not legal advice; respect each site's terms of service, and you are
+responsible for how you use it.
