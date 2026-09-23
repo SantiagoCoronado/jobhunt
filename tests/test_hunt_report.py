@@ -78,6 +78,8 @@ def test_report_carries_every_section_7_item(led, capsys):
     assert "| triage | 2 | 3 | 3,000 | 600 | 15,000 | - | 0.75 |" in out          # 3 attempts, usage summed over them
     assert "| tailor | 2 | 3 | 3,000 | 600 | 15,000 | - | 0.75 |" in out
     assert "| total | 7 | 9 | 9,000 | 1,800 | 45,000 | - | 2.25 |" in out and "| discover |" not in out.split("## Usage")[1]
+    assert "| harness | models | units | attempts |" in out and "| claude | m | 7 | 9 | 9,000 | 1,800 | 45,000 | - | 2.25 |" in out
+    assert out.count("| total | m | 7 | 9 |") == 1                  # the harness table has its own total row
     assert "\u2014" not in out
 
 

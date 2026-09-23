@@ -68,7 +68,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    past debriefs. `/jh-debrief <id>`: digest an interview transcript (dropped at
    `interviews/<company>-<id>/<date>-<round>.md`, git-ignored, NEVER committed) into a debrief +
    answer-bank drafts. `/jh-review`: monthly conversion/calibration report over `python -m
-   src.stats {funnel|calibration|latency|drops|comp}`; proposes profile/rubric edits as diffs.
+   src.stats {funnel|calibration|latency|drops|comp|hunts}` (`hunts` reads the run ledgers, never the DB:
+   units, retries, failures, usage per stage per run); proposes profile/rubric edits as diffs.
    `resume/answers.yaml` is the answer bank: `draft: true` entries await human review; answers
    only ever contain master-resume facts. Every status change / contact / debrief lands in the
    `events` table (written by `db.set_status`/`touch_contact`/`log_event`).
@@ -89,7 +90,8 @@ The ledger is `data/hunt/<run_id>/` (`state.json`, `events.jsonl`, `prompts/`, `
 
 **Token discipline** (audit 2026-09-02, `docs/token-efficiency.md`): measure any hunt with
 `python scripts/token_audit.py --latest` (per agent, per tool, per phase; `--all` for one row per
-session). Rules that fell out of it: no Notion in the hunt; subagents reply in one line or under
+session; `--hunt RUN|latest` reads the run's ledger instead: per stage, per harness, biggest
+units). Rules that fell out of it: no Notion in the hunt; subagents reply in one line or under
 120 words; `python -m src.answers_export <id>` replaces reading `resume/answers.yaml`; the tailor
 runs render/audit at most twice; triage chunks are 100 rows (Haiku truncates a 200-row JSON
 write); never `python -m src.query crm` inside an orchestrated step.

@@ -4,7 +4,11 @@ Audit of 2026-09-02. Tool: `scripts/token_audit.py` (reads the Claude Code sessi
 `~/.claude/projects/<project memory dir>/`, plus each in-process subagent transcript
 under `<session>/subagents/`, dedupes the repeated usage blocks, and reports per agent, per
 tool, per phase). Run `python scripts/token_audit.py --latest` after any hunt; `--all` prints one
-row per session.
+row per session. Since 2026-09-22 the same script reads the orchestrator's ledger:
+`python scripts/token_audit.py --hunt latest` (or a run id) prints the run's totals, a per-stage
+and a per-harness table with the models each ran, and the biggest units by context read, from
+`data/hunt/<run>/state.json` alone, whatever harness ran the units; the transcript mode stays
+for the interactive session that watched the run. `python -m src.stats hunts` lines the runs up.
 
 "Context tokens" below means everything the model read across all API calls (input + cache
 read + cache create). That is what a long agentic run pays for: each call re-reads the whole
@@ -116,5 +120,6 @@ session" with `python scripts/token_audit.py --latest` on the `/jh-hunt` session
   `src.mail_fetch` + `gmail_pull manifest_id`, `src.report`.
 - Triage chunks of 100; verify coverage before ingest.
 - Tailor render/audit at most twice; trim real content instead of iterating.
-- Run `python scripts/token_audit.py --latest` at the end of a hunt and paste the totals into
-  the report so drift is visible next time.
+- Run `python scripts/token_audit.py --hunt latest` at the end of a hunt (the ledger's own
+  numbers) and `--latest` on the session that watched it; paste the totals into the report so
+  drift is visible next time.

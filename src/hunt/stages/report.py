@@ -11,7 +11,7 @@ from typing import Any
 from ... import db
 from ... import research as research_mod
 from ...config import ROOT
-from ..ledger import Ledger, add_usage, run_state
+from ..ledger import Ledger, rollup, run_state
 from .base import Context, StageResult
 
 
@@ -61,30 +61,27 @@ def _picks(led: Ledger, builds: dict[str, Any]) -> list[str]:
     return lines + ([] if picks else ["- none"])
 
 
+_USAGE_COLS = "| units | attempts | input | output | cache read | cache write | cost usd |"
+
+
+def _usage_row(label: str, e: dict[str, Any]) -> str:
+    return (f"| {label} | {e['units']} | {e['attempts']} | {_n(e.get('input'))} | {_n(e.get('output'))} | "
+            f"{_n(e.get('cache_read'))} | {_n(e.get('cache_create'))} | {_n(e.get('cost_usd'))} |")
+
+
 def _usage(st: dict[str, Any]) -> list[str]:
-    lines = ["", "## Usage", "", "| stage | units | attempts | input | output | cache read | cache write | cost usd |",
-             "|---|---|---|---|---|---|---|---|"]
-    total: dict[str, Any] | None = None
-    attempts_all = units_all = 0
-    for s in st["stages"]:
-        units = [u for u in s.get("units") or [] if u.get("harness")]          # model units only
-        if not units:
-            continue
-        use: dict[str, Any] | None = None
-        for u in units:
-            use = add_usage(use, u.get("usage"))
-        total = add_usage(total, use)
-        attempts = sum(int(u.get("attempts") or 0) for u in units)
-        attempts_all += attempts
-        units_all += len(units)
-        use = use or {}
-        lines.append(f"| {s['name']} | {len(units)} | {attempts} | {_n(use.get('input'))} | {_n(use.get('output'))} | "
-                     f"{_n(use.get('cache_read'))} | {_n(use.get('cache_create'))} | {_n(use.get('cost_usd'))} |")
-    if total is None and not units_all:
-        return lines[:3] + ["No model unit ran."]
-    total = total or {}
-    lines.append(f"| total | {units_all} | {attempts_all} | {_n(total.get('input'))} | {_n(total.get('output'))} | "
-                 f"{_n(total.get('cache_read'))} | {_n(total.get('cache_create'))} | {_n(total.get('cost_usd'))} |")
+    """The usage tables from the ledger's rollup (spec row 16): one row per stage that ran a
+    model unit, one per harness with the models it ran, a total on each."""
+    roll = rollup(st)
+    lines = ["", "## Usage", ""]
+    if not roll["total"]["units"]:
+        return lines + ["No model unit ran."]
+    lines += ["| stage " + _USAGE_COLS, "|---|---|---|---|---|---|---|---|"]
+    lines += [_usage_row(name, e) for name, e in roll["stages"].items()]
+    lines.append(_usage_row("total", roll["total"]))
+    lines += ["", "| harness | models " + _USAGE_COLS, "|---|---|---|---|---|---|---|---|---|"]
+    lines += [_usage_row(f"{name} | {', '.join(e['models'])}", e) for name, e in roll["harnesses"].items()]
+    lines.append(_usage_row(f"total | {', '.join(roll['total']['models'])}", roll["total"]))
     return lines
 
 
