@@ -27,3 +27,36 @@ jobs:
         run: python -m pytest tests/ -q
       - name: Generated agent files match prompts/agents (sync-agents --check)
         run: python -m src.hunt sync-agents --check
+
+  # What a stranger gets (docs/spec-open-source.md, release checklist step 1 and 2, every push):
+  # a clone carries tracked files only, `init` makes Alex Example's files from the examples,
+  # the suite passes with those files present, and the hunt plans on them.
+  clone:
+    runs-on: ubuntu-latest
+    env:
+      CLONE: ${{ runner.temp }}/jobhunt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deps (the same set as `checks`)
+        run: |
+          pip install requests==2.34.2 feedparser==6.0.12 PyYAML==6.0.3 \
+                      python-docx==1.2.0 rapidfuzz==3.14.5 apprise==1.11.0 textual==8.2.8 \
+                      pytest==9.1.1 ruff==0.15.22 mypy==2.3.0 types-requests types-PyYAML
+      - name: Clone the tree the way a stranger would (tracked files only)
+        run: git clone --quiet --depth 1 "file://$GITHUB_WORKSPACE" "$CLONE"
+      - name: python -m src.init (every example copied, none overwritten)
+        working-directory: ${{ env.CLONE }}
+        run: |
+          python -m src.init
+          python -m src.init --check
+          if python -m src.init | grep created; then echo "a second init copied something"; exit 1; fi
+      - name: pytest on the clone, Alex Example's files present
+        working-directory: ${{ env.CLONE }}
+        run: python -m pytest tests/ -q
+      - name: hunt run --dry-run on Alex Example
+        working-directory: ${{ env.CLONE }}
+        run: python -m src.hunt run --dry-run
