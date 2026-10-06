@@ -20,7 +20,7 @@ pytestmark = [pytest.mark.pty, pytest.mark.skipif(sys.platform == "win32", reaso
 CHILD = Path(__file__).with_name("tui_pty_child.py")
 # A terminal editor as the TUI sees one: it takes the terminal, says it is up, reads nothing
 # (so whatever the terminal sends meanwhile stays queued, as a late reply does) and leaves.
-EDITOR = "import sys, time; print('EDITOR-UP', sys.argv[1], flush=True); time.sleep(1.0)"
+EDITOR = "import sys, time; print('EDITOR-UP', sys.argv[1], flush=True); time.sleep(0.5)"
 LATE_REPLY = b"\x1bP1$r2 q\x1b\\" + b"q"        # DECRQSS cursor-style answer, then a bare q for good measure
 
 
