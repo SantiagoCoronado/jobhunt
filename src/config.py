@@ -33,8 +33,11 @@ def load_yaml(name: str | Path) -> dict:
         path = CONFIG_DIR / name if not name.startswith("/") else Path(name)
     if not path.exists():
         raise FileNotFoundError(f"Missing config: {path}. Copy the .example and edit it.")
+    # libyaml's loader when PyYAML was built with it: the same safe subset, about 5x faster
+    # (config/geo.yaml alone is ~15 ms in pure Python, read on the TUI's first load).
+    loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
     with open(path) as f:
-        return yaml.safe_load(f) or {}
+        return yaml.load(f, Loader=loader) or {}  # noqa: S506 (a safe loader)
 
 
 def load_profile() -> dict:

@@ -38,7 +38,7 @@ from pathlib import Path
 from .config import ROOT
 from .db import connect
 from .dream import is_dream
-from .tailor_build import outside_relocation_regions, relocation_scope
+from .geo import outside_relocation_regions, relocation_scope
 
 LIVE = ("applied", "screen", "interview", "offer")
 HOLD = ("backlog",)
