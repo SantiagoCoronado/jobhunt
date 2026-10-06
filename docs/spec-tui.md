@@ -333,8 +333,9 @@ unit start).
 `tests/test_tui_pty.py::test_a_terminal_editor_round_trip_survives_a_late_terminal_reply` is the
 slowest test in the suite: 3.41 s of 103 s (831 passed, 4 skipped, `pytest --durations=15`). About
 2.5 s of it is fixed sleeping, and about 0.9 s is the child starting Textual, which is the thing
-under test. Test-only: no file under `src/` changes, and the test still fails with the two story 8
-guards removed.
+under test. Stories 1 to 3 are test-only; the test still fails with the two story 8 guards
+removed after every story. Stories 1 to 3 landed at 2.26 to 2.44 s, so stories 4 and 5 were
+added on 2026-10-06 (PRA-152, PRA-153) after a profile of the TUI's startup.
 
 1. **The wait after the redraw follows the app's constant**: `term.read(1.0)` becomes
    `term.read(app.DEAF_SECONDS + 0.2)`. That still covers the whole deaf window, so a late `q`
@@ -352,6 +353,20 @@ Target: the test under 2 s, measured with `--durations`, and ten runs in a row g
 (a shell loop over `pytest -m pty`). Out of scope: the Textual pilot tests at 2 to 3 s each
 (`test_tui_app.py`, `test_tui_harness.py`), which add up to more and are in Later.
 
+4. **The waits follow what they wait for**: the fake editor holds the terminal for 0.2 s (the late
+   reply is written the moment `EDITOR-UP` is read) and the read after the redraw is
+   `DEAF_SECONDS + 0.1`. About 0.4 s. Test-only.
+5. **The TUI opens faster** (profiled 2026-10-06: a bare Textual app is up in about 194 ms, ours
+   in about 420 ms, imports 250 ms of it):
+   - `relocation_scope` and `outside_relocation_regions` move from `tailor_build` to `geo`
+     (re-exported from `tailor_build`), so `src.pick`, `tailor_bundle` and the TUI stop importing
+     the renderer and python-docx. About 60 ms of imports.
+   - `config.load_yaml` uses libyaml's `CSafeLoader` when PyYAML has it (the same safe subset);
+     `picks()` goes from 28 ms to 8 ms, `config/geo.yaml` being most of it.
+   - `SectionFooter` rebuilds once per burst of binding changes instead of once per change (about
+     a dozen before the first paint). It mirrors Textual 8.2.8's `Footer.bindings_changed`, which
+     `requirements.txt` pins. 15 to 25 ms.
+
 ## 9. Later (not scheduled)
 
 Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
@@ -360,3 +375,10 @@ Unit-level rows in the runner (one row per unit with attempts and usage). Stats 
 some wait on fixed `pause()` calls) and check whether `pytest-xdist` is safe with the tests that
 patch the DB. (Harness execution moved into scope on 2026-09-07 through
 `docs/spec-hunt-orchestrator.md`.)
+From the 2026-10-06 startup profile, not taken in PR 5c: a driver whose input thread a pipe can
+wake, so suspend (`e`) and quit skip Textual's polling wait (about 0.2 s each, measured on a bare
+app too); it copies about 30 lines of Textual's `run_input_thread`, so it waits for a Textual
+release that does this itself or a pin we are willing to re-check on every upgrade. The pty test
+fails from a checkout with a long path (the config view's path line clips at 140 columns and
+`e edits` never shows; worktrees under `.claude/worktrees/` hit it). On a fresh DB the board
+loads twice (`seen_mtime` is read before the first worker creates the DB).
