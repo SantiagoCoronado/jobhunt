@@ -26,6 +26,11 @@ Sources with **zero setup**: RemoteOK, Remotive, We Work Remotely, HN "Who is Hi
 Get on Board (LatAm). Add your target companies' **Greenhouse/Lever/Ashby** tokens for the
 highest-signal listings.
 
+Every source declares the regions it serves (`regions:` in `config/sources.yaml`); a board
+whose regions miss your profile's locations and relocation regions stays off, and
+`python -m src.discover` says so in one line naming the `enabled: true` key that forces it on
+in `config/sources.local.yaml`.
+
 ## Setup
 
 ```bash

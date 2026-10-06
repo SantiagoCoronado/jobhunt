@@ -8,6 +8,9 @@ sources.yaml, applied here so no adapter has to repeat it) before it is upserted
 Company boards return every open req they have, and roughly half of that is
 nursing/manufacturing/sales that would otherwise cost a Haiku triage call each.
 The gate reads TITLES only: location is the matcher's job (profile.location_rule).
+Sources are region-gated before that (config.sources(), docs/spec-pre-release.md decision
+10): a board whose `regions:` miss the profile's coverage is off, and discover prints one
+line for it naming the `enabled:` key that forces it back on.
 Dream companies (the dream_companies table, src.dream) skip the gate when
 `title_filter.skip_dream_companies` is on: their boards are small and hand-picked.
 """
@@ -16,7 +19,7 @@ from __future__ import annotations
 import importlib
 
 from .adapters import keep_title
-from .config import missing_targeting, sources as load_sources
+from .config import REGION_GATED, missing_targeting, region_skip_line, sources as load_sources
 from .db import connect
 from .dream import is_dream
 from .models import now_iso
@@ -46,6 +49,8 @@ def main() -> None:
     for name in ADAPTERS:
         cfg = sources.get(name) or {}
         if not cfg.get("enabled"):
+            if cfg.get(REGION_GATED):
+                print(region_skip_line(name, cfg))
             continue
         missing = missing_targeting(name, cfg)
         if missing:

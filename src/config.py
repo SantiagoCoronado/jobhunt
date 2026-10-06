@@ -366,7 +366,91 @@ def sources(profile: dict | None = None) -> dict:
     tf["include"] = include
     tf.pop("include_extra", None)
     merged["title_filter"] = tf
+    region_gate(merged, local, coverage(profile))
     return merged
+
+
+# ---- the region gate (docs/spec-pre-release.md decision 10) ------------------------------
+#
+# Every block in the tracked sources.yaml declares `regions:`, names from config/geo.yaml or
+# `global`. A source is on only when one of its regions meets the profile's coverage (the
+# region itself, a region within it, or one containing it: a `[europe]` board meets a profile
+# in Portugal, a `[latam]` board meets one in Mexico). `global` always meets. An `enabled:`
+# in sources.local.yaml forces the source either way and the gate leaves it alone.
+
+GLOBAL = "global"
+REGION_GATED = "region_gated"     # set on a block the gate turned off: {regions, coverage}
+
+
+def coverage(profile: dict | None) -> set[str]:
+    """The regions the profile covers: what each `locations` entry (and `header_location`,
+    the home the tailor writes) resolves to through config/geo.yaml, plus
+    `work_authorization.relocation_regions`. Empty when nothing resolves."""
+    from . import geo   # geo imports this module; resolved lazily
+
+    prof = profile or {}
+    found: set[str] = set()
+    for entry in [prof.get("header_location"), *(prof.get("locations") or [])]:
+        if entry:
+            found |= geo.hits(str(entry))
+    wa = prof.get("work_authorization")
+    known = set(geo.regions())
+    if isinstance(wa, dict):
+        for r in wa.get("relocation_regions") or []:
+            name = str(r).strip().lower()
+            if name in known:
+                found.add(name)
+    return found
+
+
+def source_regions(block: dict) -> list[str]:
+    """A block's `regions:`, lowercased; a block without one (a board the user added in
+    sources.local.yaml) counts as global."""
+    raw = block.get("regions")
+    if raw is None:
+        return [GLOBAL]
+    if isinstance(raw, str):
+        raw = [raw]
+    return [str(r).strip().lower() for r in raw]
+
+
+def meets(regions: list[str], cover: set[str]) -> bool:
+    """True when a source with these regions serves a profile with this coverage."""
+    from . import geo
+
+    if GLOBAL in regions:
+        return True
+    known = set(geo.regions())
+    return geo.reachable({r for r in regions if r in known}, cover)
+
+
+def region_gate(merged: dict, local: dict | None, cover: set[str]) -> None:
+    """Turn off, in place, every enabled source whose regions miss the coverage and whose
+    `enabled:` the local file does not set; the block records its regions and the coverage
+    under REGION_GATED so `discover` can say what it skipped. An empty coverage (no profile, or locations that
+    name no region in config/geo.yaml) gates nothing: no region is known to be out of reach."""
+    if not cover:
+        return
+    local = local or {}
+    for name, block in merged.items():
+        if name == "title_filter" or not isinstance(block, dict) or not block.get("enabled"):
+            continue
+        if isinstance(local.get(name), dict) and "enabled" in local[name]:
+            continue                                   # forced by the user
+        regions = source_regions(block)
+        if not meets(regions, cover):
+            block["enabled"] = False
+            block[REGION_GATED] = {"regions": regions, "coverage": sorted(cover)}
+
+
+def region_skip_line(name: str, block: dict) -> str:
+    """The one line `discover` prints for a source the region gate turned off."""
+    gated = block.get(REGION_GATED) or {}
+    regions = ", ".join(gated.get("regions") or source_regions(block))
+    cover = gated.get("coverage") or []
+    where = f" (your profile covers {', '.join(cover)})" if cover else ""
+    return (f"  - {name:15s} off by region: serves {regions}{where}; "
+            f"force it with `{name}: {{enabled: true}}` in config/sources.local.yaml")
 
 
 # Sources that do nothing useful without the user's targeting (docs/spec-open-source.md
