@@ -3,6 +3,9 @@
 Status: draft for review (grilled 2026-09-04, Santiago + Fable). Supersedes the Flask kanban
 (`src/crm/viewer.py`) and closes the Notion chapter (PR 1 below deletes it).
 
+Amended 2026-10-06 by `docs/spec-pre-release.md` decision 11: `run.sh` was removed from the tree; the
+mentions below are the record of when it existed.
+
 ## 1. Why
 
 Notion was the phone-side CRM and the single largest token sink of every hunt

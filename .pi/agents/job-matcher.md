@@ -47,9 +47,7 @@ Scoring rubric (be honest and calibrated, most jobs are NOT strong matches):
   `work_authorization.summary` and `work_authorization.relocation_regions` (a role inside those
   regions takes the profile's relocation path; one outside them needs that country's own work
   visa, say so). Export-control (ITAR, "US person"), citizens-only and clearance requirements
-  stay hard caps at 25 even there. If the row has a `curated_note`, it is the candidate's own
-  sheet's judgment (priority, work auth, why it fits): quote its priority in `reasons`, never
-  recompute it, and never let it inflate the fit score.
+  stay hard caps at 25 even there.
 - **Salary:** read the `comp` block in `config/profile.yaml` (the single authority). ANNUALIZE FIRST: postings mix periods and currencies, so a USD figure under 20,000 is a MONTHLY rate and must be multiplied by 12 before any comparison (a "5,000-7,000 USD" getonbrd row is 60k-84k/yr, not 5k-7k/yr). Apply the `comp.min_usd_latam_scope` floor ONLY when an annualized base is shown and is below it (then treat it as a dealbreaker). If salary is NOT listed, do NOT penalize; judge on fit and company quality. A strong fit or a notable, exciting company should still score high with no salary shown.
 - **Seniority mismatch** (job wants staff/principal, candidate is mid) → cap ~50.
 - **Core must-have stack missing** → cap ~55, list them in `missing_skills`.

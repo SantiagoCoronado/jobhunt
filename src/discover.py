@@ -27,8 +27,6 @@ ADAPTERS = [
     "greenhouse", "lever", "ashby", "workable",
     "personio", "bamboohr", "workday", "softserve", "teamtailor",
     "pinpoint", "rippling", "secretlab",
-    # The hand-curated dream-company sheet (data/dream_sheet.md)
-    "dreamsheet",
     # Aggregators
     "remoteok", "remotive", "weworkremotely", "hackernews", "getonbrd",
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",

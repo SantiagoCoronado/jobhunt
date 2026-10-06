@@ -5,6 +5,9 @@ Status: draft for review, 2026-09-07 (Santiago + Fable). Lands before `feat/hunt
 prompts must be written profile-driven from the start. The public release itself is the last
 phase and happens after the orchestrator and the TUI land.
 
+Amended 2026-10-06 by `docs/spec-pre-release.md` decision 11: the `dreamsheet` adapter and its block were removed from the tree; the
+mentions below are the record of when they existed.
+
 ## 1. Why
 
 The repo is going public. Today it is one person's hunt: the master resume, the answer bank,

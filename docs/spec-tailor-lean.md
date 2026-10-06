@@ -7,6 +7,9 @@ Fable still writes every word, only reframes master-resume facts, obeys
 `<FirstLast>Resume.{yaml,docx,pdf}`, `CoverLetter.{md,docx,pdf}`, `match_report.md`,
 `answers.md`.
 
+Amended 2026-10-06 by `docs/spec-pre-release.md` decision 11: the dream sheet and its Curated block were removed from the tree; the
+mentions below are the record of when they existed.
+
 ## Problem
 
 A resume-tailor run today (measured over 12 agents on Aug 24 to Sep 2):

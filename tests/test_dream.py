@@ -1,10 +1,10 @@
-"""Dream companies: profile matching, the two new adapters, and the pipeline hooks."""
+"""Dream companies: profile matching, the teamtailor adapter, and the pipeline hooks."""
 import json
 
 import pytest
 
 import src.dream as dream
-from src.adapters import dreamsheet, teamtailor
+from src.adapters import teamtailor
 from src.db import connect
 
 
@@ -57,48 +57,6 @@ def test_dream_threshold_falls_back_to_shortlist_threshold(profile, monkeypatch)
 def test_dream_rule_and_relocation_line_read_through(profile):
     assert dream.dream_rule() == "waived"
     assert dream.relocation_line() == "open to relocating on a TN"
-
-
-# ---- dreamsheet adapter ----
-
-SHEET = """\
-|  |  |  |  |  |  |  |  |  |  |
-| :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| Priority | Company | Role | Location | Work auth | Why it fits | Apply URL | Status | First seen | Notes |
-| Strong | Riot Games | Staff Engineer, Client | Los Angeles | TN possible | React + Node. | https://www.riotgames.com/en/j/7844349 | Not applied | 2026-08-27 | LA base |
-| Backup | The Diary of a CEO / Steven.com | Senior Fullstack Engineer | Remote (US) | TN | Stack match. | https://flightstory.teamtailor.com/jobs/8163037-senior-fullstack\\_engineer | Not applied | 2026-08-31 |  |
-| Skip | Nobody | | | | | https://example.com/no-title | | | |
-"""
-
-
-def test_dreamsheet_parses_drive_markdown(profile, tmp_path):
-    f = tmp_path / "sheet.md"
-    f.write_text(SHEET)
-    jobs = dreamsheet.fetch({"path": str(f)})
-    assert [j.title for j in jobs] == ["Staff Engineer, Client", "Senior Fullstack Engineer"]
-    riot, doac = jobs
-    assert riot.source == "dreamsheet"
-    assert riot.company == "Riot Games"           # canonical dream name
-    assert doac.company == "Steven.com"           # sheet alias folded to the dream name
-    assert riot.external_id == riot.url == "https://www.riotgames.com/en/j/7844349"
-    assert doac.url.endswith("senior-fullstack_engineer")   # Drive's \\_ escape undone
-    assert doac.remote is True and riot.remote is False
-    assert riot.description.startswith("Curated (dream sheet):")
-    assert "Priority: Strong" in riot.description
-    assert "Work Auth: TN possible" in riot.description
-    assert "Notes: LA base" in riot.description
-    assert riot.tags == ["Strong"]
-    assert riot.to_row()["posted_at"] == "2026-08-27T00:00:00+00:00"
-
-
-def test_dreamsheet_missing_file_hints_and_yields_nothing(profile, tmp_path, capsys):
-    assert dreamsheet.fetch({"path": str(tmp_path / "nope.md")}) == []
-    assert "dreamsheet" in capsys.readouterr().out
-
-
-def test_dreamsheet_skips_the_title_gate_by_config():
-    from src.adapters import keep_title
-    assert keep_title({"title_filter": {"enabled": False}}, "Head of Data Intelligence")
 
 
 # ---- teamtailor adapter ----
@@ -178,8 +136,6 @@ def test_match_export_flags_and_front_loads_dream_rows(profile, tmp_path, monkey
             verdict=json.dumps({"bucket": 3}))
     _insert(conn, 2, "greenhouse", "k2", "Riot Games", title="Staff Engineer",
             location="Los Angeles", desc="c++")                       # untriaged, on-site
-    _insert(conn, 3, "dreamsheet", "k2", "Riot Games", title="Staff Engineer",
-            desc="Curated (dream sheet):\nPriority: Strong")
     monkeypatch.setattr(match, "connect", lambda: conn)
     monkeypatch.setattr(match, "PENDING", tmp_path / "pending.json")
     match.export(limit=10, min_bucket=3, eligible_only=True)
@@ -187,8 +143,7 @@ def test_match_export_flags_and_front_loads_dream_rows(profile, tmp_path, monkey
     # Riot: locked-out city AND no triage bucket, yet it survives both gates and sorts first.
     assert [o["id"] for o in out] == [2, 1]
     assert out[0]["dream"] is True
-    assert out[0]["curated_note"].startswith("Curated (dream sheet):")
-    assert "dream" not in out[1] and "curated_note" not in out[1]
+    assert "dream" not in out[1]
 
 
 def test_match_export_rescore_keeps_dream_rows_under_the_bucket_gate(profile, tmp_path, monkeypatch):

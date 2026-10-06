@@ -3,6 +3,9 @@
 Status: draft for review, 2026-09-07 (Santiago + Fable). Lands before the TUI resumes
 (`docs/spec-tui.md` story 3 of PR 3 is where that work paused). Section 10 amends the TUI spec.
 
+Amended 2026-10-06 by `docs/spec-pre-release.md` decision 11: `scripts/ai_pass.sh` (and the `mac/` schedule that ran it) was removed from the tree; the
+mentions below are the record of when it existed.
+
 ## 1. Why
 
 `/jh-hunt` is a page of prose that the interactive Claude session reads and follows. Every

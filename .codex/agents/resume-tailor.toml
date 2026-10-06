@@ -70,7 +70,7 @@ open review comments. You never need another file.
 - **match_report.md**: requirement tiers (must-have / high-priority / bonus) with Covered
   strongly / weakly / Not covered and the resume evidence; the ATS keywords woven in; the
   company hook used and its dossier section; honest gaps to be ready for; for a dream row the
-  `visa_path` and the curated priority quoted from the bundle, never recomputed.
+  `visa_path` quoted from the bundle, never recomputed.
 - **answers.md**: section 7 verbatim, with EVERY `<!-- TAILOR: ... -->` block replaced by a
   real answer written to the hint inside that marker (the why-company block: 3 sentences, one
   concrete company fact, one line tying it to the candidate's background as `candidate_line`

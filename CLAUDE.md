@@ -7,7 +7,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    Sources live in `config/sources.yaml` (one block per adapter in `src/adapters/`, each a
    `fetch(cfg) -> list[Job]`), which is tracked and holds adapter MECHANICS only: endpoints,
    page sizes, `enabled:`, field mappings. The user's TARGETING (ATS tokens, countries,
-   locales, query lists, the dreamsheet file id, extra title words) lives in the git-ignored
+   locales, query lists, extra title words) lives in the git-ignored
    `config/sources.local.yaml`. Read the merged view with `src.config.sources()`, never
    `load_yaml("sources.yaml")`; `missing_targeting` skips an enabled source whose targeting
    is absent, with a hint. Keyed sources read `.env` (copy `.env.example`) via
@@ -106,9 +106,7 @@ and the `relocation_header` note when the role requires presence inside
 `work_authorization.relocation_regions` (plus home; `config/geo.yaml` resolves the location),
 a plain visa note outside them, neither for remote-from-home. Export-control ("US person",
 ITAR), citizens-only and clearance requirements stay hard blocks.
-The hand-curated sheet (`dreamsheet` in `config/sources.local.yaml`, private Google Sheet) is read
-by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses;
-a dream company with no usable board is sheet rows and outreach only.
+A dream company with no usable board is hand-entered rows (`python -m src.query add`) and outreach only.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
@@ -166,8 +164,8 @@ Hunt orchestrator: `python -m src.hunt run [--from S] [--to S] [--only S] [--ski
 (`--ids` = research/tailor rows a human chose instead of the pick stage, `src.pick.chosen`)
 (exit 0 done, 2 a stage failed, 3 nothing to tailor), `run --resume RUN|latest` (done units
 skipped, outputs on disk verified again, never a second export; a dead run's lock is taken
-over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. `scripts/ai_pass.sh` is
-`hunt run --to match` then the digest. Stage code is `src/hunt/stages/<stage>.py` over the
+over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. Nothing is scheduled from the tree:
+`docs/scheduling.md` is one paragraph (cron or launchd running `hunt run --to match` then the digest). Stage code is `src/hunt/stages/<stage>.py` over the
 shared `fan.py`. Tests must use a fake harness: `tests/conftest.py` refuses to start a real
 agent CLI, and a bare `hunt run` in a test IS a hunt (patch `connect` and the data dirs of
 every module a stage touches, as `tests/test_hunt_*.py` do).
