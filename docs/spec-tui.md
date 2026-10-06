@@ -328,9 +328,35 @@ a mode's first show, which started every section's first load twice; a load alre
 is now the load. `hunt.toml` gained a minimum of 1 for `global_concurrency` (a cap of 0 let no
 unit start).
 
+### PR 5c: `test/tui-pty-speed` (added 2026-10-06; Linear PRA-148)
+
+`tests/test_tui_pty.py::test_a_terminal_editor_round_trip_survives_a_late_terminal_reply` is the
+slowest test in the suite: 3.41 s of 103 s (831 passed, 4 skipped, `pytest --durations=15`). About
+2.5 s of it is fixed sleeping, and about 0.9 s is the child starting Textual, which is the thing
+under test. Test-only: no file under `src/` changes, and the test still fails with the two story 8
+guards removed.
+
+1. **The wait after the redraw follows the app's constant**: `term.read(1.0)` becomes
+   `term.read(app.DEAF_SECONDS + 0.2)`. That still covers the whole deaf window, so a late `q`
+   that got through would have quit the TUI, and the human `q` lands after the window. A change to
+   `DEAF_SECONDS` moves the test with it. About 0.5 s.
+2. **A shorter fake editor**: `time.sleep(1.0)` becomes `time.sleep(0.5)`. The test writes the late
+   reply as soon as it reads `EDITOR-UP`, so the editor holds the terminal for a single pty write.
+   About 0.5 s.
+3. **The tail is one poll**: `term.read(0.5)` and the `time.sleep(0.1)` loop after
+   `CHILD-EXITED-CLEAN` become one loop that reads in 0.05 s steps until the child is reaped or a
+   5 s deadline passes. The read keeps draining the pty, so the child never blocks on a write.
+   About 0.5 s.
+
+Target: the test under 2 s, measured with `--durations`, and ten runs in a row green
+(a shell loop over `pytest -m pty`). Out of scope: the Textual pilot tests at 2 to 3 s each
+(`test_tui_app.py`, `test_tui_harness.py`), which add up to more and are in Later.
+
 ## 9. Later (not scheduled)
 
 Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
 `stats.py` (funnel, calibration, latency, comp, source health).
-`textual serve` for phone access. (Harness execution moved into scope on 2026-09-07 through
+`textual serve` for phone access. Suite time: profile the pilot tests (each starts the app, and
+some wait on fixed `pause()` calls) and check whether `pytest-xdist` is safe with the tests that
+patch the DB. (Harness execution moved into scope on 2026-09-07 through
 `docs/spec-hunt-orchestrator.md`.)
