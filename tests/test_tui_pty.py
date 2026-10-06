@@ -101,9 +101,7 @@ def test_a_terminal_editor_round_trip_survives_a_late_terminal_reply(term):
 
     term.send(b"q")                                              # a moment later a human q still quits
     term.wait_for(b"CHILD-EXITED-CLEAN", since=back)
-    term.read(0.5)
-    for _ in range(50):
-        if not term.alive():
-            break
-        time.sleep(0.1)
+    end = time.monotonic() + 5.0                                 # drain the pty until the child is reaped
+    while term.alive() and time.monotonic() < end:
+        term.read(0.05)
     assert term.status is not None and os.waitstatus_to_exitcode(term.status) == 0
