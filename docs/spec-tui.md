@@ -372,8 +372,9 @@ Target: the test under 2 s, measured with `--durations`, and ten runs in a row g
 
 ## 9. Later (not scheduled)
 
-Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
-`stats.py` (funnel, calibration, latency, comp, source health).
+Unit-level rows in the runner (one row per unit with attempts and usage). A weekly activity
+chart and comp in the stats screen (the screen itself moved to `docs/spec-pre-release.md`,
+decision 15 and PR 6, on 2026-10-06).
 `textual serve` for phone access. Suite time: profile the pilot tests (each starts the app, and
 some wait on fixed `pause()` calls) and check whether `pytest-xdist` is safe with the tests that
 patch the DB. (Harness execution moved into scope on 2026-09-07 through

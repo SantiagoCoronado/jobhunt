@@ -3,7 +3,8 @@
 Status: draft for review, 2026-09-24 (Santiago + Fable). Lands between the open-source PR 3
 (`feat/profile-driven-prompts`, merged) and the public release (`release/public`, PR #34, open).
 The release checklist in `docs/spec-open-source.md` section 7 runs again after this spec's last
-phase, on the tree it leaves.
+phase, on the tree it leaves. Amended 2026-10-06: the stats screen (decision 15) joins as PR 6,
+moved here from `docs/spec-tui.md` section 9; the full flow becomes PR 7.
 
 ## 1. Why
 
@@ -49,6 +50,7 @@ the assumed one.
 | 12 | History docs | `docs/IMPROVEMENT_PLAN.md`, `docs/new-sources.md` and `docs/token-efficiency.md` move to `docs/history/` with a one-line header ("the author's record, kept for the numbers"); links in `CLAUDE.md` and the specs follow. Specs stay where they are with their dated attributions. | A stranger reads specs to understand the code; the reports are provenance. |
 | 13 | Test matrix | Santiago runs the full flow (clone into a temp dir, `setup.sh`, `/jh-setup` on his own documents, a hunt to a tailored application) on claude, codex and pi. A friend runs it once on their own CLI and resume from the README alone and reports where they stopped. Each stop is a story in the last phase; the README's final pass comes after both. | Proof on three harnesses and two people before the post. |
 | 14 | Onboarding token budget | The interview reads each extracted document once, writes each file once, and ends under 0.3M context tokens for a three-document intake; the helper prints per-document sizes so the agent can refuse a 40-page PDF politely and ask for the relevant pages. | `docs/history/token-efficiency.md` rules, applied to setup. |
+| 15 | Stats screen (added 2026-10-06) | Section 4 of the TUI stops printing `stats funnel` and answers "is my search working, and where is it leaking?" on one screen, in-process from one `data.stats()` snapshot over the functions that already exist (`stats.funnel_data`, `calibration_data`, `latency_data`, `hunts_data`, `report.reached_stages`, `report.source_health`). One column in the scroll pane, `r` `j` `k` `g`, no drill-down, no subprocess, no new dependency. Top to bottom: **header**, the last discover (date and age, warning color past 7 days) and the last hunt (units, failed, context tokens, cost, a dash where the harness reports none); **tiles**, applications, reply rate labelled "any reply, rejections count", median days to first reply, waiting, in interviews, applied in the last 7 and 28 days; **funnel** bars, found, scored, shortlisted, applied, replied, screen, interview, offer, each with its count, on two scales (found, scored and shortlisted against found; applied onward against applied, so 121 applications never draw as a sliver under 49,727 found rows), a percent of the previous bar from applied on only, and a zero bar naming the step that fills it (`scored 0: run match in section 5`); **score vs reply**, reply rate per score band with n, a band under 5 dimmed, one line until 20 applications; **sources**, one row each with pulled and new over its last 5 runs, applied, replies, reply rate and the dead flag, dead first, then by applied. Cut: a weekly chart and comp (back to `docs/spec-tui.md` section 9). Reviewed by a contrarian agent the same day: it cut the sparkline, the two-column layout and "open pipeline" (that tile counted the shortlist), and added the empty state and the discover age; calibration stays, gated. | Strangers open the TUI next, and a section labelled "placeholder" reads as unfinished. Every tester's DB starts empty (the full-flow runs end at a tailored application, nobody applies), so the day-1 screen is the one designed first. The discover age is there because the author's own `runs` table stopped on 2026-09-07 and nothing on screen said so. |
 
 Routine calls made without a question: the installer's harness list is `claude`, `codex`,
 `opencode`, `pi`, `gemini`, `agy` (the shipped adapters plus the documented template);
@@ -88,7 +90,7 @@ claude
 | `prompts/commands/jh-setup.md` | new: the interview script, section by section, with the helper calls |
 | `src/db.py` | `dream_companies` table + accessors; `query dream` |
 | `src/dream.py` | reads the table; `init` migration from the profile list |
-| `src/tui/` | Dream tab in the status list (`a`, `x`); Keys tab in the settings modal |
+| `src/tui/` | Dream tab in the status list (`a`, `x`); Keys tab in the settings modal; `data.stats()` and the stats screen (section 4) |
 | `src/config.py` | `sources()` region gate and coverage; `env` one-line editor (shared by onboarding and the Keys tab) |
 | `config/sources.yaml` | `regions:` on every block; the verified European blocks |
 | `config/geo.yaml` | region names the gate and the profile share; any region the EU sources need |
@@ -167,7 +169,18 @@ per PR, one sub-issue per story.
 5. **LinkedIn URL opt-in**: decision 7's fetch, the warning, a fixture of a public page.
 6. **Keys tab**: decision 8 in the TUI settings modal; pilot tests.
 
-### PR 6: `test/full-flow`
+### PR 6: `feat/tui-stats`
+
+1. **Stats data**: `data.stats()` returns one frozen snapshot for decision 15, built from the
+   existing functions plus the found and scored counts, the 7 and 28 day application counts and
+   the last discover time; `data.py` stays the only TUI module that opens SQLite; tests on
+   `tmp_db` for an empty DB, a day-1 DB (discovered rows only) and a seeded DB with events.
+2. **Stats screen**: section 4 renders the snapshot in-process (pure renderers for the bar, the
+   tile and the table, tested without the app), the zero-bar next steps, the small-n dimming,
+   the 20-application gate; pilot tests replace the placeholder ones in `tests/test_tui_stats.py`;
+   `docs/spec-tui.md` decision 4, `CLAUDE.md` and the README say what section 4 shows.
+
+### PR 7: `test/full-flow`
 
 1. **Three harnesses**: the decision 13 runs on claude, codex and pi, each recorded in
    `docs/history/full-flow-<date>.md` (what was typed, what stopped, tokens from the ledger);
