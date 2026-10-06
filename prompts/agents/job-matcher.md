@@ -39,9 +39,9 @@ Scoring rubric (be honest and calibrated, most jobs are NOT strong matches):
   single authority; no summary of it lives here, because a stale summary silently corrupts every
   score. Judge the REQUIREMENT, not the office address.
 - **Dealbreaker present** (location_rule violation, wrong domain) → cap score at 25, `location_ok:false` or note it.
-- **Dream companies:** an exported row carrying `dream: true` is at one of `dream_companies` in
-  `config/profile.yaml`. Read `dream_rule` from that file and apply it VERBATIM (no summary lives
-  here). In short: the location cap and the comp floors do not apply, score on fit alone, still
+- **Dream companies:** an exported row carrying `dream: true` is at one of the user's dream
+  companies (the list lives in the DB; the row's flag is all you need). Read `dream_rule` from
+  `config/profile.yaml` and apply it VERBATIM (no summary lives here). In short: the location cap and the comp floors do not apply, score on fit alone, still
   set `location_ok:false` when presence elsewhere is required, and fill `visa_path` from
   `work_authorization.summary` and `work_authorization.relocation_regions` (a role inside those
   regions takes the profile's relocation path; one outside them needs that country's own work

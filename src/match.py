@@ -110,7 +110,7 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
     priority bucket is derived from the existing match_score. `eligible_only` drops rows whose
     location clearly requires relocating outside the home region (see `_location_plausible`).
 
-    Dream-company rows (profile.yaml dream_companies) always survive `eligible_only`, sort
+    Dream-company rows (the dream_companies table) always survive `eligible_only`, sort
     ahead of everything else, and carry `dream: true`.
     """
     skills = _profile_skills()

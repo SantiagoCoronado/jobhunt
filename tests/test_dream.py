@@ -8,26 +8,37 @@ from src.adapters import teamtailor
 from src.db import connect
 
 
+DREAMS = [
+    {"name": "Riot Games", "match": ["riot games", "riotgames"]},
+    {"name": "Steven.com", "match": ["steven.com", "flightstory", "diary of a ceo"]},
+    "Valve",
+]
+
+
 @pytest.fixture
 def profile(monkeypatch):
-    """A small dream list so tests never depend on the live profile."""
+    """A small dream list, written to the temp DB's dream_companies table (conftest points
+    db.DB_PATH at the test's temp dir), and a profile carrying only the rules."""
+    from src import db
+    conn = connect(db.DB_PATH)
+    for d in DREAMS:
+        d = dream.normalize(d)
+        db.add_dream(conn, d["name"], d["match"])
+    conn.commit()
+    conn.close()
     p = {
         "shortlist_threshold": 70,
         "dream_shortlist_threshold": 60,
-        "dream_companies": [
-            {"name": "Riot Games", "match": ["riot games", "riotgames"]},
-            {"name": "Steven.com", "match": ["steven.com", "flightstory", "diary of a ceo"]},
-            "Valve",
-        ],
         "dream_rule": "waived",
         "relocation_line": "open to relocating on a TN",
     }
+    dream.reset_cache()
     monkeypatch.setattr(dream, "_CACHE", p)
     yield p
     dream.reset_cache()
 
 
-# ---- profile matching ----
+# ---- matching (the table) ----
 
 @pytest.mark.parametrize("company,expected", [
     ("Riot Games", "Riot Games"),
@@ -300,9 +311,6 @@ def test_second_batch_boards_rank_as_ats(tmp_path):
     ("ExampleRobotics GmbH", "Example Robotics"),
     ("Robotics Example", None),
 ])
-def test_aliases_against_fixture_profile(company, expected):
-    dream.reset_cache()
-    try:
-        assert dream.dream_name(company) == expected
-    finally:
-        dream.reset_cache()
+def test_aliases_against_the_fixture_seed(company, expected):
+    """conftest seeds the invented candidate's list into the cache; every pipeline test sees it."""
+    assert dream.dream_name(company) == expected

@@ -3,7 +3,7 @@
 Deterministic version of the /jh-hunt star rule, run against SQLite (canonical):
   * `shortlisted` rows only;
   * first up to `--dream-slots` (default 2) go to the highest-match rows at a dream company
-    (profile.yaml `dream_companies`), one per company;
+    (the `dream_companies` table, src.dream), one per company;
   * the remaining slots go to the highest-match rows overall, one per company;
   * a company with a live application (applied/screen/interview/offer, or a folder under
     applications/applied or applications/pending) or a `backlog` hold is skipped, so the hunt

@@ -23,7 +23,7 @@ def test_examples_parse_and_carry_the_invented_candidate():
     assert prof["name"] == "Alex Example"
     assert master["cv"]["name"] == prof["name"]
     assert isinstance(prof["shortlist_threshold"], int)
-    for key in ("comp", "location_rule", "dealbreakers", "dream_companies", "dream_rule",
+    for key in ("comp", "location_rule", "dealbreakers", "dream_rule",
                 "relocation_line", "dream_shortlist_threshold", "notes",
                 "candidate_line", "role_families", "work_authorization", "header_location"):
         assert key in prof, key

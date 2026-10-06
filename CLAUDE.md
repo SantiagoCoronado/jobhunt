@@ -96,9 +96,13 @@ units). Rules that fell out of it: no Notion in the hunt; subagents reply in one
 runs render/audit at most twice; triage chunks are 100 rows (Haiku truncates a 200-row JSON
 write); never `python -m src.query crm` inside an orchestrated step.
 
-**Dream companies** (set 2026-09-01): `dream_companies` + `dream_rule` + `relocation_line` +
-`dream_shortlist_threshold` in `config/profile.yaml` are the single authority; `src/dream.py`
-computes `is_dream(company)` from them (never stored, so editing the list never goes stale).
+**Dream companies** (set 2026-09-01; the list moved to the DB 2026-10-06, `docs/spec-pre-release.md`
+decision 9): the LIST is the `dream_companies` table in `data/jobs.db` (name, match aliases, careers
+URL, note, added_at), edited with `python -m src.query dream {list|add|rm}` or the TUI's Dream tab;
+the RULES `dream_rule` + `relocation_line` + `dream_shortlist_threshold` stay in `config/profile.yaml`.
+`python -m src.init` moves an older profile's `dream_companies:` list into the table once (commented
+out under a dated note; until then that list still counts). `src/dream.py` computes `is_dream(company)`
+from the table, cached per process (never stored on a job row, so editing the list never goes stale).
 For those companies the location rule and comp floors are waived, the title gate is skipped,
 match export sorts them first with `dream: true`, ingest shortlists them at the lower cutoff,
 `/jh-hunt` reserves up to 2 of the 5 stars for them, and the tailor adds the relocation line

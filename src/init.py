@@ -15,6 +15,11 @@ Migration: a profile.yaml written before the prompt keys existed (`candidate_lin
 gets the missing ones APPENDED with defaults derived from its own keys (the name, the target
 titles), under a dated comment, so the file keeps every line the user wrote. Keys already
 present are never touched; a second run appends nothing.
+
+Migration: a profile.yaml that still carries a `dream_companies:` list (docs/spec-pre-release.md
+decision 9) gets it moved into the `dream_companies` table of `data/jobs.db`: every entry is
+added (a name the table already has is left as it is), then the list's lines are commented out
+in place under a dated note, so nothing the user wrote is lost and a second run moves nothing.
 """
 from __future__ import annotations
 
@@ -103,11 +108,97 @@ def migrate_profile(root: Path = ROOT, today: str | None = None) -> list[str]:
     return keys
 
 
+DREAM_KEY = "dream_companies"
+
+
+def _db_path(root: Path) -> Path:
+    return root / "data" / "jobs.db"
+
+
+def profile_dream_list(root: Path = ROOT) -> list[dict]:
+    """The dream entries the real profile under `root` still lists ([] when moved or absent)."""
+    import yaml
+
+    from .dream import normalize
+
+    path = root / PROFILE
+    if not path.exists():
+        return []
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    entries = raw.get(DREAM_KEY) if isinstance(raw, dict) else None
+    if not isinstance(entries, list):
+        return []
+    return [d for d in (normalize(e) for e in entries) if d]
+
+
+def comment_out_key(text: str, key: str, note: list[str]) -> str:
+    """`text` with the top-level `key:` block (its line and every indented, list or blank line
+    under it) turned into comments, preceded by the `note` lines. Unchanged when the key is absent."""
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, ln in enumerate(lines) if ln.startswith(f"{key}:")), None)
+    if start is None:
+        return text
+    end = start + 1                       # one past the block's last indented or list line
+    for i in range(start + 1, len(lines)):
+        ln = lines[i]
+        if not ln.strip() or ln.startswith("#"):
+            continue                      # blanks and comments inside the list ride along
+        if ln[0] in " \t" or ln.startswith("-"):
+            end = i + 1
+            continue
+        break                             # the next top-level key
+    block = [("# " + ln if ln.strip() else ln) for ln in lines[start:end]]
+    block = [b if b.endswith("\n") else b + "\n" for b in block]
+    return "".join(lines[:start] + [n + "\n" for n in note] + block + lines[end:])
+
+
+def migrate_dream(root: Path = ROOT, today: str | None = None) -> dict[str, list[str]]:
+    """Move the profile's dream list into the table, then comment it out under a dated note.
+    Returns {'moved': [names added], 'kept': [names the table already had]}; both empty when
+    there was nothing to move. The table is written and committed before the profile changes."""
+    import yaml
+
+    from . import db
+
+    entries = profile_dream_list(root)
+    if not entries:
+        return {"moved": [], "kept": []}
+    path = root / PROFILE
+    text = path.read_text(encoding="utf-8")
+    note = [
+        f"# ---- moved by `python -m src.init` on {today or date.today().isoformat()}: the dream companies",
+        "# now live in the dream_companies table of data/jobs.db (docs/spec-pre-release.md decision 9).",
+        "# Edit them with `python -m src.query dream {list|add|rm}` or the TUI's Dream tab. As it was:",
+    ]
+    new_text = comment_out_key(text, DREAM_KEY, note)
+    before = yaml.safe_load(text) or {}
+    after = yaml.safe_load(new_text) or {}
+    before.pop(DREAM_KEY, None)
+    if after != before:                   # the rewrite must remove that one key and nothing else
+        raise SystemExit(f"{PROFILE}: could not comment out {DREAM_KEY} cleanly; move it by hand "
+                         "(python -m src.query dream add) and delete the list")
+    moved, kept = [], []
+    conn = db.connect(_db_path(root))
+    try:
+        for d in entries:
+            if db.get_dream(conn, d["name"]):
+                kept.append(d["name"])
+                continue
+            db.add_dream(conn, d["name"], d["match"], d["careers_url"] or None, d["note"] or None)
+            moved.append(d["name"])
+        conn.commit()
+    finally:
+        conn.close()
+    path.write_text(new_text, encoding="utf-8")
+    return {"moved": moved, "kept": kept}
+
+
 def plan(root: Path = ROOT) -> dict[str, list[str]]:
     """What a run would do: {'copy': [...], 'keep': [...], 'missing_example': [...], 'mkdir': [...],
-    'migrate': [<profile keys to append>]}."""
+    'migrate': [<profile keys to append>], 'dream': [<dream names to move into the table>]}."""
     out: dict[str, list[str]] = {"copy": [], "keep": [], "missing_example": [], "mkdir": [],
-                                 "migrate": profile_missing_keys(root)}
+                                 "migrate": profile_missing_keys(root),
+                                 "dream": [d["name"] for d in profile_dream_list(root)]}
     for ex, real in EXAMPLES.items():
         assert real_name(ex) == real, ex
         if not (root / ex).exists():
@@ -133,7 +224,10 @@ def run(root: Path = ROOT, check: bool = False) -> int:
             print(f"  ! no example on disk: {ex}")
         for key in p["migrate"]:
             print(f"  missing  {PROFILE}: {key}  (python -m src.init appends a default)")
-        incomplete = bool(p["copy"] or p["missing_example"] or p["migrate"])
+        if p["dream"]:
+            print(f"  pending  {PROFILE}: {DREAM_KEY} ({len(p['dream'])}) still in the profile "
+                  "(python -m src.init moves them into the dream_companies table)")
+        incomplete = bool(p["copy"] or p["missing_example"] or p["migrate"] or p["dream"])
         print("user files incomplete" if incomplete else "user files complete")
         return 1 if incomplete else 0
     for ex, real in EXAMPLES.items():
@@ -151,6 +245,11 @@ def run(root: Path = ROOT, check: bool = False) -> int:
     if p["migrate"] and PROFILE not in p["copy"]:      # a fresh copy of the example has them all
         added = migrate_profile(root)
         print(f"  migrated {PROFILE}: appended {', '.join(added)} with derived defaults; edit them")
+    if p["dream"]:
+        res = migrate_dream(root)
+        print(f"  migrated {PROFILE}: {DREAM_KEY} moved into data/jobs.db ({len(res['moved'])} added"
+              + (f", {len(res['kept'])} already there" if res["kept"] else "") + "); the list is commented "
+              "out under a dated note; edit it with `python -m src.query dream` or the TUI")
     for ex in SKIPPED_EXAMPLES:
         print(f"  skipped  {ex}  (documentation; write {real_name(ex)} by hand to enable the identity guard)")
     print("Next: edit config/profile.yaml, resume/master_resume.yaml and resume/answers.yaml, "

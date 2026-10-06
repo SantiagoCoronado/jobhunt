@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from tui_fakes import tmp_db  # noqa: F401  (the TUI pilot fixture, see tui_fakes.py)
 
-from src import adapters, config, dream, match, render_docx, stats
+from src import adapters, config, db, dream, match, render_docx, stats
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -25,11 +25,22 @@ _FIXTURE_FILES = {
 }
 
 
+# The invented candidate's dream list. It lives in the dream_companies table now
+# (docs/spec-pre-release.md decision 9), so the suite seeds src.dream's per-process cache with
+# it instead of a database; a test of the table itself calls dream.reset_cache() and reads the
+# temp DB at db.DB_PATH.
+DREAM_FIXTURE = [{"name": "Example Robotics", "match": ["example robotics", "examplerobotics"]}]
+
+
 @pytest.fixture(autouse=True)
-def _user_files_from_fixtures(monkeypatch):
+def _user_files_from_fixtures(monkeypatch, tmp_path):
     for key, name in _FIXTURE_FILES.items():
         monkeypatch.setitem(config.USER_FILES, key, FIXTURES / name)
+    # Anything that resolves db.DB_PATH at call time (src.dream after a reset, src.tui.data)
+    # lands in this test's temp dir, never in the real data/jobs.db.
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "jobs.db")
     dream.reset_cache()
+    monkeypatch.setattr(dream, "_COMPANIES", [dream.normalize(d) for d in DREAM_FIXTURE])
     # The shared title gate caches a value derived from those files, so a test that touches
     # an adapter would otherwise leave the previous profile's gate behind for the next one.
     adapters._TITLE_FILTER = None

@@ -44,8 +44,8 @@ first: a USD figure under 20,000 is a MONTHLY rate, multiply by 12 (a "5,000-7,0
 getonbrd row is 60k-84k/yr, not 5k-7k/yr). Never drop a monthly rate as if it were annual.
 NEVER drop for location, city, on-site, hybrid, remote, or country. Location is judged later
 with the full JD. Give each KEPT job a bucket 0-3 (0 weak, 1 plausible, 2 good, 3 strong fit).
-DREAM COMPANIES: a row carrying `"dream": true` is at one of `dream_companies` in
-`config/profile.yaml` (its `dream_rule` is the authority). For those rows rule (3) (pay) does
+DREAM COMPANIES: a row carrying `"dream": true` is at one of the user's dream companies
+(the flag is all you need; `dream_rule` in `config/profile.yaml` is the authority). For those rows rule (3) (pay) does
 NOT apply and location never did; rules (1) off-field and (2) clearance / citizens-only /
 export-control ("US person", ITAR) still drop. When in doubt on a dream row, keep it and
 bucket honestly.

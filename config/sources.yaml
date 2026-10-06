@@ -176,7 +176,7 @@ workatastartup:                    # YC WaaS; job API needs a browser session (4
 # ---------------------------------------------------------------------------
 title_filter:
   enabled: true
-  # Dream companies (profile.yaml dream_companies) skip the gate entirely: their boards
+  # Dream companies (the dream_companies table) skip the gate entirely: their boards
   # are small (a few hundred rows) and the titles worth chasing there ("Member of Technical
   # Staff", "Head of Data Intelligence") are exactly the ones a keyword gate drops.
   skip_dream_companies: true
