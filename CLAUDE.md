@@ -19,6 +19,12 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    words derived from the profile's `target_titles` / `role_families` (`config.title_words`)
    plus `title_filter.include_extra` in the local file; a source can opt out of the gate
    (hackernews does). Never filter by location there.
+   Sources are region-gated (decision 10 of `docs/spec-pre-release.md`): every block in
+   `sources.yaml` declares `regions:` (`config/geo.yaml` names or `global`); `config.sources()`
+   turns off a source whose regions miss `config.coverage(profile)` (locations, header_location,
+   `work_authorization.relocation_regions`), an `enabled:` in the local file forces it either way,
+   and discover prints one `off by region` line per skipped source. The European boards
+   (jobtech, jobindex, berlinstartupjobs) and the ones verified but not wired are in `docs/sources-europe.md`.
 2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
    `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
    sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become

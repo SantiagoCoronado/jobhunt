@@ -3,12 +3,21 @@
 # added 2026-08-27 was curl-checked for HTTP 200 + a non-empty jobs array.
 # A shared `title_filter:` block at the bottom of this file gates every row on
 # role family, so a broad board can be added without flooding triage.
+#
+# Region gate (docs/spec-pre-release.md decision 10): every block declares `regions:`,
+# names from config/geo.yaml or `global`. A source runs only when one of its regions meets
+# the profile's coverage (the regions `locations` and `header_location` resolve to, plus
+# `work_authorization.relocation_regions`); `global` always does. `enabled:` in
+# config/sources.local.yaml forces a source on or off whatever its regions say, and
+# `python -m src.discover` prints one line per source it skipped by region.
 
 # Aggregators (no tokens needed)
 remoteok:
   enabled: true                    # attribution required (we keep the RemoteOK URL)
+  regions: [global]
 remotive:
   enabled: true
+  regions: [global]
   limit: 100
   # No category filter: the WHOLE Remotive board was 18 live rows on 2026-08-27
   # (5 of them software), so narrowing it to software-dev bought nothing and the
@@ -16,6 +25,7 @@ remotive:
   categories: []
 weworkremotely:
   enabled: true
+  regions: [global]
   categories:
     - remote-programming-jobs      # the catch-all feed, added 2026-08-27
     - remote-back-end-programming-jobs
@@ -25,6 +35,7 @@ weworkremotely:
     - remote-product-jobs
 hackernews:                        # monthly "Who is Hiring" thread, via HN's Algolia API
   enabled: true
+  regions: [global]
   months: 3                        # walk this many monthly threads
   pages: 6                         # x100 comments each
   # HN ad "titles" are company names ("Acme", "FusionAuth"), not role titles, so
@@ -32,48 +43,58 @@ hackernews:                        # monthly "Who is Hiring" thread, via HN's Al
   title_filter: {enabled: false}
 getonbrd:                          # LatAm boards; queries come from sources.local.yaml
   enabled: true
+  regions: [latam]
   per_page: 100
   pages: 3                         # the API paginates; the adapter used to read page 1 only
 jobicy:
   enabled: true
+  regions: [global]
   count: 100
   # `ai` is NOT a valid Jobicy tag (the API 400s on it); machine-learning is.
 arbeitnow:
   enabled: true
+  regions: [europe]
   pages: 10                        # was 3; the feed goes much deeper
   remote_only: true
 himalayas:
   enabled: true
+  regions: [global]
   # `limit` is IGNORED server-side (always 20 rows); only `offset` moves. One
   # call therefore saw 20 of the board, which is why this source looked dead.
   pages: 30                        # x20 rows
 posthog:                           # posthog.com/cool-tech-jobs, curated dev-tool boards, no key
   enabled: true
+  regions: [global]
   pages: 3
   page_size: 100
   departments: []                  # [] = all; free-text field, match loosely (e.g. [Engineering, Data])
   remote_only: false
 recruitee:                         # per-company (Recruitee ATS); add slugs then flip enabled
   enabled: false
+  regions: [global]
   # 16 candidate slugs probed 2026-08-27 (productboard, pipedrive, aiven, wolt,
   # veriff, ...): every one 404s. Recruitee subdomains are not guessable from the
   # company name; capture a real one from a careers page before enabling.
   companies: []
 smartrecruiters:                   # per-company; list endpoint has no description (title-only match)
   enabled: true
+  regions: [global]
   # Verified 2026-08-27. Endava is a LATAM/EU delivery shop that hires remote in
   # Mexico. BoschGroup also answers (4,809 rows) but is overwhelmingly Spanish-
   # language manufacturing; deliberately left out.
 # Company ATS boards. Tokens, company lists and display names live in config/sources.local.yaml.
 greenhouse:
   enabled: true
+  regions: [global]
   # Display names for tokens whose Title()-cased slug is not the company name. Matters
   # for dream companies: a hand-entered row (`query add`) and the ATS row must share a canonical_key.
 lever:
   enabled: true
+  regions: [global]
   # mistral answers 200 with an empty list right now (board between postings); kept.
 ashby:
   enabled: true
+  regions: [global]
   # fal-ai: fal.ai moved off Greenhouse (token 'fal' 404s) onto Ashby, slug
   # verified 2026-08-27 via fal.ai/careers -> jobs.ashbyhq.com/fal-ai (31 jobs live).
   # windmill and vellum dropped 2026-08-27: both posting-api 404 now. windmill.dev/careers
@@ -83,6 +104,7 @@ ashby:
   # nubank: its Greenhouse token now returns 0 jobs; the live board is here (120 roles).
 workable:
   enabled: false
+  regions: [global]
   # Probed 2026-08-27: apply.workable.com/api/v1/widget/accounts/<slug> now answers
   # with a Cloudflare "Security challenge" HTML page (HTTP 200, not JSON) for every
   # slug tried, so there is nothing safe to parse. Leave off.
@@ -95,46 +117,55 @@ workable:
 # Aggregators (on by default; keyed ones skip cleanly until their key is in .env)
 adzuna:                            # countries + queries from sources.local.yaml; needs ADZUNA_APP_ID / ADZUNA_APP_KEY
   enabled: true
+  regions: [global]
   # `countries:` replaces the old single `country:`. Adzuna allows ~250 calls/day;
   # this config spends ~90 (18 MX queries x 3 pages + 10 US queries x 3 pages).
   pages: 3
   results_per_page: 50
 themuse:                           # US/global tech; works anon, THEMUSE_API_KEY optional
   enabled: true
+  regions: [global]
   # Was pages: 3, i.e. 60 of the 1,196 rows behind the Software Engineering +
   # Flexible/Remote filter. 25 pages x 20 rows x 2 categories is the real depth.
   pages: 25
 findwork:                          # remote/tech; needs FINDWORK_TOKEN
   enabled: true
+  regions: [global]
   remote: true
   # 2 not 3: findwork's undocumented limiter starts 429ing past ~30 requests a
   # run, and the backoff sleeps were the single biggest cost of the discover run.
   pages: 2
 softserve:                         # SoftServe own careers board (SEO sitemap + JSON-LD JobPosting; no key)
   enabled: true
+  regions: [latam, europe]
   workers: 8
 torre:                             # remote-LATAM depth (grey-zone public JSON, no key); queries from sources.local.yaml
   enabled: true
+  regions: [latam]
   size: 20                         # endpoint 400s above ~30 per page
   pages: 3
   remote: true
 careerjet:                         # locale + location from sources.local.yaml; uses CAREERJET_AFFID (verified live)
   enabled: true
+  regions: [global]
   pagesize: 50
   pages: 5                         # response reports ~25 pages for a broad keyword
 # Net-new ATS platforms (curate slugs, then flip enabled - like recruitee)
 personio:                          # EU startups; XML feed, no key
   enabled: false
+  regions: [global]
   # 14 slugs probed 2026-08-27; only `personio` (1 role) and `orderbird` (5) answer,
   # and neither is remote-LATAM. Not worth a request per run yet.
   companies: []                    # e.g. [personio]  ->  {company}.jobs.personio.de/xml
 bamboohr:                          # net-new company coverage; no key
   enabled: false
+  regions: [global]
   # 20 remote-first slugs probed 2026-08-27 (close, doist, buffer, zapier, ...):
   # every one either NXDOMAINs or returns an empty result array.
   companies: []                    # e.g. [close]  ->  {company}.bamboohr.com/careers/list
 workday:                           # large enterprises on Workday CxS (POST, no key)
   enabled: true
+  regions: [global]
   limit: 20
   pages: 5
   # Verified 2026-08-27 (POST returns a jobPostings array). The list endpoint has
@@ -142,21 +173,44 @@ workday:                           # large enterprises on Workday CxS (POST, no 
   # keeps each tenant's slice engineering-shaped.
 teamtailor:                        # per-company JSON Feed ({slug}.teamtailor.com/jobs.json), no key
   enabled: false
+  regions: [global]
   # `companies:` (tenant slugs, the {slug} in {slug}.teamtailor.com) live in
   # config/sources.local.yaml. Verified 2026-09-01: full descriptions, schema.org locations.
 pinpoint:                          # Pinpoint ATS, {subdomain}.pinpointhq.com/postings.json, no key
   enabled: false
+  regions: [global]
 rippling:                          # Rippling ATS public board API, no key
   enabled: false
+  regions: [global]
 secretlab:                         # Secretlab's in-house openings API (single company), no key
   enabled: false                    # single-company adapter, verified 2026-09-01 (19 rows)
+  regions: [global]
+
+# European boards, verified 2026-10-06 (docs/sources-europe.md). Each is gated to its
+# country, so it runs for a profile that covers that country, the EU or Europe.
+jobtech:                           # Sweden: Arbetsförmedlingen JobSearch API, CC0 ads, no key; queries from sources.local.yaml
+  enabled: true
+  regions: [sweden]
+  limit: 100                       # the API's maximum per request
+  pages: 2
+jobindex:                          # Denmark: the per-search RSS each search page advertises, no key; queries from sources.local.yaml
+  enabled: true
+  regions: [denmark]
+  # One feed page per query (20 items): robots.txt disallows `page=` on /jobsoegning.
+berlinstartupjobs:                 # Germany: the category RSS feed, no key, no targeting needed
+  enabled: true
+  regions: [germany]
+  categories: [engineering]
+  pages: 3                         # ~12 items a page; the engineering feed was 32 deep on 2026-10-06
 
 # Grey-zone boards (need endpoint/session work before they return rows)
 consider:                          # VC talent boards; client-rendered, endpoint not yet captured
   enabled: false
+  regions: [global]
   boards: []                       # e.g. [sequoia-capital]
 workatastartup:                    # YC WaaS; job API needs a browser session (406 otherwise)
   enabled: false
+  regions: [global]
 
 # Grey-zone gap filler (OFF by default, read the README before enabling)
 # jobspy:  # scrapes Indeed/LinkedIn; breaks often, ToS risk, needs proxies for LinkedIn

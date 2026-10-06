@@ -146,12 +146,12 @@ regions:
     codes: [ch]
     within: [europe]
   sweden:
-    aliases: [sweden]
+    aliases: [sweden, sverige]
     cities: [stockholm]
     codes: [se]
     within: [eu]
   denmark:
-    aliases: [denmark]
+    aliases: [denmark, danmark]
     cities: [copenhagen]
     codes: [dk]
     within: [eu]
