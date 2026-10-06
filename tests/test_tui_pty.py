@@ -20,7 +20,7 @@ pytestmark = [pytest.mark.pty, pytest.mark.skipif(sys.platform == "win32", reaso
 CHILD = Path(__file__).with_name("tui_pty_child.py")
 # A terminal editor as the TUI sees one: it takes the terminal, says it is up, reads nothing
 # (so whatever the terminal sends meanwhile stays queued, as a late reply does) and leaves.
-EDITOR = "import sys, time; print('EDITOR-UP', sys.argv[1], flush=True); time.sleep(0.5)"
+EDITOR = "import sys, time; print('EDITOR-UP', sys.argv[1], flush=True); time.sleep(0.2)"
 LATE_REPLY = b"\x1bP1$r2 q\x1b\\" + b"q"        # DECRQSS cursor-style answer, then a bare q for good measure
 
 
@@ -95,7 +95,7 @@ def test_a_terminal_editor_round_trip_survives_a_late_terminal_reply(term):
     up = term.wait_for(b"EDITOR-UP")
     term.send(LATE_REPLY)                                        # lands while the editor holds the terminal, unread
     back = term.wait_for(b"e edits", since=up)                   # the editor left, the TUI drew itself again
-    term.read(DEAF_SECONDS + 0.2)                                # the whole deaf window, then the human q
+    term.read(DEAF_SECONDS + 0.1)                                # the whole deaf window, then the human q
     assert term.alive(), "the late reply was read as `q` and quit the TUI"
     assert b"CHILD-EXITED-CLEAN" not in term.seen[back:]
 
