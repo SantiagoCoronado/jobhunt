@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<rss version="2.0"
+ xmlns:blogChannel="http://backend.userland.com/blogChannelModule"
+>
+
+<channel>
+<title>Jobindex - Ledige job indeholdende ordet react</title>
+<link>https://www.jobindex.dk/jobsoegning?q=react</link>
+<description>Danmarks st&#xF8;rste jobmarked</description>
+<language>da</language>
+<docs>http://blogs.law.harvard.edu/tech/rss</docs>
+<webMaster>support@jobindex.dk (Jobindex)</webMaster>
+<ttl>1440</ttl>
+
+<image>
+<title>Jobindex - Ledige job indeholdende ordet react</title>
+<url>https://www.jobindex.dk/img/jobindex130x30gray.gif</url>
+<link>https://www.jobindex.dk/jobsoegning?q=react</link>
+</image>
+<item>
+<title>IT-udvikler til drift og udvikling af Danmarks Forskningsportal, Danmarks Statistik</title>
+<link>https://www.jobindex.dk/vis-job/h1704690</link>
+<description>
+
+&#x3C;div class=&#x22;jobsearch-result&#x22;&#x3E;
+&#x3C;div class=&#x22;PaidJob&#x22;&#x3E;
+
+
+    &#x3C;div class=&#x22;PaidJob-inner&#x22;&#x3E;
+        
+
+&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1704690&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;&#x3C;img src=&#x22;https://www.jobindex.dk/img/logo/DST_logo_mer20130315.gif&#x22; ALIGN=&#x22;right&#x22; ALT=&#x22;Danmarks Statistik&#x22; style=&#x22;border: 0px; margin: 0 0 5px 20px;&#x22;&#x3E;&#x3C;/a&#x3E;
+&#x3C;h4&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1704690&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;IT-udvikler til drift og udvikling af Danmarks Forskningsportal&#x3C;/a&#x3E;&#x3C;/h4&#x3E;
+
+        &#x3C;div class=&#x22;jobad-element-area&#x22;&#x3E;
+            &#x3C;span class=&#x22;jix_robotjob--area&#x22;&#x3E;K&#xF8;benhavn &#xD8;&#x3C;/span&#x3E;
+            
+        &#x3C;/div&#x3E;
+
+&#x3C;p&#x3E;Har du erfaring med at udvikle moderne digitale l&#xF8;sninger p&#xE5; tv&#xE6;rs af b&#xE5;de front- og back-end-teknologier?&#x3C;/p&#x3E;&#x3C;p&#x3E;Vi s&#xF8;ger en IT-udvikler til b&#xE5;de drift og udvikling af Danmarks Forskningsportal, som indsamler og udstiller data om det danske forskningslandskab. Du bliver en del af et omr&#xE5;de i st&#xE6;rk udvikling, hvor data, kvalitet og nye brugerorienterede l&#xF8;sninger er omdrejningspunktet.&#x3C;/p&#x3E;
+
+
+    &#x3C;/div&#x3E;
+
+&#x3C;/div&#x3E;
+&#x3C;/div&#x3E;
+</description>
+<category>Systemudvikling og programmering</category>
+<category>&#xD8;konomi- og virksomhedssystemer</category>
+<category>IT-drift og support</category>
+<category>Internet og WWW</category>
+<category>Database</category>
+<guid isPermaLink="false">https://www.jobindex.dk/1704690</guid>
+<pubDate>Tue, 6 Oct 2026 00:00:00 +0200</pubDate>
+</item>
+<item>
+<title>Software Developer, Grundfos A/S</title>
+<link>https://www.jobindex.dk/vis-job/h1704198</link>
+<description>
+
+&#x3C;div class=&#x22;jobsearch-result&#x22;&#x3E;
+&#x3C;div class=&#x22;PaidJob&#x22;&#x3E;
+
+
+    &#x3C;div class=&#x22;PaidJob-inner&#x22;&#x3E;
+        
+
+&#x3C;CENTER style=&#x22;margin-bottom: 15px;&#x22;&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1704198&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;&#x3C;img src=&#x22;https://www.jobindex.dk/api/imagescaler/v1/brand/8_humanjobimage_grundfos_157_20260320.png?max_width=525&#x22; ALT=&#x22;Grundfos A/S&#x22; style=&#x22;border: 0px; margin: 0 0 5px 0;&#x22;&#x3E;&#x3C;/a&#x3E;&#x3C;/CENTER&#x3E;
+&#x3C;h4&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1704198&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;Software Developer&#x3C;/a&#x3E;&#x3C;/h4&#x3E;
+
+        &#x3C;div class=&#x22;jobad-element-area&#x22;&#x3E;
+            &#x3C;span class=&#x22;jix_robotjob--area&#x22;&#x3E;Bjerringbro, Hybrid position&#x3C;/span&#x3E;
+            
+        &#x3C;/div&#x3E;
+
+&#x3C;p&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1704198&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;&#x3C;img src=&#x22;https://www.jobindex.dk/img/brand/6_spo_video_grundfos_157_20260318.jpg&#x22; align=&#x22;right&#x22; style=&#x22;margin-left:10px;&#x22;&#x3E;&#x3C;/a&#x3E;Are you passionate about building software that powers real-world manufacturing and drives the digital transformation of global production?&#x3C;/p&#x3E;&#x3C;p&#x3E;You&#x26;#39;ll be designing, developing, and maintaining full-stack applications for Manufacturing Execution Systems (MES) that support critical production processes across Grundfos&#x26;#39;s global manufacturing sites.&#x3C;/p&#x3E;
+&#x3C;center&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1704198&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;&#x3C;img src=&#x22;https://www.jobindex.dk/api/imagescaler/v1/brand/9_spo_bund_grundfos_157_20260318.png?max_width=525&#x22; alt=&#x22;Grundfos A/S&#x22; style=&#x22;border: 0px; margin-top: 5px;&#x22;&#x3E;&#x3C;/a&#x3E;&#x3C;/center&#x3E;
+
+    &#x3C;/div&#x3E;
+
+&#x3C;/div&#x3E;
+&#x3C;/div&#x3E;
+</description>
+<category>Systemudvikling og programmering</category>
+<guid isPermaLink="false">https://www.jobindex.dk/1704198</guid>
+<pubDate>Mon, 5 Oct 2026 00:00:00 +0200</pubDate>
+</item>
+<item>
+<title>Social Media &#x26; Influencer Specialist for PlayStation, Nordisk Interactive, Nordisk Film</title>
+<link>https://www.jobindex.dk/vis-job/h1703573</link>
+<description>
+
+&#x3C;div class=&#x22;jobsearch-result&#x22;&#x3E;
+&#x3C;div class=&#x22;PaidJob&#x22;&#x3E;
+
+
+    &#x3C;div class=&#x22;PaidJob-inner&#x22;&#x3E;
+        
+
+&#x3C;CENTER style=&#x22;margin-bottom: 15px;&#x22;&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1703573&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;&#x3C;img src=&#x22;https://www.jobindex.dk/img/brand/28_spo_top_nordiskfilm_9334_20240523.png&#x22; ALT=&#x22;Nordisk Interactive A/S&#x22; style=&#x22;border: 0px; margin: 0;&#x22;&#x3E;&#x3C;/a&#x3E;&#x3C;/CENTER&#x3E;
+&#x3C;h4&#x3E;&#x3C;A HREF=&#x22;https://www.jobindex.dk/vis-job/h1703573&#x22; rel=&#x22;noopener&#x22; target=&#x22;_blank&#x22;&#x3E;Social Media &#x26;amp; Influencer Specialist for PlayStation, Nordisk Interactive&#x3C;/a&#x3E;&#x3C;/h4&#x3E;
+
+        &#x3C;div class=&#x22;jobad-element-area&#x22;&#x3E;
+            &#x3C;span class=&#x22;jix_robotjob--area&#x22;&#x3E;Valby&#x3C;/span&#x3E;
+            
+        &#x3C;/div&#x3E;
+
+&#x3C;p&#x3E;Do you love gaming, social media and creator culture - and do you know how to make a global brand feel local?&#x3C;/p&#x3E;&#x3C;p&#x3E;You will help run PlayStation&#x2019;s Danish social channels day to day. That means planning, publishing, adapting content, engaging with the community and making sure our tone feels right for our Danish audience.&#x3C;/p&#x3E;
+&#x3C;center&#x3E;&#x3C;img src=&#x22;https://www.jobindex.dk/api/imagescaler/v1/brand/0_spo_bund_nordiskfilm_9334_20240523.png?max_width=525&#x22; alt=&#x22;Nordisk Interactive A/S&#x22; style=&#x22;border: 0px; margin-top: 5px;&#x22;&#x3E;&#x3C;/center&#x3E;
+
+    &#x3C;/div&#x3E;
+
+&#x3C;/div&#x3E;
+&#x3C;/div&#x3E;
+</description>
+<category>Kommunikation og journalistik</category>
+<category>Marketing</category>
+<category>Internet og WWW</category>
+<guid isPermaLink="false">https://www.jobindex.dk/1703573</guid>
+<pubDate>Thu, 1 Oct 2026 00:00:00 +0200</pubDate>
+</item>
+</channel>
+</rss>

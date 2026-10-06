@@ -186,6 +186,23 @@ secretlab:                         # Secretlab's in-house openings API (single c
   enabled: false                    # single-company adapter, verified 2026-09-01 (19 rows)
   regions: [global]
 
+# European boards, verified 2026-10-06 (docs/sources-europe.md). Each is gated to its
+# country, so it runs for a profile that covers that country, the EU or Europe.
+jobtech:                           # Sweden: Arbetsförmedlingen JobSearch API, CC0 ads, no key; queries from sources.local.yaml
+  enabled: true
+  regions: [sweden]
+  limit: 100                       # the API's maximum per request
+  pages: 2
+jobindex:                          # Denmark: the per-search RSS each search page advertises, no key; queries from sources.local.yaml
+  enabled: true
+  regions: [denmark]
+  # One feed page per query (20 items): robots.txt disallows `page=` on /jobsoegning.
+berlinstartupjobs:                 # Germany: the category RSS feed, no key, no targeting needed
+  enabled: true
+  regions: [germany]
+  categories: [engineering]
+  pages: 3                         # ~12 items a page; the engineering feed was 32 deep on 2026-10-06
+
 # Grey-zone boards (need endpoint/session work before they return rows)
 consider:                          # VC talent boards; client-rendered, endpoint not yet captured
   enabled: false

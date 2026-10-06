@@ -35,6 +35,8 @@ ADAPTERS = [
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",
     "adzuna", "themuse", "findwork", "careerjet", "torre", "posthog",
     "consider", "workatastartup",
+    # European boards (docs/sources-europe.md), region-gated to their country
+    "jobtech", "jobindex", "berlinstartupjobs",
 ]
 
 

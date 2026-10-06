@@ -1,0 +1,407 @@
+{
+ "total": {
+  "value": 197
+ },
+ "positions": 296,
+ "query_time_in_millis": 2,
+ "result_time_in_millis": 15,
+ "stats": [],
+ "freetext_concepts": {
+  "skill": [
+   "react"
+  ],
+  "occupation": [],
+  "trait": [],
+  "location": [],
+  "skill_must": [],
+  "occupation_must": [],
+  "trait_must": [],
+  "location_must": [],
+  "skill_must_not": [],
+  "occupation_must_not": [],
+  "trait_must_not": [],
+  "location_must_not": []
+ },
+ "hits": [
+  {
+   "relevance": 1.0,
+   "id": "31493144",
+   "external_id": null,
+   "original_id": null,
+   "label": [],
+   "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/31493144",
+   "logo_url": "https://arbetsformedlingen.se/rest/employer-logo-api/api/v1/organisation/5569868606/logotyper/logo.png",
+   "headline": " Fullstackutvecklare Java & React",
+   "application_deadline": "2026-10-18T23:59:59",
+   "number_of_vacancies": 1,
+   "description": {
+    "text": "Vi söker för rekrytering till kund en fullstackutvecklare med bred teknisk profil. Rekryteringen görs till ett ledande svenskt konsultbolag. Du är lika bekväm i frontend som backend och trivs i en roll där du bidrar genom hela stacken.\nVi söker dig som har:\nMinst 5 års erfarenhet av fullstackutveckling\nStarka kunskaper i React och TypeScript i frontend\nGedigen erfarenhet av Java i backend\nErfarenhet av AWS och molnbaserade arkitekturer\nFörståelse för CI/CD, API-design och moderna utvecklingsmetoder\n\n\n\nJappa – en vassare väg till uppdrag inom e-handel och tech.\nAnsökan \nFör att kunna ansöka till Jappas uppdrag behöver du skapa en konsultprofil i vår plattform och sedan skicka in din ansökan. ",
+    "text_formatted": "<p>Vi söker för rekrytering till kund en fullstackutvecklare med bred teknisk profil. Rekryteringen görs till ett ledande svenskt konsultbolag. Du är lika bekväm i frontend som backend och trivs i en roll där du bidrar genom hela stacken.</p><p><strong>Vi söker dig som har:</strong></p><ul><li>Minst 5 års erfarenhet av fullstackutveckling</li><li>Starka kunskaper i React och TypeScript i frontend</li><li>Gedigen erfarenhet av Java i backend</li><li>Erfarenhet av AWS och molnbaserade arkitekturer</li><li>Förståelse för CI/CD, API-design och moderna utvecklingsmetoder</li></ul><p><br></p><p><strong>Jappa – en vassare väg till uppdrag inom e-handel och tech.</strong></p><p><strong>Ansökan </str",
+    "company_information": null,
+    "needs": null,
+    "requirements": null,
+    "conditions": null
+   },
+   "employment_type": {
+    "concept_id": "sTu5_NBQ_udq",
+    "label": "Tidsbegränsad anställning",
+    "legacy_ams_taxonomy_id": null
+   },
+   "salary_type": {
+    "concept_id": "oG8G_9cW_nRf",
+    "label": "Fast månads- vecko- eller timlön",
+    "legacy_ams_taxonomy_id": "1"
+   },
+   "salary_description": null,
+   "duration": {
+    "concept_id": "9RGe_UxD_FZw",
+    "label": "12 månader – upp till 2 år",
+    "legacy_ams_taxonomy_id": "9"
+   },
+   "working_hours_type": {
+    "concept_id": "6YE1_gAC_R2G",
+    "label": "Heltid",
+    "legacy_ams_taxonomy_id": "1"
+   },
+   "scope_of_work": {
+    "min": 100,
+    "max": 100
+   },
+   "access": null,
+   "employer": {
+    "phone_number": null,
+    "email": null,
+    "url": "http://www.jappa.jobs",
+    "organization_number": "5569868606",
+    "name": "New Terms AB",
+    "workplace": "New Terms AB"
+   },
+   "application_details": {
+    "information": null,
+    "reference": null,
+    "email": null,
+    "via_af": false,
+    "url": "www.jappa.jobs",
+    "other": null
+   },
+   "experience_required": true,
+   "access_to_own_car": false,
+   "driving_license_required": false,
+   "driving_license": null,
+   "occupation": {
+    "concept_id": "rQds_YGd_quU",
+    "label": "Mjukvaruutvecklare",
+    "legacy_ams_taxonomy_id": "80"
+   },
+   "occupation_group": {
+    "concept_id": "DJh5_yyF_hEM",
+    "label": "Mjukvaru- och systemutvecklare m.fl.",
+    "legacy_ams_taxonomy_id": "2512"
+   },
+   "occupation_field": {
+    "concept_id": "apaJ_2ja_LuF",
+    "label": "Data/IT",
+    "legacy_ams_taxonomy_id": "3"
+   },
+   "workplace_model": {
+    "concept_id": null,
+    "label": null
+   },
+   "workplace_address": {
+    "municipality": "Göteborg",
+    "municipality_code": "1480",
+    "municipality_concept_id": "PVZL_BQT_XtL",
+    "region": "Västra Götalands län",
+    "region_code": "14",
+    "region_concept_id": "zdoY_6u5_Krt",
+    "country": "Sverige",
+    "country_code": "199",
+    "country_concept_id": "i46j_HmG_v64",
+    "street_address": null,
+    "postcode": null,
+    "city": null,
+    "coordinates": [
+     null,
+     null
+    ]
+   },
+   "workplace_addresses": [
+    {
+     "municipality": "Göteborg",
+     "municipality_code": "1480",
+     "municipality_concept_id": "PVZL_BQT_XtL",
+     "region": "Västra Götalands län",
+     "region_code": "14",
+     "region_concept_id": "zdoY_6u5_Krt",
+     "country": "Sverige",
+     "country_code": "199",
+     "country_concept_id": "i46j_HmG_v64",
+     "street_address": null,
+     "postcode": null,
+     "city": null,
+     "coordinates": [
+      null,
+      null
+     ]
+    }
+   ],
+   "must_have": {
+    "skills": [
+     {
+      "weight": null,
+      "concept_id": "SaTd_K5z_ex1",
+      "label": "Artificial Intelligence/Artificiell intelligens/AI",
+      "legacy_ams_taxonomy_id": "609332"
+     },
+     {
+      "weight": null,
+      "concept_id": "jCsR_WQX_CKD",
+      "label": "Java, programmeringsspråk",
+      "legacy_ams_taxonomy_id": "200028"
+     },
+     {
+      "weight": null,
+      "concept_id": "TdnY_1gB_9pZ",
+      "label": "React native, programmeringsspråk",
+      "legacy_ams_taxonomy_id": "609329"
+     },
+     {
+      "weight": null,
+      "concept_id": "USj9_RR6_Q1z",
+      "label": "TypeScript, programmeringsspråk",
+      "legacy_ams_taxonomy_id": "609406"
+     },
+     {
+      "weight": null,
+      "concept_id": "KRDJ_nhm_wLb",
+      "label": "Amazon Web Services (AWS), molnplattform",
+      "legacy_ams_taxonomy_id": "609418"
+     }
+    ],
+    "languages": [
+     {
+      "weight": 10,
+      "concept_id": "NVxJ_hLg_TYS",
+      "label": "Engelska",
+      "legacy_ams_taxonomy_id": "283"
+     },
+     {
+      "weight": 10,
+      "concept_id": "zSLA_vw2_FXN",
+      "label": "Svenska",
+      "legacy_ams_taxonomy_id": "502"
+     }
+    ],
+    "work_experiences": [
+     {
+      "weight": 10,
+      "concept_id": "rQds_YGd_quU",
+      "label": "Mjukvaruutvecklare",
+      "legacy_ams_taxonomy_id": "80"
+     }
+    ],
+    "education": [],
+    "education_level": []
+   },
+   "nice_to_have": {
+    "skills": [
+     {
+      "weight": null,
+      "concept_id": "z52H_f4y_4ZA",
+      "label": "Linux, operativsystem",
+      "legacy_ams_taxonomy_id": "602551"
+     }
+    ],
+    "languages": [],
+    "work_experiences": [],
+    "education": [
+     {
+      "weight": 5,
+      "concept_id": "WFCz_teU_KFf",
+      "label": "Teknik och teknisk industri",
+      "legacy_ams_taxonomy_id": "15"
+     }
+    ],
+    "education_level": [
+     {
+      "weight": 5,
+      "concept_id": "asZm_TEQ_Srk",
+      "label": "Eftergymnasial utbildning två år eller längre",
+      "legacy_ams_taxonomy_id": "6"
+     }
+    ]
+   },
+   "application_contacts": [],
+   "publication_date": "2026-09-18T10:34:35",
+   "last_publication_date": "2026-10-18T23:59:59",
+   "removed": false,
+   "removed_date": null,
+   "source_type": "VIA_ANNONSERA",
+   "timestamp": 1789720475672
+  },
+  {
+   "relevance": 0.9834300287812116,
+   "id": "31256399",
+   "external_id": null,
+   "original_id": null,
+   "label": [],
+   "webpage_url": "https://arbetsformedlingen.se/platsbanken/annonser/31256399",
+   "logo_url": "https://arbetsformedlingen.se/rest/employer-logo-api/api/v1/organisation/5564519345/logotyper/logo.png",
+   "headline": "Senior Frontend developer– React",
+   "application_deadline": "2027-01-03T23:59:59",
+   "number_of_vacancies": 1,
+   "description": {
+    "text": "On behalf of our client\nLocation: On-site primarily (with hybrid flexibility) Company: Nexer Maverick\nAbout the role\nNexer Maverick is looking for a Senior Frontend developer with a strong focus on React on behalf of one of our clients. You will join a modern digital product team working with user-centric solutions in a fast-moving environment.\nIn this role, you will be a key contributor in building modern, intuitive user interfaces and driving frontend development forward. You will collaborate closely with designers and backend developers, while also taking on a mentoring role within the team.\nYour responsibilities\nDrive planning, development, and implementation of user interfaces\n\n\nDevelop",
+    "text_formatted": "<p><strong>On behalf of our client</strong></p><p><strong>Location:</strong> On-site primarily (with hybrid flexibility) <strong>Company:</strong> Nexer Maverick</p><strong>About the role</strong><p>Nexer Maverick is looking for a <strong>Senior Frontend developer with a strong focus on React</strong> on behalf of one of our clients. You will join a modern digital product team working with user-centric solutions in a fast-moving environment.</p><p>In this role, you will be a key contributor in building modern, intuitive user interfaces and driving frontend development forward. You will collaborate closely with designers and backend developers, while also taking on a mentoring role within the",
+    "company_information": null,
+    "needs": null,
+    "requirements": null,
+    "conditions": null
+   },
+   "employment_type": {
+    "concept_id": "PFZr_Syz_cUq",
+    "label": "Vanlig anställning",
+    "legacy_ams_taxonomy_id": "1"
+   },
+   "salary_type": {
+    "concept_id": "asrX_9Df_ukn",
+    "label": "Fast och rörlig lön",
+    "legacy_ams_taxonomy_id": "7"
+   },
+   "salary_description": null,
+   "duration": {
+    "concept_id": "a7uU_j21_mkL",
+    "label": "Tills vidare",
+    "legacy_ams_taxonomy_id": "1"
+   },
+   "working_hours_type": {
+    "concept_id": "6YE1_gAC_R2G",
+    "label": "Heltid",
+    "legacy_ams_taxonomy_id": "1"
+   },
+   "scope_of_work": {
+    "min": 100,
+    "max": 100
+   },
+   "access": null,
+   "employer": {
+    "phone_number": null,
+    "email": null,
+    "url": "https://nexergroup.teamtailor.com",
+    "organization_number": "5564519345",
+    "name": "Nexer AB",
+    "workplace": "Nexer Group"
+   },
+   "application_details": {
+    "information": null,
+    "reference": "teamtailor-8031974-2090724",
+    "email": null,
+    "via_af": false,
+    "url": "https://nexergroup.teamtailor.com/jobs/8031974-senior-frontend-developer-react/applications/new?promotion=2090724-arbetsformedlingen",
+    "other": null
+   },
+   "experience_required": true,
+   "access_to_own_car": false,
+   "driving_license_required": false,
+   "driving_license": null,
+   "occupation": {
+    "concept_id": "GDHs_eoz_uKx",
+    "label": "Frontend-utvecklare",
+    "legacy_ams_taxonomy_id": "7633"
+   },
+   "occupation_group": {
+    "concept_id": "DJh5_yyF_hEM",
+    "label": "Mjukvaru- och systemutvecklare m.fl.",
+    "legacy_ams_taxonomy_id": "2512"
+   },
+   "occupation_field": {
+    "concept_id": "apaJ_2ja_LuF",
+    "label": "Data/IT",
+    "legacy_ams_taxonomy_id": "3"
+   },
+   "workplace_model": {
+    "concept_id": null,
+    "label": null
+   },
+   "workplace_address": {
+    "municipality": "Göteborg",
+    "municipality_code": "1480",
+    "municipality_concept_id": "PVZL_BQT_XtL",
+    "region": "Västra Götalands län",
+    "region_code": "14",
+    "region_concept_id": "zdoY_6u5_Krt",
+    "country": "Sverige",
+    "country_code": "199",
+    "country_concept_id": "i46j_HmG_v64",
+    "street_address": "Lindholmspiren 9",
+    "postcode": "41756",
+    "city": "Göteborg",
+    "coordinates": [
+     11.9405419709546,
+     57.7062402675412
+    ]
+   },
+   "workplace_addresses": [
+    {
+     "municipality": "Göteborg",
+     "municipality_code": "1480",
+     "municipality_concept_id": "PVZL_BQT_XtL",
+     "region": "Västra Götalands län",
+     "region_code": "14",
+     "region_concept_id": "zdoY_6u5_Krt",
+     "country": "Sverige",
+     "country_code": "199",
+     "country_concept_id": "i46j_HmG_v64",
+     "street_address": "Lindholmspiren 9",
+     "postcode": "41756",
+     "city": "Göteborg",
+     "coordinates": [
+      11.9405419709546,
+      57.7062402675412
+     ]
+    }
+   ],
+   "must_have": {
+    "skills": [],
+    "languages": [
+     {
+      "weight": 10,
+      "concept_id": "zSLA_vw2_FXN",
+      "label": "Svenska",
+      "legacy_ams_taxonomy_id": "502"
+     },
+     {
+      "weight": 10,
+      "concept_id": "NVxJ_hLg_TYS",
+      "label": "Engelska",
+      "legacy_ams_taxonomy_id": "283"
+     }
+    ],
+    "work_experiences": [
+     {
+      "weight": 10,
+      "concept_id": "GDHs_eoz_uKx",
+      "label": "Frontend-utvecklare",
+      "legacy_ams_taxonomy_id": "7633"
+     }
+    ],
+    "education": [],
+    "education_level": []
+   },
+   "nice_to_have": {
+    "skills": [],
+    "languages": [],
+    "work_experiences": [],
+    "education": [],
+    "education_level": []
+   },
+   "application_contacts": [],
+   "publication_date": "2026-07-07T16:04:30",
+   "last_publication_date": "2027-01-03T23:59:59",
+   "removed": false,
+   "removed_date": null,
+   "source_type": "VIA_JOBPOSTING",
+   "timestamp": 1783433070271
+  }
+ ]
+}

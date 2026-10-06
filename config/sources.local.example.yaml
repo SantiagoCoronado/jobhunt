@@ -50,6 +50,10 @@
 #   countries: [Portugal, Spain]
 # jobicy:
 #   tags: [frontend, javascript, react, typescript]
+# jobtech:                                  # Sweden (runs when your profile covers Sweden, the EU or Europe)
+#   queries: [frontend, react, typescript]
+# jobindex:                                 # Denmark, one 20-item feed per query
+#   queries: [frontend, react, typescript]
 
 # ---- Extra title words for the discovery gate (appended to the profile-derived list) ----
 # title_filter:

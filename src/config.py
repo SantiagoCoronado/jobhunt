@@ -473,7 +473,7 @@ TARGETING_KEYS: dict[str, tuple[tuple[str, ...], ...]] = {
     "adzuna": (("countries", "country"),), "careerjet": (("locale_code",), ("location",)),
     "getonbrd": (("queries",),), "torre": (("queries",),), "findwork": (("search",),),
     "themuse": (("locations", "location", "categories"),), "softserve": (("countries",),),
-    "jobicy": (("tags",),),
+    "jobicy": (("tags",),), "jobtech": (("queries",),), "jobindex": (("queries",),),
 }
 
 

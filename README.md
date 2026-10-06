@@ -30,6 +30,9 @@ Every source declares the regions it serves (`regions:` in `config/sources.yaml`
 whose regions miss your profile's locations and relocation regions stays off, and
 `python -m src.discover` says so in one line naming the `enabled: true` key that forces it on
 in `config/sources.local.yaml`.
+European boards (Sweden's JobTech API, Jobindex in Denmark, Berlin Startup Jobs) run for a
+profile that covers their country, the EU or Europe; `docs/sources-europe.md` has the
+verification record.
 
 ## Setup
 
