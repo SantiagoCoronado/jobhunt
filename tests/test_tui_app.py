@@ -36,7 +36,7 @@ def test_q_quits():
     _run(scenario())
 
 
-def test_status_list_shows_hot_counts_in_order_with_a_dimmed_all():
+def test_status_list_shows_hot_counts_in_order_with_a_dimmed_all_then_the_dream_list():
     for status, n in (("shortlisted", 3), ("applied", 2), ("discovered", 4), ("irrelevant", 5)):
         for _ in range(n):
             _add(status=status)
@@ -46,8 +46,9 @@ def test_status_list_shows_hot_counts_in_order_with_a_dimmed_all():
         async with app.run_test(size=(140, 30)) as pilot:
             await _settle(app, pilot)
             sl = app.screen.query_one(StatusList)
-            assert [o.id for o in sl.options] == [*HOT, "all"]
+            assert [o.id for o in sl.options] == [*HOT, "all", "dream"]
             lines = {o.id: o.prompt for o in sl.options}
+            assert lines["dream"].plain.split() == ["dream", "list", "0"]
             assert lines["shortlisted"].plain.split() == ["shortlisted", "3"]
             assert lines["applied"].plain.split() == ["applied", "2"]
             assert lines["offer"].plain.split() == ["offer", "0"]
@@ -70,6 +71,9 @@ def test_moving_in_the_status_list_sets_the_table_filter():
             await pilot.pause()
             assert app.screen.status_filter == "shortlisted"
             await pilot.press("end")
+            await pilot.pause()
+            assert app.screen.status_filter == "dream"
+            await pilot.press("k")
             await pilot.pause()
             assert app.screen.status_filter == "all"
     _run(scenario())
@@ -517,7 +521,7 @@ def test_slash_searches_inside_the_filter_d_prefix_in_all_and_esc_clears():
             assert table.job_ids == [fde, noted, plain] and not box.display and box.value == ""
 
             app.screen.query_one(StatusList).focus()
-            await pilot.press("end")
+            await pilot.press("end", "k")                 # `all`, just above the dream list
             await _settle(app, pilot)
             await pilot.press("slash", *"kafka")
             await _settle(app, pilot)
@@ -629,7 +633,8 @@ def test_help_overlay_lists_every_binding_by_group_and_footer_reads_the_same_tab
             assert app.screen is jobs
 
             shown = {(k.key, k.description) for k in jobs.query_one(Footer).query("FooterKey")}
-            table = {(b.key, b.description) for b in (*JobsScreen.BINDINGS, *JobhuntApp.BINDINGS) if b.show}
+            table = {(b.key, b.description) for b in (*JobsScreen.BINDINGS, *JobhuntApp.BINDINGS)
+                     if b.show and jobs.check_action(b.action, ())}     # `a` `x` wait for the dream list entry
             assert table <= shown and ("question_mark", "help") in shown
             assert not any(key in ("j", "k", "escape") for key, _ in shown)
     _run(scenario())
@@ -1345,7 +1350,7 @@ def test_the_legend_under_the_status_list_says_what_the_marks_mean_per_section()
                                      "(dream) dream list", "all discovered rows", "· no value"]
             assert all(len(ln) <= 19 for ln in lines(legend))                   # fits the 22-cell pane
             assert legend.region.y >= sl.region.bottom and legend.region.bottom == sl.parent.region.bottom
-            assert sl.region.height == len(HOT) + 1
+            assert sl.region.height == len(HOT) + 2
 
             spans = {legend.text().plain[s.start:s.end]: str(s.style) for s in legend.text().spans}
             assert spans[SAMPLE_DATE] == "red"
@@ -1369,6 +1374,66 @@ def test_the_legend_under_the_status_list_says_what_the_marks_mean_per_section()
         async with short.run_test(size=(140, 14)) as pilot:                      # a short terminal
             await _settle(short, pilot)
             sl = short.screen.query_one(StatusList)
-            assert sl.region.height == len(HOT) + 1                              # the status list keeps every line
+            assert sl.region.height == len(HOT) + 2                              # the status list keeps every line
             assert short.screen.query_one(Legend).region.height < 6              # the legend gave way
+    _run(scenario())
+
+
+def test_the_dream_list_entry_filters_the_board_and_a_x_edit_the_list():
+    """The board's Dream tab (docs/spec-pre-release.md decision 9): the rows at a dream company,
+    hot or discovered; `a` adds a company and `x` removes one, both only on that entry, every
+    write through src.tui.data and the db accessors."""
+    from src import dream
+    from src.tui.data import dream_companies
+    from src.tui.widgets.jobs_table import JobsTable
+    from src.tui.widgets.modals import Confirm, Picker, Prompt
+
+    robo = _add(company="Example Robotics", match_score=70)
+    cold = _add(company="ExampleRobotics GmbH", status="discovered", match_score=50)
+    acme = _add(company="Acme Corp", match_score=90)
+
+    async def scenario():
+        app = JobhuntApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await _settle(app, pilot)
+            jobs, table = app.screen, app.screen.query_one(JobsTable)
+            await pilot.press("a")                                  # not on the dream entry: nothing opens
+            await pilot.pause()
+            assert app.screen is jobs and not jobs.check_action("dream_add", ())
+
+            jobs.query_one(StatusList).focus()
+            await pilot.press("end")
+            await _settle(app, pilot)
+            assert jobs.status_filter == "dream" and jobs.check_action("dream_remove", ())
+            assert table.job_ids == [robo, cold]                    # hot and discovered, score order
+            counts = {o.id: o.prompt.plain.split()[-1] for o in jobs.query_one(StatusList).options}
+            assert counts["dream"] == "2"
+
+            await pilot.press("a")
+            await pilot.pause()
+            assert isinstance(app.screen, Prompt)
+            await pilot.press("enter")                              # a name is required
+            await pilot.pause()
+            assert isinstance(app.screen, Prompt) and "company name" in str(app.screen.query_one("#prompt-error").content)
+            await pilot.press(*"Acme, acme corp", "enter")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert [d.name for d in dream_companies()] == ["Acme"]
+            assert table.job_ids == [acme]                          # the table's list now: the seed is not in it
+
+            await pilot.press("x")
+            await _settle(app, pilot)
+            assert isinstance(app.screen, Picker)
+            await pilot.press("enter")
+            await pilot.pause()
+            assert isinstance(app.screen, Confirm)
+            await pilot.press("y")
+            await _settle(app, pilot)
+            await _settle(app, pilot)
+            assert dream_companies() == [] and table.job_ids == []
+            assert not dream.is_dream("Acme Corp")
+
+            await pilot.press("x")                                  # an empty list: a toast, no picker
+            await _settle(app, pilot)
+            assert app.screen is jobs
     _run(scenario())

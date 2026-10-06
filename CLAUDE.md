@@ -34,7 +34,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
    `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
    2026-09-18). Board and follow-ups share one three-pane screen (the shortlist section is gone since 2026-09-20; status list, jobs table,
-   detail); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
+   detail; the board's status list ends with `dream list`, the rows at a dream company, where `a` adds a
+   company and `x` removes one through `data.add_dream` / `remove_dream`); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
    stored, feeds `c` and the runner only), `space`/`v` select by hand for bulk status (the marks are the app's,
    `src/tui/selection.py`, shared by every section), `c` copies `/jh-tailor` lines; section 3 lists `applications/` beside the DB
    (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 4 prints `stats funnel`; section 5 is the

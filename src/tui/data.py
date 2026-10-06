@@ -22,7 +22,7 @@ from ..hunt import doctor as hunt_doctor
 from ..hunt import harness as hunt_harness
 from ..hunt import ledger as hunt_ledger
 from . import commands, settings
-from .presets import ALL, COLD, HOT, PRESETS, Sort
+from .presets import ALL, COLD, DREAM, HOT, PRESETS, Sort
 
 ALL_CAP = 500        # discovered rows shown under `all` (~15k exist); search narrows, never scroll
 EVENTS_SHOWN = 5
@@ -131,11 +131,17 @@ def db_mtime() -> float:
 
 
 def counts() -> dict[str, int]:
-    """Hot statuses in `db.STATUSES` order (zeros included), then `all` = the discovered count."""
+    """Hot statuses in `db.STATUSES` order (zeros included), then `all` = the discovered count,
+    then `dream` = the listed rows (hot or discovered) at a company on the dream list."""
+    listed = (*HOT, *COLD)
     with _conn() as conn:
         got = dict(conn.execute("SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
+        by_company = conn.execute(
+            f"SELECT company, COUNT(*) FROM jobs WHERE status IN ({','.join('?' for _ in listed)}) "
+            "GROUP BY company", listed).fetchall() if dream.dream_companies() else []
     out = {s: got.get(s, 0) for s in HOT}
     out[ALL] = sum(got.get(s, 0) for s in COLD)
+    out[DREAM] = sum(n for company, n in by_company if dream.is_dream(company))
     return out
 
 
@@ -165,7 +171,7 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
     scored hot rows and not a single discovered one. A `sort` orders each half on its own."""
     p = PRESETS[preset]
     order_by = sort.order_by if sort else p.order_by
-    if status is not None and status != ALL and status not in HOT:
+    if status is not None and status not in (ALL, DREAM) and status not in HOT:
         raise ValueError(f"{status!r} is not a status the TUI shows")
 
     q = query.strip()
@@ -186,7 +192,73 @@ def rows(preset: str = "board", status: str | None = None, query: str = "",
     with _conn() as conn:
         if status == ALL:
             return select(conn, COLD, ALL_CAP) + select(conn, HOT, None)
+        if status == DREAM:
+            return _dream_rows(conn, order_by, match, match_args)
         return select(conn, (status,) if status else p.statuses, None)
+
+
+def _dream_rows(conn: sqlite3.Connection, order_by: str, match: str, match_args: list[object]) -> list[JobRow]:
+    """The Dream tab: every listed row (hot or discovered) at a dream company, in one order.
+    SQL narrows by a LIKE per alias (a superset: no word boundaries there), then `is_dream`
+    keeps the rows the alias rules really match."""
+    aliases = [a for d in dream.dream_companies() for a in d["match"]]
+    if not aliases:
+        return []
+    listed = (*HOT, *COLD)
+    where = (f"status IN ({','.join('?' for _ in listed)}) AND ("
+             + " OR ".join("company LIKE ? ESCAPE '\\'" for _ in aliases) + ")"
+             + (f" AND {match}" if match else ""))
+    sql = f"SELECT {_ROW_COLS} FROM jobs WHERE {where} ORDER BY {order_by}"
+    found = (_job_row(r) for r in conn.execute(sql, [*listed, *(_like(a) for a in aliases), *match_args]))
+    return [r for r in found if r.dream]
+
+
+@dataclass(frozen=True)
+class DreamCompany:
+    name: str
+    match: tuple[str, ...]
+    careers_url: str
+    note: str
+
+
+def dream_companies() -> list[DreamCompany]:
+    """The dream list as the table holds it, by name."""
+    with _conn() as conn:
+        return [DreamCompany(d["name"], tuple(d["match"]), d["careers_url"], d["note"])
+                for d in db.list_dream(conn)]
+
+
+def dream_name(company: str) -> str:
+    """The dream list's name for a company string ("" when it is not on the list)."""
+    return dream.dream_name(company) or ""
+
+
+def parse_dream(text: str) -> str:
+    """The `a` prompt's line, `Name, alias, alias`, checked: a name is required. Returns it as typed."""
+    if not text.split(",", 1)[0].strip():
+        raise ValueError("type a company name, then any aliases after commas")
+    return text.strip()
+
+
+def add_dream(text: str) -> str:
+    """Add `Name, alias, alias` to the dream list (db.add_dream) and drop src.dream's cache so
+    the next load flags the rows. Raises ValueError for an empty or duplicate name."""
+    name, *aliases = [part.strip() for part in parse_dream(text).split(",")]
+    with _conn() as conn:
+        row = db.add_dream(conn, name, [a for a in aliases if a])
+        conn.commit()
+    dream.reset_cache()
+    return f"{row['name']} is on the dream list (matches {', '.join(row['match'])})"
+
+
+def remove_dream(name: str) -> str:
+    with _conn() as conn:
+        gone = db.remove_dream(conn, name)
+        conn.commit()
+    dream.reset_cache()
+    if not gone:
+        raise ValueError(f"{name} is not on the dream list")
+    return f"{name} is off the dream list"
 
 
 def rows_by_id(ids: set[int] | frozenset[int]) -> list[JobRow]:

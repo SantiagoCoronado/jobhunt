@@ -45,7 +45,8 @@ def test_counts_hot_with_zeros_and_all_is_discovered(env):
         for _ in range(n):
             env(status=status)
     got = data.counts()
-    assert list(got) == [*HOT, "all"]
+    assert list(got) == [*HOT, "all", "dream"]
+    assert got["dream"] == 0
     assert got["shortlisted"] == 2 and got["applied"] == 1 and got["offer"] == 0
     assert got["all"] == 3
     assert "irrelevant" not in got and "expired" not in got and "discovered" not in got
@@ -141,11 +142,40 @@ def test_description_prefix_only_in_the_all_view(env):
     assert data.rows("board", "shortlisted", "d:kafka") == []
 
 
-def test_row_carries_the_dream_flag_from_the_profile(env):
+def test_row_carries_the_dream_flag_from_the_dream_list(env):
     env(company="Example Robotics")
     env(company="Acme")
     flags = {r.company: r.dream for r in data.rows("board")}
     assert flags == {"Example Robotics": True, "Acme": False}
+
+
+def test_the_dream_entry_lists_hot_and_discovered_dream_rows_and_counts_them(env):
+    hot = env(company="Example Robotics", match_score=80)
+    cold = env(company="ExampleRobotics GmbH", status="discovered", match_score=90)
+    env(company="Example Robotics", status="irrelevant")          # never listed anywhere
+    env(company="Robotics Example Inc")                            # LIKE-free, but no alias matches
+    env(company="Acme")
+    assert [r.id for r in data.rows("board", "dream")] == [cold, hot]
+    assert [r.id for r in data.rows("board", "dream", "gmbh")] == [cold]     # search narrows inside it
+    assert data.counts()["dream"] == 2
+
+
+def test_dream_writes_go_through_the_table_and_the_next_load_sees_them(env):
+    acme = env(company="Acme Corp")
+    assert acme not in [r.id for r in data.rows("board", "dream")]
+    line = data.add_dream("Acme, acme corp")
+    assert line == "Acme is on the dream list (matches acme corp, acme)"
+    assert [d.name for d in data.dream_companies()] == ["Acme"]
+    assert [r.id for r in data.rows("board", "dream")] == [acme]
+    assert data.dream_name("ACME CORP") == "Acme"
+    with pytest.raises(ValueError, match="already a dream company"):
+        data.add_dream("acme")
+    with pytest.raises(ValueError, match="type a company name"):
+        data.parse_dream(" , alias")
+    assert data.remove_dream("Acme") == "Acme is off the dream list"
+    assert data.rows("board", "dream") == [] and data.dream_name("Acme Corp") == ""
+    with pytest.raises(ValueError, match="not on the dream list"):
+        data.remove_dream("Acme")
 
 
 def test_parse_verdict_shapes():
