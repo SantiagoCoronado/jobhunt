@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from src.tui.app import DEAF_SECONDS
+
 pty = pytest.importorskip("pty")
 pytestmark = [pytest.mark.pty, pytest.mark.skipif(sys.platform == "win32", reason="no pty")]
 
@@ -93,7 +95,7 @@ def test_a_terminal_editor_round_trip_survives_a_late_terminal_reply(term):
     up = term.wait_for(b"EDITOR-UP")
     term.send(LATE_REPLY)                                        # lands while the editor holds the terminal, unread
     back = term.wait_for(b"e edits", since=up)                   # the editor left, the TUI drew itself again
-    term.read(1.0)
+    term.read(DEAF_SECONDS + 0.2)                                # the whole deaf window, then the human q
     assert term.alive(), "the late reply was read as `q` and quit the TUI"
     assert b"CHILD-EXITED-CLEAN" not in term.seen[back:]
 
