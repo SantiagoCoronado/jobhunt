@@ -12,7 +12,7 @@ mentions below are the record of when it existed.
 fan-out (triage, match, research, tailor) is the main session launching sub-agents by hand and
 waiting. Nothing records what already finished, so a session that dies, hits the plan rate limit
 or gets interrupted starts the hunt over or guesses where it was. The main session is also the
-largest token line left after Notion went (`docs/token-efficiency.md`: 16.9M of 25.9M on
+largest token line left after Notion went (`docs/history/token-efficiency.md`: 16.9M of 25.9M on
 2026-09-02), because every step's output lands in its context and is re-read on every later call.
 
 Two constraints shape the fix:
@@ -405,7 +405,7 @@ PR 2 starts.
 7. **Resume**: `--resume`, re-verify outputs on disk, skip done units, the lockfile; tests kill
    a fake run mid-stage and resume it.
 8. **Wire the skills**: `/jh-hunt` rewritten per section 9, `ai_pass.sh` calls `hunt run --to
-   match`, CLAUDE.md Pipeline and Commands sections updated, `docs/token-efficiency.md` gains a
+   match`, CLAUDE.md Pipeline and Commands sections updated, `docs/history/token-efficiency.md` gains a
    "measured under the orchestrator" row after the first real hunt.
 
 ### PR 4: `feat/hunt-harnesses`

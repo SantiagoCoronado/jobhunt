@@ -12,7 +12,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `load_yaml("sources.yaml")`; `missing_targeting` skips an enabled source whose targeting
    is absent, with a hint. Keyed sources read `.env` (copy `.env.example`) via
    `src.config.get_secret`; a source with no key prints a hint and yields nothing (never breaks the run).
-   Opt-in sources are gated by `enabled:` in the tracked file (see `docs/new-sources.md`).
+   Opt-in sources are gated by `enabled:` in the tracked file (see `docs/history/new-sources.md`).
    A shared `title_filter:` gates off-family titles centrally in `src/discover.py`
    (word-boundary match; calibrated 2026-08-27 to keep every row that ever reached shortlisted).
    `config.sources()` builds its `include` list from the tracked generic-engineering base plus
@@ -49,7 +49,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `settings.TUI_TOML`, `hunt.config.HUNT_TOML`, `ledger.HUNT_DIR`,
    `commands.launch`, `commands.pbcopy` and `commands.capture` (a captured command is a child process and would read the real DB).
    Notion is gone since 2026-09-04 (pull script and command deleted; its MCP push had cost
-   25M to 65M context tokens per hunt, `docs/token-efficiency.md`). The hunt picks its 5 targets with
+   25M to 65M context tokens per hunt, `docs/history/token-efficiency.md`). The hunt picks its 5 targets with
    `python -m src.pick` (star rule, dream slots, skips companies already in play).
    `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
@@ -88,7 +88,7 @@ catalog, caps, timeouts, retries); `config/profile.yaml` still says what counts 
 The ledger is `data/hunt/<run_id>/` (`state.json`, `events.jsonl`, `prompts/`, `logs/`,
 `picks.json`, `report.md`); questions a run cannot ask become `needs_human` lines in the report.
 
-**Token discipline** (audit 2026-09-02, `docs/token-efficiency.md`): measure any hunt with
+**Token discipline** (audit 2026-09-02, `docs/history/token-efficiency.md`): measure any hunt with
 `python scripts/token_audit.py --latest` (per agent, per tool, per phase; `--all` for one row per
 session; `--hunt RUN|latest` reads the run's ledger instead: per stage, per harness, biggest
 units). Rules that fell out of it: no Notion in the hunt; subagents reply in one line or under

@@ -1,6 +1,6 @@
 # Spec: lean tailor (`src/tailor_bundle.py`, `src/tailor_build.py`, resume-tailor protocol)
 
-Status: draft for review, 2026-09-02. Follows the audit in `docs/token-efficiency.md`.
+Status: draft for review, 2026-09-02. Follows the audit in `docs/history/token-efficiency.md`.
 One PR per phase (A, B, C). Nothing here changes what the tailor is allowed to write:
 Fable still writes every word, only reframes master-resume facts, obeys
 `docs/writing-voice.md`, zero em-dashes, and the deliverable names stay

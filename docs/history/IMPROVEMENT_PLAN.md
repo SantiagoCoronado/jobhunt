@@ -1,5 +1,7 @@
 # jobhunt Improvement Plan
 
+> The author's record, kept for the numbers.
+
 Full backlog from the July 2026 project review, organized into implementable phases.
 Each item states WHAT to do, WHY it matters, and HOW to do it (files, acceptance criteria).
 Phases are ordered by leverage: fix the broken funnel first, then the automated loop,

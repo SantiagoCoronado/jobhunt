@@ -89,7 +89,7 @@ workable:
   accounts: []
 
 # ---------------------------------------------------------------------------
-# New sources (docs/new-sources.md). Keys live in .env (copy .env.example).
+# New sources (docs/history/new-sources.md). Keys live in .env (copy .env.example).
 # ---------------------------------------------------------------------------
 
 # Aggregators (on by default; keyed ones skip cleanly until their key is in .env)
