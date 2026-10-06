@@ -31,6 +31,7 @@ from pathlib import Path
 import yaml
 
 from . import geo
+from .geo import outside_relocation_regions, relocation_scope  # noqa: F401  (re-exported)
 from . import render_docx as rd
 from .db import connect
 from .config import resume_basename, safe_profile
@@ -182,26 +183,8 @@ def _norm(s: str) -> str:
     return " ".join(s.split()).lower()
 
 
-# Where is a posting located, relative to the candidate's relocation regions
-# (profile `work_authorization.relocation_regions`, resolved through config/geo.yaml)? A dream
-# row outside them must NOT carry the relocation line; the letter needs a visa note instead.
-
-
-def relocation_scope(prof: dict | None = None) -> set[str]:
-    """The regions a dream row may sit in without a visa note: the profile's
-    `work_authorization.relocation_regions` plus the home region (a dream row at home needs
-    no relocation). `relocation_regions: []` therefore means home only. Empty only when no
-    home resolves either, and then nothing is ever outside."""
-    if prof is None:
-        prof = safe_profile()
-    regions = set((prof.get("work_authorization") or {}).get("relocation_regions") or [])
-    return regions | geo.home(prof)
-
-
-def outside_relocation_regions(location: str | None, scope: set[str] | None = None) -> bool:
-    """True when the posting sits somewhere the relocation line does not cover. Pass the
-    scope from `relocation_scope()` when calling per row; None reads the profile once."""
-    return geo.outside(location, relocation_scope() if scope is None else scope)
+# Where a posting sits relative to the relocation regions lives in geo (re-exported here), so
+# `src.pick` and the TUI reach it without importing the renderer and python-docx.
 
 
 def resolve_job(folder: Path, job: dict | None) -> dict:

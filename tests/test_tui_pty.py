@@ -12,13 +12,15 @@ from pathlib import Path
 
 import pytest
 
+from src.tui.app import DEAF_SECONDS
+
 pty = pytest.importorskip("pty")
 pytestmark = [pytest.mark.pty, pytest.mark.skipif(sys.platform == "win32", reason="no pty")]
 
 CHILD = Path(__file__).with_name("tui_pty_child.py")
 # A terminal editor as the TUI sees one: it takes the terminal, says it is up, reads nothing
 # (so whatever the terminal sends meanwhile stays queued, as a late reply does) and leaves.
-EDITOR = "import sys, time; print('EDITOR-UP', sys.argv[1], flush=True); time.sleep(1.0)"
+EDITOR = "import sys, time; print('EDITOR-UP', sys.argv[1], flush=True); time.sleep(0.2)"
 LATE_REPLY = b"\x1bP1$r2 q\x1b\\" + b"q"        # DECRQSS cursor-style answer, then a bare q for good measure
 
 
@@ -93,15 +95,13 @@ def test_a_terminal_editor_round_trip_survives_a_late_terminal_reply(term):
     up = term.wait_for(b"EDITOR-UP")
     term.send(LATE_REPLY)                                        # lands while the editor holds the terminal, unread
     back = term.wait_for(b"e edits", since=up)                   # the editor left, the TUI drew itself again
-    term.read(1.0)
+    term.read(DEAF_SECONDS + 0.1)                                # the whole deaf window, then the human q
     assert term.alive(), "the late reply was read as `q` and quit the TUI"
     assert b"CHILD-EXITED-CLEAN" not in term.seen[back:]
 
     term.send(b"q")                                              # a moment later a human q still quits
     term.wait_for(b"CHILD-EXITED-CLEAN", since=back)
-    term.read(0.5)
-    for _ in range(50):
-        if not term.alive():
-            break
-        time.sleep(0.1)
+    end = time.monotonic() + 5.0                                 # drain the pty until the child is reaped
+    while term.alive() and time.monotonic() < end:
+        term.read(0.05)
     assert term.status is not None and os.waitstatus_to_exitcode(term.status) == 0

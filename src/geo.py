@@ -28,7 +28,7 @@ import argparse
 import re
 from functools import lru_cache
 
-from .config import CONFIG_DIR, load_yaml
+from .config import CONFIG_DIR, load_yaml, safe_profile
 
 GEO_FILE = CONFIG_DIR / "geo.yaml"
 US = "united states"
@@ -170,7 +170,7 @@ def reachable(found: set[str], scope: set[str]) -> bool:
 def outside(location: str | None, scope: set[str] | list[str] | tuple[str, ...]) -> bool:
     """True when the string names somewhere and none of it is reachable from `scope`.
     Empty scope: nothing is ever outside; callers pass the home region in the scope
-    (`tailor_build.relocation_scope`), so an empty scope means no region resolved at all."""
+    (`relocation_scope`), so an empty scope means no region resolved at all."""
     scope = set(scope or ())
     loc = str(location or "").strip()
     if not loc or not scope:
@@ -195,6 +195,28 @@ def home(profile: dict) -> set[str]:
     for entry in profile.get("locations") or []:
         found |= hits(str(entry))
     return found
+
+
+# Where is a posting located, relative to the candidate's relocation regions
+# (profile `work_authorization.relocation_regions`, resolved through config/geo.yaml)? A dream
+# row outside them must NOT carry the relocation line; the letter needs a visa note instead.
+
+
+def relocation_scope(prof: dict | None = None) -> set[str]:
+    """The regions a dream row may sit in without a visa note: the profile's
+    `work_authorization.relocation_regions` plus the home region (a dream row at home needs
+    no relocation). `relocation_regions: []` therefore means home only. Empty only when no
+    home resolves either, and then nothing is ever outside."""
+    if prof is None:
+        prof = safe_profile()
+    regions = set((prof.get("work_authorization") or {}).get("relocation_regions") or [])
+    return regions | home(prof)
+
+
+def outside_relocation_regions(location: str | None, scope: set[str] | None = None) -> bool:
+    """True when the posting sits somewhere the relocation line does not cover. Pass the
+    scope from `relocation_scope()` when calling per row; None reads the profile once."""
+    return outside(location, relocation_scope() if scope is None else scope)
 
 
 def home_words(home_regions: set[str]) -> list[str]:

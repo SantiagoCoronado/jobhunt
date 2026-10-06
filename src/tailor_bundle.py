@@ -33,7 +33,7 @@ from .answers_export import render as render_answers
 from .config import ROOT, resume_basename, user_file
 from .db import connect
 from .dream import is_dream
-from .tailor_build import outside_relocation_regions, relocation_scope
+from .geo import outside_relocation_regions, relocation_scope
 from .reconcile import APPS_DIR, find_folder
 from .research import dossier_info
 from .tailor_state import update_state

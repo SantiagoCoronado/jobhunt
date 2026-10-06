@@ -4,6 +4,7 @@ from __future__ import annotations
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.reactive import reactive
+from textual.screen import Screen
 from textual.widgets import Footer, Label
 
 
@@ -16,6 +17,22 @@ class SectionFooter(Footer):
                                  color: $footer-key-foreground; text-style: bold; }
     """
     note: reactive[str] = reactive("", recompose=True)
+    _rebuild_queued = False
+
+    def bindings_changed(self, screen: Screen) -> None:
+        """Textual's Footer queues one full recompose per bindings signal, and a screen coming
+        up sends a burst of them (mount, every focus move, the mode switch): a dozen rebuilds of
+        every key, each restyled, before the first paint. One rebuild per burst is the same strip."""
+        self._bindings_ready = True
+        if not screen.app.app_focus or self._rebuild_queued:
+            return
+        if self.is_attached and screen is self.screen:
+            self._rebuild_queued = True
+            self.call_after_refresh(self._rebuild)
+
+    async def _rebuild(self) -> None:
+        self._rebuild_queued = False
+        await self.recompose()
 
     def compose(self) -> ComposeResult:
         if self.note:
