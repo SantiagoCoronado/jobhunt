@@ -216,7 +216,7 @@ def add_usage(total: dict[str, Any] | None, usage: dict[str, Any] | None) -> dic
 
 def context_total(usage: dict[str, Any] | None) -> int | None:
     """Every token the model read: input + cache read + cache create, the number a long
-    agentic run pays for (`docs/token-efficiency.md`); None when nothing was reported."""
+    agentic run pays for (`docs/history/token-efficiency.md`); None when nothing was reported."""
     if not usage:
         return None
     parts = [usage.get(k) for k in ("input", "cache_read", "cache_create")]

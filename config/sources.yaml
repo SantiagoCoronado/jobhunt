@@ -68,7 +68,7 @@ smartrecruiters:                   # per-company; list endpoint has no descripti
 greenhouse:
   enabled: true
   # Display names for tokens whose Title()-cased slug is not the company name. Matters
-  # for dream companies: the dream-sheet row and the ATS row must share a canonical_key.
+  # for dream companies: a hand-entered row (`query add`) and the ATS row must share a canonical_key.
 lever:
   enabled: true
   # mistral answers 200 with an empty list right now (board between postings); kept.
@@ -89,7 +89,7 @@ workable:
   accounts: []
 
 # ---------------------------------------------------------------------------
-# New sources (docs/new-sources.md). Keys live in .env (copy .env.example).
+# New sources (docs/history/new-sources.md). Keys live in .env (copy .env.example).
 # ---------------------------------------------------------------------------
 
 # Aggregators (on by default; keyed ones skip cleanly until their key is in .env)
@@ -151,15 +151,6 @@ rippling:                          # Rippling ATS public board API, no key
 secretlab:                         # Secretlab's in-house openings API (single company), no key
   enabled: false                    # single-company adapter, verified 2026-09-01 (19 rows)
 
-# The hand-curated dream-company sheet (Google Sheets, private: its CSV export 401s).
-# `/jh-discover` reads it through the Drive tool and saves the markdown table to `path`;
-# this adapter only parses that file. Rows bypass the title gate (they are hand-picked)
-# and land with the sheet's priority / work-auth / notes as a "Curated:" block.
-dreamsheet:
-  enabled: false
-  path: data/dream_sheet.md
-  title_filter: {enabled: false}
-
 # Grey-zone boards (need endpoint/session work before they return rows)
 consider:                          # VC talent boards; client-rendered, endpoint not yet captured
   enabled: false
@@ -185,7 +176,7 @@ workatastartup:                    # YC WaaS; job API needs a browser session (4
 # ---------------------------------------------------------------------------
 title_filter:
   enabled: true
-  # Dream companies (profile.yaml dream_companies) skip the gate entirely: their boards
+  # Dream companies (the dream_companies table) skip the gate entirely: their boards
   # are small (a few hundred rows) and the titles worth chasing there ("Member of Technical
   # Staff", "Head of Data Intelligence") are exactly the ones a keyword gate drops.
   skip_dream_companies: true

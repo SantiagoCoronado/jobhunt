@@ -45,7 +45,8 @@ python -m src.init               # creates profile.yaml, master_resume.yaml, ans
 ## Daily use
 
 ```bash
-./run.sh                 # discover + queue + digest
+python -m src.discover   # pull fresh jobs into data/jobs.db
+python -m src.notify     # optional digest of already-scored matches (config/notify.yaml)
 ```
 Then, in Claude Code from this folder:
 ```
@@ -62,6 +63,8 @@ python -m src.query set-status 42 applied
 ```
 Local CRM, a terminal UI (`docs/spec-tui.md`): board and follow-ups over one
 three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `>` `<` `-` sort, `?` every key;
+the `dream list` entry shows the rows at your dream companies (`a` adds one, `x` removes one;
+`python -m src.query dream {list|add|rm}` does the same from a shell);
 `3` the application folders, `4` the funnel, `5` runs a stage or the whole hunt with its log beside it,
 `6` the config files (`e` edits one), `,` the settings (theme, launch section, harness and models, editor):
 ```bash
@@ -84,28 +87,15 @@ git clone https://github.com/<you>/jobhunt.git
 cd jobhunt
 ./setup.sh                       # venv + deps + scaffolds config/notify.yaml
 # paste your Gmail app password into config/notify.yaml (git-ignored, never committed)
-./run.sh --force                 # first discovery run on this machine
+python -m src.discover           # first discovery run on this machine
 ```
-Recommended split: keep the **scheduled** daily run on one always-on machine; use the other
+Recommended split: keep any scheduled run on one always-on machine; use the other
 as an **interactive** client (`/jh-match`, `/jh-tailor` by hand) to avoid double emails. Sync code changes with plain `git pull` / `git push`.
 
 ## Schedule it
 
-Run `./run.sh` daily; its built-in ~18h guard collapses duplicate triggers into one real run.
-
-**Windows 11 + WSL** (in-WSL cron dies when the VM idles, so trigger from Task Scheduler):
-- Program: `wsl.exe`
-- Arguments: `-d Ubuntu -e bash -lc "$HOME/projects/jobhunt/run.sh"`
-- Trigger: daily 08:00 (tick "Wake the computer to run this task")
-
-**macOS** (launchd; runs on the next wake if the Mac was asleep at 08:00):
-```bash
-./mac/install-schedule.sh        # plain daily: discover + queue + digest (run.sh)
-./mac/install-schedule.sh --ai   # OR the AI pass: discover + headless Claude triage/match,
-                                 # THEN the digest, so the email contains today's scores
-launchctl start com.jobhunt.daily   # optional: test the job right now (aipass label with --ai)
-```
-The two variants are mutually exclusive; installing one removes the other.
+Nothing is installed for you. `docs/scheduling.md` shows the one cron or launchd line that runs
+`python -m src.hunt run --to match` and then the digest.
 
 ## Ground rules (baked into the agents)
 

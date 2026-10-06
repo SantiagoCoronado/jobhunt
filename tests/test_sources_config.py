@@ -83,7 +83,7 @@ def test_shipped_sources_yaml_carries_no_targeting():
         block = shipped.get(name) or {}
         for k in (k for group in groups for k in group):
             assert not block.get(k), f"{name}.{k} is set in the tracked sources.yaml"
-    for name in ("teamtailor", "pinpoint", "rippling", "secretlab", "dreamsheet"):
+    for name in ("teamtailor", "pinpoint", "rippling", "secretlab"):
         assert not shipped[name].get("enabled"), f"dream board {name} is on in the tracked file"
 
 

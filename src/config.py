@@ -385,7 +385,7 @@ TARGETING_KEYS: dict[str, tuple[tuple[str, ...], ...]] = {
     "smartrecruiters": (("companies",),), "personio": (("companies",),),
     "bamboohr": (("companies",),), "workday": (("sites",),), "consider": (("boards",),),
     "teamtailor": (("companies",),), "pinpoint": (("companies",),),
-    "rippling": (("companies",),), "dreamsheet": (("file_id",),),
+    "rippling": (("companies",),),
     "adzuna": (("countries", "country"),), "careerjet": (("locale_code",), ("location",)),
     "getonbrd": (("queries",),), "torre": (("queries",),), "findwork": (("search",),),
     "themuse": (("locations", "location", "categories"),), "softserve": (("countries",),),

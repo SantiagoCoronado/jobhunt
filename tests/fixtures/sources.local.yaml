@@ -59,9 +59,3 @@
 # rippling:
 #   enabled: true
 #   companies: [examplecorp]
-
-# ---- Hand-curated dream sheet (optional, a private Google Sheet read by /jh-discover) ----
-# dreamsheet:
-#   enabled: true
-#   file_id: "<google sheet file id>"
-#   path: data/dream_sheet.md

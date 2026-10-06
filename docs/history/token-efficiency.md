@@ -1,5 +1,7 @@
 # Token efficiency of `/jh-hunt`
 
+> The author's record, kept for the numbers.
+
 Audit of 2026-09-02. Tool: `scripts/token_audit.py` (reads the Claude Code session JSONL under
 `~/.claude/projects/<project memory dir>/`, plus each in-process subagent transcript
 under `<session>/subagents/`, dedupes the repeated usage blocks, and reports per agent, per

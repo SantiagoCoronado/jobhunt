@@ -8,7 +8,7 @@ sources.yaml, applied here so no adapter has to repeat it) before it is upserted
 Company boards return every open req they have, and roughly half of that is
 nursing/manufacturing/sales that would otherwise cost a Haiku triage call each.
 The gate reads TITLES only: location is the matcher's job (profile.location_rule).
-Dream companies (profile.dream_companies) skip the gate when
+Dream companies (the dream_companies table, src.dream) skip the gate when
 `title_filter.skip_dream_companies` is on: their boards are small and hand-picked.
 """
 from __future__ import annotations
@@ -27,8 +27,6 @@ ADAPTERS = [
     "greenhouse", "lever", "ashby", "workable",
     "personio", "bamboohr", "workday", "softserve", "teamtailor",
     "pinpoint", "rippling", "secretlab",
-    # The hand-curated dream-company sheet (data/dream_sheet.md)
-    "dreamsheet",
     # Aggregators
     "remoteok", "remotive", "weworkremotely", "hackernews", "getonbrd",
     "jobicy", "arbeitnow", "himalayas", "recruitee", "smartrecruiters",

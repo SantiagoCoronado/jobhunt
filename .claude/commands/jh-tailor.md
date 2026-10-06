@@ -9,7 +9,7 @@ Tailor my application for job id **$ARGUMENTS**.
 1. **Bundle**: run `python -m src.tailor_bundle $ARGUMENTS` with Bash (`.venv/bin/python` if
    plain `python` is not on PATH). It writes `data/tailor/$ARGUMENTS/inputs.md` with every
    input the subagent needs (voice rules, profile, master resume, page geometry, the job with
-   its dream flag and curated block, the dossier, the pre-rendered answers) and prints one line
+   its dream flag, the dossier, the pre-rendered answers) and prints one line
    with the folder, the dream flag, the dossier name and whether it is stale. That line is all
    you need; do NOT run `src.query job`, `src.research get` or `src.answers_export` yourself.
    Aggregator rows (HN "Who is Hiring", Jobgether): add `--company <Employer>` and, when the

@@ -9,11 +9,11 @@ from textual.widgets import Input
 from textual.worker import get_current_worker
 
 from .. import commands, data
-from ..presets import ALL, PICKS_LEAD, PRESETS, SORT_COLUMNS, Sort
+from ..presets import ALL, DREAM, PICKS_LEAD, PRESETS, SORT_COLUMNS, Sort
 from ..widgets.detail import DetailPane
 from ..widgets.jobs_table import JobsTable
 from ..widgets.legend import Legend
-from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Prompt, StatusPicker
+from ..widgets.modals import Confirm, DetailOverlay, NotesEditor, Picker, Prompt, StatusPicker
 from ..widgets.status_list import StatusList
 from .base import SectionScreen
 
@@ -50,6 +50,10 @@ class JobsScreen(SectionScreen):
         Binding("f", "followup", "follow-up", show=False),
         Binding("t", "touch(False)", "touch", show=False),
         Binding("T", "touch(True)", "touch and bump the follow-up", show=False),
+        Binding("a", "dream_add", "add dream",
+                tooltip="dream list entry: add a company to the dream list (aliases after commas)"),
+        Binding("x", "dream_remove", "remove dream",
+                tooltip="dream list entry: take a company off the dream list (this row's is offered first)"),
     ]
 
     def __init__(self, preset: str) -> None:
@@ -194,7 +198,49 @@ class JobsScreen(SectionScreen):
         if self.goto is not None and picked == self.status_filter:
             return                                  # `take_jump` moved the highlight and is loading
         self.status_filter = picked
+        self.refresh_bindings()                     # `a` and `x` belong to the dream list entry
         self.load_rows()
+
+    # The dream list (docs/spec-pre-release.md decision 9): `a` and `x` work on the dream list
+    # entry only, every write goes through data.add_dream / remove_dream and the db accessors.
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in ("dream_add", "dream_remove"):
+            return self.status_filter == DREAM
+        return True
+
+    def action_dream_add(self) -> None:
+        def entered(text: str | None) -> None:
+            if text:
+                self.write(lambda: data.add_dream(text))
+
+        self.app.push_screen(Prompt("add a dream company", "Name, alias, alias (aliases are optional)",
+                                    data.parse_dream), entered)
+
+    def action_dream_remove(self) -> None:
+        row = self.current_row()
+        self.pick_dream_to_remove(row.company if row is not None and row.dream else "")
+
+    @work(thread=True, group="dream", exclusive=True)
+    def pick_dream_to_remove(self, company: str) -> None:
+        listed = data.dream_companies()
+        if not listed:
+            self.app.call_from_thread(self.toast, "the dream list is empty: a adds a company", "warning")
+            return
+        current = data.dream_name(company)
+
+        def picked(name: str | None) -> None:
+            if not name:
+                return
+
+            def answered(yes: bool | None) -> None:
+                if yes:
+                    self.write(lambda: data.remove_dream(name))
+
+            self.app.push_screen(Confirm(f"take {name} off the dream list?"), answered)
+
+        options = [(d.name, f"{d.name}  ({', '.join(d.match)})") for d in listed]
+        self.app.call_from_thread(self.app.push_screen, Picker("remove a dream company", options, current), picked)
 
     def on_data_table_row_highlighted(self, event: JobsTable.RowHighlighted) -> None:
         self.load_detail(self.query_one(JobsTable).current_id, overlay=False)

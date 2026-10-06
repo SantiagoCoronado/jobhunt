@@ -139,15 +139,14 @@ dealbreakers:
   - "annualized base shown and below comp.min_usd_latam_scope"   # annualize first
   - "requires citizenship of a specific country"
 
-# Dream companies: constraints waived, honesty kept (see dream_rule). `src/dream.py` matches
-# the `match` aliases against the posting's company on word boundaries. The entry below is
-# invented so a fresh clone waives nothing by accident; replace it with real companies.
-dream_companies:
-  - {name: "Example Robotics", match: [example robotics, examplerobotics]}
+# Dream companies: constraints waived, honesty kept (see dream_rule). The list itself is data,
+# not a rule: it lives in the dream_companies table of data/jobs.db, edited with
+# `python -m src.query dream {list|add|rm}` or the TUI's Dream tab. `src/dream.py` matches each
+# company's aliases against the posting's company on word boundaries. A fresh clone has none.
 
 # THE authoritative dream-company rule. Agents cite this verbatim; no other file restates it.
 dream_rule: >
-  For a job at a dream company (dream_companies above; exported rows carry `dream: true`)
+  For a job at a dream company (the dream companies list; exported rows carry `dream: true`)
   the constraints are WAIVED and the honesty is NOT. Waived: location_rule (the candidate
   is open to relocating for these companies when the employer sponsors the visa), the comp
   floors, and the on-site/hybrid dealbreaker. Do NOT cap or penalize the score for location

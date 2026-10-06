@@ -18,6 +18,8 @@
                                         # ATS, then aggregator; junk rows revive), else
                                         # inserts source='manual' as discovered;
                                         # status/note/applied-at apply on every call
+  python -m src.query dream {list | add NAME [--match ALIAS ...] [--url U] [--note N] | rm NAME}
+                                        # the dream companies table (data/jobs.db)
 """
 from __future__ import annotations
 
@@ -32,7 +34,7 @@ from .models import Job, now_iso
 
 
 def _with_dream(r) -> dict:
-    """Row -> dict plus `dream` (profile.yaml dream_companies; computed, never stored)."""
+    """Row -> dict plus `dream` (the dream_companies table; computed, never stored on the row)."""
     d = dict(r)
     d["dream"] = is_dream(d.get("company"))
     return d
@@ -174,6 +176,39 @@ def cmd_add(company: str, title: str, url: str | None = None, status: str | None
     print(json.dumps(out, indent=2))
 
 
+def _split_aliases(values: list[str] | None) -> list[str]:
+    """`--match a --match "b, c"` -> [a, b, c]."""
+    return [m.strip() for v in values or [] for m in v.split(",") if m.strip()]
+
+
+def cmd_dream(action: str, name: str | None = None, match: list[str] | None = None,
+              url: str | None = None, note: str | None = None) -> None:
+    """The dream companies table: `list` prints it as JSON, `add` inserts one, `rm` removes one."""
+    from . import dream
+    from .db import add_dream, list_dream, remove_dream
+
+    conn = connect()
+    if action == "list":
+        print(json.dumps(list_dream(conn), indent=2))
+        return
+    if not name:
+        sys.exit(f"dream {action} needs a company name")
+    if action == "add":
+        try:
+            row = add_dream(conn, name, _split_aliases(match), url, note)
+        except ValueError as e:
+            sys.exit(str(e))
+        conn.commit()
+        dream.reset_cache()
+        print(json.dumps({"added": row}, indent=2))
+    else:
+        if not remove_dream(conn, name):
+            sys.exit(f"{name!r} is not a dream company (python -m src.query dream list)")
+        conn.commit()
+        dream.reset_cache()
+        print(json.dumps({"removed": name}))
+
+
 def cmd_touch(job_id: str, date: str | None, bump: bool) -> None:
     conn = connect()
     try:
@@ -215,6 +250,13 @@ if __name__ == "__main__":
     ad.add_argument("--note", help="appended to the job's notes")
     ad.add_argument("--applied-at", help="real application date YYYY-MM-DD (first flip to applied)")
     ad.add_argument("--description", help="role text for the matcher, since no board provides one")
+    dr = sub.add_parser("dream", help="the dream companies table: list, add, rm")
+    dr.add_argument("action", choices=("list", "add", "rm"))
+    dr.add_argument("name", nargs="?", help="company name (add, rm)")
+    dr.add_argument("--match", action="append",
+                    help="an alias the posting's company may carry (repeat, or comma-separate)")
+    dr.add_argument("--url", help="careers page")
+    dr.add_argument("--note", help="why it is on the list")
     a = ap.parse_args()
     if a.cmd == "job":
         job(a.id)
@@ -228,5 +270,7 @@ if __name__ == "__main__":
         cmd_event(a.id, a.kind, a.note)
     elif a.cmd == "add":
         cmd_add(a.company, a.title, a.url, a.status, a.note, a.applied_at, a.description)
+    elif a.cmd == "dream":
+        cmd_dream(a.action, a.name, a.match, a.url, a.note)
     else:
         cmd_touch(a.id, a.date, a.bump)

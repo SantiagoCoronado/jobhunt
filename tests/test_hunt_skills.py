@@ -1,5 +1,5 @@
 """Story 8 of docs/spec-hunt-orchestrator.md PR 3, locked: /jh-hunt is a Bash-only viewer over
-the orchestrator, the scheduled pass calls `hunt run --to match`, the single-use commands
+the orchestrator, the single-use commands
 point at the batch path, and CLAUDE.md names no step the skill no longer has."""
 from __future__ import annotations
 
@@ -30,15 +30,6 @@ def test_jh_hunt_is_a_bash_only_viewer_over_the_orchestrator():
                  "src.pick", "token_audit"):
         assert gone not in body, gone
     assert "No Agent calls, no Workflow" in body and "\u2014" not in body
-
-
-def test_the_scheduled_pass_runs_the_orchestrator_to_match():
-    text = (ROOT / "scripts" / "ai_pass.sh").read_text(encoding="utf-8")
-    code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
-    assert re.search(r"^python -m src\.hunt run --to match\b", code, re.M)
-    assert "claude -p" not in code and "src.discover" not in code          # discover is the run's first stage now
-    assert "--resume" not in code                                          # a scheduled pass starts clean
-    assert "python -m src.notify" in code
 
 
 def test_single_use_commands_point_at_the_batch_path():

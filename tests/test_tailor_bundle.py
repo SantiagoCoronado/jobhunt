@@ -20,8 +20,6 @@ def conn(tmp_path):
          "Build things with React and Python.", 82, json.dumps({"recommendation": "Yes", "location_ok": True}), None, None, None),
         (2, "workday", "x2", "k2", "Example Robotics", "Senior Solutions Architect", "Santa Clara", "https://n/2", "shortlisted",
          "", 90, json.dumps({"visa_path": "TN, employer files"}), None, None, None),
-        (3, "dreamsheet", "x3", "k2", "ExampleRobotics", "Senior Solutions Architect", "Santa Clara", "https://n/2", "discovered",
-         "Curated (dream sheet):\nPriority: Apply this week", None, None, None, None, None),
         (4, "hackernews", "x4", "k4", "HN: Who is Hiring", "Quill", "", "https://hn/4", "shortlisted",
          "Quill | Fullstack SWE | Remote", 84, None, 150000, 210000, "USD"),
     ]
@@ -64,12 +62,11 @@ def test_sections_in_fixed_order_and_meta(conn, apps):
     assert "mail_" not in text and "interviews/" not in text
 
 
-def test_dream_row_gets_flag_curated_block_and_empty_description_pointer(conn, apps):
+def test_dream_row_gets_flag_and_empty_description_pointer(conn, apps):
     text, meta = tbd.build_bundle(conn, 2, apps_dir=apps)
-    assert meta["dream"] is True and meta["curated"] is True
+    assert meta["dream"] is True and "curated" not in meta
     assert "dream: true" in text
     assert "relocation: OUTSIDE the relocation regions (europe, portugal)" in text   # Santa Clara, fixture scope
-    assert "Priority: Apply this week" in text
     assert "Description: EMPTY in the DB" in text
     assert "matcher visa_path: TN, employer files" in text
 

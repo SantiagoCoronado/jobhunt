@@ -1,5 +1,7 @@
 # New job-discovery sources for jobhunt
 
+> The author's record, kept for the numbers.
+
 Research report: candidate sources to wire into `src/adapters/` + `config/sources.yaml`.
 
 - **Generated:** 2026-07-06 via `/deep-research` (104 agents, 22 sources fetched, 25 claims

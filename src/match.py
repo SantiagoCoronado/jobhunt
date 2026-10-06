@@ -110,9 +110,8 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
     priority bucket is derived from the existing match_score. `eligible_only` drops rows whose
     location clearly requires relocating outside the home region (see `_location_plausible`).
 
-    Dream-company rows (profile.yaml dream_companies) always survive `eligible_only`, sort
-    ahead of everything else, carry `dream: true`, and, when the hand-curated sheet has a row
-    for the same role, a `curated_note` with the sheet's priority / work-auth / notes.
+    Dream-company rows (the dream_companies table) always survive `eligible_only`, sort
+    ahead of everything else, and carry `dream: true`.
     """
     skills = _profile_skills()
     conn = connect()
@@ -152,16 +151,6 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
 
     cap = limit if (limit and limit > 0) else None
 
-    def curated_note(r) -> str | None:
-        """The dream sheet's row for this role, if any (its description is the
-        Curated block; the canonical row is usually the ATS one)."""
-        if r["source"] == "dreamsheet":
-            return None
-        hit = conn.execute(
-            "SELECT description FROM jobs WHERE canonical_key=? AND source='dreamsheet' "
-            "AND description IS NOT NULL LIMIT 1", (r["canonical_key"],)).fetchone()
-        return hit["description"] if hit else None
-
     def rec(r, ks, bucket, dream):
         # salary_* carry the posted band when a source published one. They are NOT
         # normalised: sources mix periods (annual/monthly/hourly) and currencies, so the
@@ -180,9 +169,6 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
             out["salary_currency"] = r["currency"]
         if dream:
             out["dream"] = True   # profile.yaml dream_rule applies (matcher reads it)
-            note = curated_note(r)
-            if note:
-                out["curated_note"] = note
         return out
 
     if chunk:

@@ -133,6 +133,18 @@ MIGRATIONS: list[str] = [
     "DROP VIEW IF EXISTS canonical_jobs;" + _CANONICAL_VIEW,
     # 5: same rebuild for pinpoint / rippling / secretlab (dream-company boards).
     "DROP VIEW IF EXISTS canonical_jobs;" + _CANONICAL_VIEW,
+    # 6: the dream companies, moved out of profile.yaml (docs/spec-pre-release.md decision 9).
+    #    `match` is a JSON list of lowercase aliases; the name itself always matches.
+    """
+    CREATE TABLE IF NOT EXISTS dream_companies (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        match       TEXT NOT NULL DEFAULT '[]',
+        careers_url TEXT,
+        note        TEXT,
+        added_at    TEXT NOT NULL
+    );
+    """,
 ]
 
 
@@ -289,3 +301,62 @@ def touch_contact(
     log_event(conn, row["id"], "contact",
               {"date": stamp, "bumped": bump_days is not None})
     return {"id": row["id"], "company": row["company"], "old_status": row["status"], **sets}
+
+
+# ---- dream companies (migration 6; docs/spec-pre-release.md decision 9) ----
+
+def _aliases(name: str, match) -> list[str]:
+    """Lowercase, stripped, de-duplicated aliases in the given order, the name always among them."""
+    out: list[str] = []
+    for m in [*(match or []), name]:
+        m = str(m).lower().strip()
+        if m and m not in out:
+            out.append(m)
+    return out
+
+
+def _dream_row(r: sqlite3.Row) -> dict:
+    import json
+    try:
+        match = json.loads(r["match"] or "[]")
+    except ValueError:
+        match = []
+    return {"id": r["id"], "name": r["name"], "match": _aliases(r["name"], match if isinstance(match, list) else []),
+            "careers_url": r["careers_url"] or "", "note": r["note"] or "", "added_at": r["added_at"]}
+
+
+def list_dream(conn: sqlite3.Connection) -> list[dict]:
+    """Every dream company, by name: {id, name, match, careers_url, note, added_at}."""
+    rows = conn.execute("SELECT * FROM dream_companies ORDER BY name COLLATE NOCASE").fetchall()
+    return [_dream_row(r) for r in rows]
+
+
+def get_dream(conn: sqlite3.Connection, name: str) -> dict | None:
+    r = conn.execute("SELECT * FROM dream_companies WHERE name=?", ((name or "").strip(),)).fetchone()
+    return _dream_row(r) if r else None
+
+
+def add_dream(conn: sqlite3.Connection, name: str, match: list[str] | tuple[str, ...] = (),
+              careers_url: str | None = None, note: str | None = None,
+              added_at: str | None = None) -> dict:
+    """Add one dream company. Raises ValueError on an empty name or one already in the table
+    (names compare without case). Caller commits, same contract as set_status."""
+    import json
+    from datetime import datetime, UTC
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("a dream company needs a name")
+    if get_dream(conn, name):
+        raise ValueError(f"{name!r} is already a dream company")
+    conn.execute(
+        "INSERT INTO dream_companies (name, match, careers_url, note, added_at) VALUES (?,?,?,?,?)",
+        (name, json.dumps(_aliases(name, match)), (careers_url or "").strip() or None,
+         (note or "").strip() or None, added_at or datetime.now(UTC).isoformat(timespec="seconds")))
+    found = get_dream(conn, name)
+    assert found is not None
+    return found
+
+
+def remove_dream(conn: sqlite3.Connection, name: str) -> bool:
+    """Remove a dream company by name (any case). True when a row went. Caller commits."""
+    return conn.execute("DELETE FROM dream_companies WHERE name=?", ((name or "").strip(),)).rowcount > 0

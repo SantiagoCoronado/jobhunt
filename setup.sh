@@ -20,8 +20,8 @@ python -m src.init
 echo
 echo "Setup complete. Next:"
 echo "  source .venv/bin/activate"
-echo "  ./run.sh --force        # first discovery run"
+echo "  python -m src.discover  # first discovery run"
 echo "  # then, in Claude Code from this folder:  /jh-match  ->  /jh-tailor <id>  ->  /jh-followups"
 echo
-echo "To schedule the daily run on macOS:  ./mac/install-schedule.sh"
+echo "To run it on a schedule:             docs/scheduling.md (cron or launchd, nothing installed)"
 echo "To open the TUI with one word:       scripts/install_launcher.sh   # then: jobhunt"

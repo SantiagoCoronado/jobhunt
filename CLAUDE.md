@@ -7,12 +7,12 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    Sources live in `config/sources.yaml` (one block per adapter in `src/adapters/`, each a
    `fetch(cfg) -> list[Job]`), which is tracked and holds adapter MECHANICS only: endpoints,
    page sizes, `enabled:`, field mappings. The user's TARGETING (ATS tokens, countries,
-   locales, query lists, the dreamsheet file id, extra title words) lives in the git-ignored
+   locales, query lists, extra title words) lives in the git-ignored
    `config/sources.local.yaml`. Read the merged view with `src.config.sources()`, never
    `load_yaml("sources.yaml")`; `missing_targeting` skips an enabled source whose targeting
    is absent, with a hint. Keyed sources read `.env` (copy `.env.example`) via
    `src.config.get_secret`; a source with no key prints a hint and yields nothing (never breaks the run).
-   Opt-in sources are gated by `enabled:` in the tracked file (see `docs/new-sources.md`).
+   Opt-in sources are gated by `enabled:` in the tracked file (see `docs/history/new-sources.md`).
    A shared `title_filter:` gates off-family titles centrally in `src/discover.py`
    (word-boundary match; calibrated 2026-08-27 to keep every row that ever reached shortlisted).
    `config.sources()` builds its `include` list from the tracked generic-engineering base plus
@@ -34,7 +34,8 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
 6. **Track** (`python -m src.tui`, or the one-word launcher `jobhunt` = `bin/jobhunt` symlinked by
    `scripts/install_launcher.sh [name]`; a Textual TUI, spec `docs/spec-tui.md`; the Flask viewer is gone since
    2026-09-18). Board and follow-ups share one three-pane screen (the shortlist section is gone since 2026-09-20; status list, jobs table,
-   detail); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
+   detail; the board's status list ends with `dream list`, the rows at a dream company, where `a` adds a
+   company and `x` removes one through `data.add_dream` / `remove_dream`); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
    stored, feeds `c` and the runner only), `space`/`v` select by hand for bulk status (the marks are the app's,
    `src/tui/selection.py`, shared by every section), `c` copies `/jh-tailor` lines; section 3 lists `applications/` beside the DB
    (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 4 prints `stats funnel`; section 5 is the
@@ -49,7 +50,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `db.DB_PATH`, `reconcile.APPS_DIR`, `research.COMPANIES_DIR`, `settings.TUI_TOML`, `hunt.config.HUNT_TOML`, `ledger.HUNT_DIR`,
    `commands.launch`, `commands.pbcopy` and `commands.capture` (a captured command is a child process and would read the real DB).
    Notion is gone since 2026-09-04 (pull script and command deleted; its MCP push had cost
-   25M to 65M context tokens per hunt, `docs/token-efficiency.md`). The hunt picks its 5 targets with
+   25M to 65M context tokens per hunt, `docs/history/token-efficiency.md`). The hunt picks its 5 targets with
    `python -m src.pick` (star rule, dream slots, skips companies already in play).
    `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
@@ -88,7 +89,7 @@ catalog, caps, timeouts, retries); `config/profile.yaml` still says what counts 
 The ledger is `data/hunt/<run_id>/` (`state.json`, `events.jsonl`, `prompts/`, `logs/`,
 `picks.json`, `report.md`); questions a run cannot ask become `needs_human` lines in the report.
 
-**Token discipline** (audit 2026-09-02, `docs/token-efficiency.md`): measure any hunt with
+**Token discipline** (audit 2026-09-02, `docs/history/token-efficiency.md`): measure any hunt with
 `python scripts/token_audit.py --latest` (per agent, per tool, per phase; `--all` for one row per
 session; `--hunt RUN|latest` reads the run's ledger instead: per stage, per harness, biggest
 units). Rules that fell out of it: no Notion in the hunt; subagents reply in one line or under
@@ -96,9 +97,13 @@ units). Rules that fell out of it: no Notion in the hunt; subagents reply in one
 runs render/audit at most twice; triage chunks are 100 rows (Haiku truncates a 200-row JSON
 write); never `python -m src.query crm` inside an orchestrated step.
 
-**Dream companies** (set 2026-09-01): `dream_companies` + `dream_rule` + `relocation_line` +
-`dream_shortlist_threshold` in `config/profile.yaml` are the single authority; `src/dream.py`
-computes `is_dream(company)` from them (never stored, so editing the list never goes stale).
+**Dream companies** (set 2026-09-01; the list moved to the DB 2026-10-06, `docs/spec-pre-release.md`
+decision 9): the LIST is the `dream_companies` table in `data/jobs.db` (name, match aliases, careers
+URL, note, added_at), edited with `python -m src.query dream {list|add|rm}` or the TUI's Dream tab;
+the RULES `dream_rule` + `relocation_line` + `dream_shortlist_threshold` stay in `config/profile.yaml`.
+`python -m src.init` moves an older profile's `dream_companies:` list into the table once (commented
+out under a dated note; until then that list still counts). `src/dream.py` computes `is_dream(company)`
+from the table, cached per process (never stored on a job row, so editing the list never goes stale).
 For those companies the location rule and comp floors are waived, the title gate is skipped,
 match export sorts them first with `dream: true`, ingest shortlists them at the lower cutoff,
 `/jh-hunt` reserves up to 2 of the 5 stars for them, and the tailor adds the relocation line
@@ -106,9 +111,7 @@ and the `relocation_header` note when the role requires presence inside
 `work_authorization.relocation_regions` (plus home; `config/geo.yaml` resolves the location),
 a plain visa note outside them, neither for remote-from-home. Export-control ("US person",
 ITAR), citizens-only and clearance requirements stay hard blocks.
-The hand-curated sheet (`dreamsheet` in `config/sources.local.yaml`, private Google Sheet) is read
-by `/jh-discover` through the Drive tool into `data/dream_sheet.md`, which the adapter parses;
-a dream company with no usable board is sheet rows and outreach only.
+A dream company with no usable board is hand-entered rows (`python -m src.query add`) and outreach only.
 
 Applications are filed by status: `applications/{applied,pending,other}/<company>-<id>/`. New
 `/jh-tailor` drafts land in `pending/`; move a folder to `applied/` once submitted, `other/` for
@@ -166,8 +169,8 @@ Hunt orchestrator: `python -m src.hunt run [--from S] [--to S] [--only S] [--ski
 (`--ids` = research/tailor rows a human chose instead of the pick stage, `src.pick.chosen`)
 (exit 0 done, 2 a stage failed, 3 nothing to tailor), `run --resume RUN|latest` (done units
 skipped, outputs on disk verified again, never a second export; a dead run's lock is taken
-over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. `scripts/ai_pass.sh` is
-`hunt run --to match` then the digest. Stage code is `src/hunt/stages/<stage>.py` over the
+over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. Nothing is scheduled from the tree:
+`docs/scheduling.md` is one paragraph (cron or launchd running `hunt run --to match` then the digest). Stage code is `src/hunt/stages/<stage>.py` over the
 shared `fan.py`. Tests must use a fake harness: `tests/conftest.py` refuses to start a real
 agent CLI, and a bare `hunt run` in a test IS a hunt (patch `connect` and the data dirs of
 every module a stage touches, as `tests/test_hunt_*.py` do).

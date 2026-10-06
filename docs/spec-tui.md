@@ -3,10 +3,13 @@
 Status: draft for review (grilled 2026-09-04, Santiago + Fable). Supersedes the Flask kanban
 (`src/crm/viewer.py`) and closes the Notion chapter (PR 1 below deletes it).
 
+Amended 2026-10-06 by `docs/spec-pre-release.md` decision 11: `run.sh` was removed from the tree; the
+mentions below are the record of when it existed.
+
 ## 1. Why
 
 Notion was the phone-side CRM and the single largest token sink of every hunt
-(`docs/token-efficiency.md`). It left the hunt on 2026-09-02. The Flask board that remained is a
+(`docs/history/token-efficiency.md`). It left the hunt on 2026-09-02. The Flask board that remained is a
 read-mostly page with eleven kanban columns and no room for the description, the verdict or the
 events log. The pipeline already has every write path it needs (`db.set_status`, `touch_contact`,
 `log_event`, `reconcile.sync_folder`, `pick`, `stats`); what is missing is one place to live in
@@ -200,7 +203,7 @@ any text the TUI renders or writes.
 1. Delete `src/notion_pull.py` and `tests/test_notion_pull.py`; drop the `notion_pull` reference from `src/gmail_pull.py`'s docstring (the contract wording moves into gmail_pull itself).
 2. Delete `.claude/commands/jh-notion-sync.md`; remove `query crm` from `src/query.py` (subparser, function, docstring).
 3. Scrub hints: `run.sh`, `setup.sh`, the `notify.py` footer, `pick.py` docstring, `tests/test_pick.py` fixture labels.
-4. Rewrite the Track section and Commands list in `CLAUDE.md`; rewrite README rows and the "local CRM instead of Notion" paragraph; leave `docs/token-efficiency.md` and `docs/IMPROVEMENT_PLAN.md` as history.
+4. Rewrite the Track section and Commands list in `CLAUDE.md`; rewrite README rows and the "local CRM instead of Notion" paragraph; leave `docs/history/token-efficiency.md` and `docs/history/IMPROVEMENT_PLAN.md` as history.
 5. Memory: update the token-efficiency and improvement-plan notes so no memory recommends `/jh-notion-sync`.
 
 ### PR 2: `docs/spec-tui`

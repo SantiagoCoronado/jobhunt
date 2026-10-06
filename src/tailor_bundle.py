@@ -8,7 +8,7 @@ Writes `data/tailor/<id>/inputs.md` with, in this fixed order:
      header_location, work_authorization ...)
   3. master resume (resume/master_resume.yaml, verbatim, the single source of truth)
   4. page geometry (generated from src/render_docx constants, so it can never go stale)
-  5. the job (DB row, dream flag, the dream sheet's Curated block, full description)
+  5. the job (DB row, dream flag, full description)
   6. the company dossier (or one line saying there is none)
   7. answers.md pre-rendered (src.answers_export, why-company left as a TAILOR block)
   8. the existing tailored resume when the application folder already has one
@@ -142,14 +142,6 @@ def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, di
     job = dict(r)
     job["dream"] = is_dream(job.get("company"))
     display = company_override or job["company"]
-    curated = None
-    if job.get("source") == "dreamsheet":
-        curated = job.get("description")
-    elif job.get("canonical_key"):
-        hit = conn.execute(
-            "SELECT description FROM jobs WHERE canonical_key=? AND source='dreamsheet' "
-            "AND description IS NOT NULL LIMIT 1", (job["canonical_key"],)).fetchone()
-        curated = hit["description"] if hit else None
     verdict = {}
     try:
         verdict = json.loads(job.get("match_verdict") or "{}")
@@ -178,15 +170,13 @@ def _job_block(conn, job_id: int, company_override: str | None) -> tuple[str, di
     for k in ("recommendation", "location_ok", "visa_path", "missing_skills", "reasons"):
         if verdict.get(k) not in (None, "", []):
             lines.append(f"matcher {k}: {verdict[k]}")
-    if curated:
-        lines += ["", "Curated (dream sheet), the user's own judgment; quote its priority, never recompute it:", curated.strip()]
     desc = (job.get("description") or "").strip()
-    if desc and job.get("source") != "dreamsheet":
+    if desc:
         lines += ["", "Description:", desc]
     else:
         lines += ["", "Description: EMPTY in the DB for this row. Use the dossier's Target role section as the JD; "
                   "if that is missing too, say so in match_report.md and tailor on the title alone."]
-    return "\n".join(lines), {**job, "display_company": display, "curated": bool(curated)}
+    return "\n".join(lines), {**job, "display_company": display}
 
 
 def _dossier_block(company: str, override: Path | None) -> tuple[str, dict]:
@@ -271,7 +261,7 @@ def build_bundle(conn, job_id: int, company: str | None = None, dossier: str | N
         out.append("")
     text = "\n".join(out)
     meta = {
-        "job_id": job_id, "company": job["display_company"], "dream": job["dream"], "curated": job["curated"],
+        "job_id": job_id, "company": job["display_company"], "dream": job["dream"],
         "dossier": dmeta["dossier"], "dossier_stale": dmeta["stale"],
         "answers_approved": sum(1 for e in entries if not e.get("draft", True)),
         "answers_drafts": len(drafts), "existing_draft": existing.exists(), "review_open": n_review,

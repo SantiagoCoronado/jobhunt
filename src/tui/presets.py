@@ -11,6 +11,9 @@ NEVER = ("irrelevant", "expired")
 COLD = ("discovered",)
 HOT: tuple[str, ...] = tuple(s for s in STATUSES if s not in NEVER + COLD)
 ALL = "all"
+# The board's Dream tab (docs/spec-pre-release.md decision 9): every listed row, hot or
+# discovered, at a company on the dream list; `a` adds a company to the list, `x` removes one.
+DREAM = "dream"
 LIVE = ("applied", "screen", "interview")   # a follow-up date means something only here
 OVERDUE_STYLE = "red"
 # Under this left-pane status the rows `src.pick` would choose lead the preset's own order (the
@@ -70,10 +73,10 @@ class Preset:
 
 
 PRESETS: dict[str, Preset] = {
-    "board": Preset("board", HOT, BY_SCORE, listed=(*HOT, ALL)),
+    "board": Preset("board", HOT, BY_SCORE, listed=(*HOT, ALL, DREAM)),
     # The head entry (the preset's own name) is every live application at once, soonest
     # follow-up first: that is the view the section exists for.
     "followups": Preset("followups", LIVE, BY_FOLLOWUP, listed=("followups", *LIVE),
                         leads=Sort("fup", False)),
 }
-LABELS = {"followups": "follow-ups"}   # left-pane wording for a head entry
+LABELS = {"followups": "follow-ups", DREAM: "dream list"}   # left-pane wording where it is not the id

@@ -29,9 +29,6 @@ here is one the hunt did not need. Use `.venv/bin/python` if plain `python` is n
    Exit 0 is a finished hunt, 3 means the pick found nothing to tailor, 2 means a stage
    failed: say which one from the report and offer `--resume latest`.
 
-The dream sheet is not part of the run (it needs the Drive tool): the discover stage parses
-whatever `data/dream_sheet.md` is on disk. Run `/jh-discover` first when the sheet changed.
-
 `python -m src.hunt doctor` checks the harness, every stage's model and the tool grants
 before a hunt; `python -m src.hunt run --only <stage>` or `--from A --to B` runs a slice.
 
