@@ -16,7 +16,7 @@ it cannot settle. Python narrows; it never decides a status (hints carry a `?`).
 
     python -m src.mail_fetch [--account L ...] [--since YYYY-MM-DD] [--max-days 120]
                              [--status ...] [--limit-per-job 3] [--snippet-chars 800]
-                             [--scan-all] [--full] [--keep-noise] [--page-size 80]
+                             [--scan-all] [--full] [--keep-noise] [--page-size 80] [--summary]
     python -m src.mail_fetch manifest [--page N] [--page-size 80]
     python -m src.mail_fetch show <id> [<id> ...]        (25 ids max)
 """
@@ -1248,6 +1248,9 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--full", action="store_true", help="ignore the seen list and past evidence")
     run.add_argument("--keep-noise", action="store_true", help="disable the noise cuts (debugging)")
     run.add_argument("--page-size", type=int, default=80)
+    run.add_argument("--summary", action="store_true",
+                     help="print the stamp, the account summary and the tune lines only; the classifier "
+                          "reads the legend and the manifest with `manifest --page N`")
     man = sub.add_parser("manifest", help="print the manifest from the last run")
     man.add_argument("--page", type=int, default=1)
     man.add_argument("--page-size", type=int, default=80)
@@ -1291,6 +1294,11 @@ def main(argv: list[str] | None = None) -> int:
     doc = load_result(INBOX_PATH)
     print(f"sweep: {doc.get('generated_at', '?')}  (copy this stamp into every proposal as \"sweep\")")
     print("\n".join(format_summary(doc)))
+    if args.summary:
+        pages = max(1, -(-len(doc["threads"]) // max(1, args.page_size)))
+        print(f"\n{len(doc['threads'])} threads on {pages} manifest page(s) of {args.page_size}: "
+              f"`python -m src.mail_fetch manifest --page N` prints each")
+        return 0
     if doc["legend"]:
         print()
         print("\n".join(format_legend(doc)))

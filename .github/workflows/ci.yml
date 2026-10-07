@@ -25,5 +25,5 @@ jobs:
         run: mypy
       - name: Tests (pytest)
         run: python -m pytest tests/ -q
-      - name: Generated agent files match prompts/agents (sync-agents --check)
+      - name: Generated agent and command files match prompts/ (sync-agents --check)
         run: python -m src.hunt sync-agents --check

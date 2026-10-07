@@ -26,14 +26,14 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    and discover prints one `off by region` line per skipped source. The European boards
    (jobtech, jobindex, berlinstartupjobs) and the ones verified but not wired are in `docs/sources-europe.md`.
 2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
-   `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
-   sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become
-   `status='irrelevant'` (out of every future stage); keepers get a 0-3 fit bucket in `match_verdict`.
-   Drives ~80 agents (100-row chunks, 8k-row pile) via a Workflow for a full sweep. See `docs/scaling-scoring.md`.
-3. **Match** (`/jh-match` → `job-matcher` agent), score jobs vs `config/profile.yaml`. Default
-   `export --limit N` scores the top N by fit bucket then keyword prescore. To score at scale,
-   `export --min-bucket 3 --chunk 60 --limit 0` → fan `job-matcher` over `data/match/chunk_*.json`
-   (each writes `scores_NNN.json`) → `ingest --dir data/match`.
+   `python -m src.hunt run --only triage` over `src/triage.py`). Coarse junk-cut BEFORE the expensive
+   matcher: `export --chunk` → one `triager` process per chunk (keep/drop vs the profile dealbreakers,
+   keep-on-doubt) → `ingest`. Drops become `status='irrelevant'` (out of every future stage); keepers
+   get a 0-3 fit bucket in `match_verdict`. See `docs/scaling-scoring.md`.
+3. **Match** (`/jh-match` → `python -m src.hunt run --only match`, one `job-matcher` process per
+   chunk), score jobs vs `config/profile.yaml`: `export --min-bucket N --chunk 60` → `scores_NNN.json`
+   per chunk → `ingest --dir data/match`. The commands are viewers of the orchestrator (decision 5,
+   `docs/spec-pre-release.md`); no command fans out agents itself.
 4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
@@ -60,9 +60,10 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `python -m src.pick` (star rule, dream slots, skips companies already in play).
    `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
-   one-line-per-thread manifest; the model classifies THAT (`show <id>` for unsettled lines,
-   never reads `data/mail_*`, never `query crm`/`query job` in that step), writes
-   `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
+   one-line-per-thread manifest (the session runs it with `--summary`); the `inbox-classifier`
+   agent classifies THAT (`manifest --page N`, `show <id>` for unsettled lines, never reads
+   `data/mail_*`, never `query crm`/`query job` in that step) and replies the proposals, the
+   session writes `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
    2026-09-04 the dry run is followed by `--apply` without a chat approval, the applier's
    guardrails are the gate (forward-only moves, never ghosted/withdrawn, `offer` only with full evidence and never
    accept/decline, evidence headers + signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
@@ -163,11 +164,16 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
   `design.page.*_margin` crashes its Typst template.
 
 ## Commands
-All commands are `jh-` prefixed; see `.claude/commands/`.
+All commands are `jh-` prefixed and live ONCE in `prompts/commands/<name>.md` (frontmatter: description,
+argument-hint, tools in the command vocabulary; the body in harness-neutral words); `.claude/commands/`,
+`.opencode/commands/`, `.gemini/commands/` (toml), `.pi/prompts/` and the flows list in `AGENTS.md`
+(codex, agy) are renders of them (`docs/hunt-harnesses.md`, "Commands on every harness"). `AGENTS.md` is
+the whole of this file plus that list, because opencode and pi read only the first of AGENTS.md /
+CLAUDE.md they find: edit this file, never `AGENTS.md`.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
-`python -m src.hunt sync-agents` regenerates every harness's native files from them (`.claude/agents`,
-`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`; a file carries a stage's model only
-when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent file.
+`python -m src.hunt sync-agents` regenerates every harness's native files from both (`.claude/agents`,
+`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, the command renders; a file carries a stage's model only
+when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent or command file.
 Harnesses (`docs/hunt-harnesses.md`): adapters claude, codex, opencode, pi, agy in `src/hunt/harness/`, anything
 else a `[harness.<name>]` command template in `config/hunt.toml`; an adapter refuses a tool it cannot grant,
 and only opencode reads its generated file at run time (`--agent`). Real-CLI smoke: `HUNT_SMOKE=1 pytest -m harness_smoke`.
@@ -180,6 +186,9 @@ over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. Nothing is sc
 shared `fan.py`. Tests must use a fake harness: `tests/conftest.py` refuses to start a real
 agent CLI, and a bare `hunt run` in a test IS a hunt (patch `connect` and the data dirs of
 every module a stage touches, as `tests/test_hunt_*.py` do).
+Setup: `./setup.sh` is a python check around `python -m src.setup` (stdlib-only first half: detect the agent CLIs,
+ask, venv, deps; then `finish` under the venv: init, default harness, `hunt doctor` per CLI, the next step; `--check`
+writes nothing; codex home skills are opt-in and only files carrying `HOME_SKILL_MARK` are ever rewritten).
 Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T ...` (reuses a same company+title row when one exists; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the

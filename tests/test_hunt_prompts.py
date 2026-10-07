@@ -1,5 +1,6 @@
-"""prompts/agents/<role>.md and sync-agents: the role files parse, the generated
-.claude/agents files match them (the CI check), and drift is reported not silently fixed."""
+"""prompts/agents/<role>.md, prompts/commands/<name>.md and sync-agents: the role and command
+files parse, the generated files match them (the CI check), and drift is reported not silently
+fixed."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,8 +25,11 @@ def test_every_role_file_parses_and_matches_the_registry():
         assert role.body.strip() and role.output and "—" not in role.body
 
 
-# one file per role per harness, plus opencode's narrowed `hunt-<role>` files
-N_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
+# one file per role per harness, plus opencode's narrowed `hunt-<role>` files, plus one file
+# per command per harness that has a command format
+N_AGENT_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
+N_COMMAND_FILES = len(prompts.load_commands()) * len(prompts.NATIVE_COMMANDS) + 1     # + AGENTS.md
+N_FILES = N_AGENT_FILES + N_COMMAND_FILES
 
 
 def test_generated_agents_are_in_sync_with_the_role_files_and_hunt_toml():
@@ -101,6 +105,8 @@ def test_sync_writes_then_check_reports_drift(tmp_path):
     for harness_name, (folder, suffix, _render) in prompts.NATIVE.items():
         extra = [f"hunt-{r}{suffix}" for r in prompts.hunt_grants(prompts.load_roles())] if harness_name == "opencode" else []
         assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted([*(f"{r}{suffix}" for r in prompts.ROLE_STAGE), *extra])
+    for folder, suffix, _render in prompts.NATIVE_COMMANDS.values():
+        assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted(f"{c}{suffix}" for c in prompts.load_commands())
     changed, same = prompts.sync(cfg, check=True, root=tmp_path)
     assert changed == [] and sorted(same) == sorted(str(p) for p in tmp_path.rglob("*") if p.is_file())
     (out / "triager.md").write_text("edited by hand\n")
@@ -131,6 +137,133 @@ def test_cli_sync_agents_check_and_write(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert out.count("wrote    ") == N_FILES and out.endswith(f"{N_FILES} written, 0 unchanged\n")
     assert main(["sync-agents", "--check"]) == 0
-    assert capsys.readouterr().out.strip() == f"agents in sync ({N_FILES} files)"
+    assert capsys.readouterr().out.strip() == f"agents and commands in sync ({N_FILES} files)"
     assert (tmp_path / ".claude" / "agents" / "inbox-classifier.md").read_text().startswith("---\nname: inbox-classifier\n")
     assert Path(".claude/agents/triager.md").exists()
+
+
+# --- commands (docs/spec-pre-release.md decision 4) ---
+
+def test_every_command_source_parses_and_the_claude_render_is_the_committed_file():
+    """The claude render of each source is the committed `.claude/commands` file (story 1 landed
+    it byte-identical to the hand-written files before they became renders)."""
+    commands = prompts.load_commands()
+    assert len(commands) >= 13 and all(name.startswith("jh-") for name in commands)
+    for cmd in commands.values():
+        committed = (prompts.AGENTS_ROOT / ".claude" / "commands" / f"{cmd.name}.md").read_text(encoding="utf-8")
+        assert prompts.render_claude_command(cmd) == committed, cmd.name
+
+
+def test_render_claude_command_maps_the_vocabulary_and_quotes_only_what_yaml_would_misread(tmp_path):
+    path = tmp_path / "jh-x.md"
+    path.write_text("---\ndescription: 'Do x: then y'\nargument-hint: '[job_id]'\n"
+                    "tools: [read, bash, glob, web, agent, gmail-read, gmail-draft]\n---\n\nBody $ARGUMENTS.\n")
+    text = prompts.render_claude_command(prompts.parse_command(path))
+    assert text == ("---\ndescription: Do x: then y\nargument-hint: \"[job_id]\"\n"
+                    "allowed-tools: Read, Bash, Glob, WebSearch, WebFetch, Task, mcp__claude_ai_Gmail__search_threads, "
+                    "mcp__claude_ai_Gmail__get_thread, mcp__claude_ai_Gmail__get_message, mcp__claude_ai_Gmail__create_draft\n"
+                    "---\n" + prompts.COMMAND_MARK.format(name="jh-x") + "\n\nBody $ARGUMENTS.\n")
+    path.write_text("---\ndescription: d\nargument-hint: <job_id>\n---\nb\n")
+    assert prompts.render_claude_command(prompts.parse_command(path)) == (
+        "---\ndescription: d\nargument-hint: <job_id>\n---\n" + prompts.COMMAND_MARK.format(name="jh-x") + "\nb\n")
+
+
+@pytest.mark.parametrize("name,text,needle", [
+    ("jh-x.md", "no frontmatter\n", "missing the --- frontmatter"),
+    ("x.md", "---\ndescription: d\n---\nb\n", "starts with jh-"),
+    ("jh-x.md", "---\ntools: [read]\n---\nb\n", "description is required"),
+    ("jh-x.md", "---\ndescription: d\ntools: [read, Bash]\n---\nb\n", "unknown tool(s) Bash"),
+    ("jh-x.md", "---\ndescription: d\ntools: [read, read]\n---\nb\n", "listed twice"),
+    ("jh-x.md", "---\ndescription: d\nallowed-tools: Read\n---\nb\n", "unknown frontmatter key(s) allowed-tools"),
+    ("jh-x.md", "---\ndescription: d\n---\nb \u2014 dash\n", "contains an em-dash"),
+])
+def test_command_file_validation(tmp_path, name, text, needle):
+    path = tmp_path / name
+    path.write_text(text)
+    with pytest.raises(ValueError, match=__import__("re").escape(needle)):
+        prompts.parse_command(path)
+
+
+def test_check_reports_a_hand_edited_command(tmp_path):
+    cfg = hc.load()
+    prompts.sync(cfg, root=tmp_path)
+    rendered = tmp_path / ".claude" / "commands" / "jh-hunt.md"
+    rendered.write_text(rendered.read_text() + "edited by hand\n")
+    changed, _same = prompts.sync(cfg, check=True, root=tmp_path)
+    assert changed == [str(rendered)]
+
+
+# --- renders per harness (decision 4) ---
+
+_NEUTRAL_GONE = ("with Bash", "Bash tool", "Agent tool", "Task tool", "run_in_background", "CLAUDE_PROJECT_DIR",
+                 "subagent", "sub-agent", "Workflow", "MCP", "WebSearch", "Glob ")
+
+
+def test_command_sources_use_harness_neutral_wording():
+    for cmd in prompts.load_commands().values():
+        for gone in _NEUTRAL_GONE:
+            assert gone not in cmd.body, (cmd.name, gone)
+
+
+def _front(text: str) -> dict:
+    return __import__("yaml").safe_load(text.split("\n---\n", 1)[0].removeprefix("---\n"))
+
+
+def test_opencode_and_pi_renders_parse_and_carry_only_their_keys():
+    for cmd in prompts.load_commands().values():
+        oc = prompts.render_opencode_command(cmd)
+        assert _front(oc) == {"description": cmd.description}
+        pi = prompts.render_pi_command(cmd)
+        want = {"description": cmd.description} | ({"argument-hint": cmd.argument_hint} if cmd.argument_hint else {})
+        assert _front(pi) == want
+        for text in (oc, pi, prompts.render_claude_command(cmd)):
+            assert prompts.COMMAND_MARK.format(name=cmd.name) in text and text.endswith(cmd.body)
+
+
+def test_gemini_render_is_toml_with_its_args_placeholder(tmp_path):
+    import tomllib
+    for cmd in prompts.load_commands().values():
+        doc = tomllib.loads(prompts.render_gemini_command(cmd))
+        assert set(doc) == {"description", "prompt"} and doc["description"] == cmd.description
+        # TOML drops the newline right after the opening quotes, the body's leading blank line
+        assert doc["prompt"] == cmd.body.replace("$ARGUMENTS", "{{args}}").removeprefix("\n")
+        assert "$ARGUMENTS" not in doc["prompt"] and ("{{args}}" in doc["prompt"]) == ("$ARGUMENTS" in cmd.body)
+    for bad in ("run !{ls}", "read @{x.md}", "already {{args}}"):
+        path = tmp_path / "jh-bad.md"
+        path.write_text(f"---\ndescription: d\n---\n{bad}\n")
+        with pytest.raises(ValueError, match="injection"):
+            prompts.render_gemini_command(prompts.parse_command(path))
+
+
+def test_agents_md_lists_every_command_with_the_text_to_say():
+    commands = prompts.load_commands()
+    text = prompts.render_agents_md(commands)
+    assert f"## {prompts.FLOWS_HEADING}" in text and "prompts/commands/<name>.md" in text and "codex and agy" in text
+    for cmd in commands.values():
+        assert f"- `{prompts.command_say(cmd)}`: " in text, cmd.name
+    assert "- `jh-tailor <job_id>`: Tailor resume + cover letter for a job." in text   # the Usage tail is dropped
+    assert (prompts.AGENTS_ROOT / "AGENTS.md").read_text(encoding="utf-8") == text
+    assert "\u2014" not in text
+
+
+def test_agents_md_carries_the_whole_project_guide():
+    """opencode and pi read the first of AGENTS.md / CLAUDE.md and stop, so AGENTS.md must hold the
+    guide itself, ahead of the flows, or those harnesses lose the hard rules."""
+    guide = prompts.GUIDE.read_text(encoding="utf-8")
+    text = prompts.render_agents_md(prompts.load_commands())
+    assert guide.rstrip("\n") in text
+    assert "## Hard rules" in text and text.index("## Hard rules") < text.index(f"## {prompts.FLOWS_HEADING}")
+    assert prompts.render_agents_md({}, guide="# g\n").splitlines()[2] == "# g"
+
+
+def test_every_harness_with_a_shipped_adapter_or_a_template_is_covered():
+    """Decision 4: each harness gets native commands or the AGENTS.md list, never neither."""
+    assert set(prompts.NATIVE_COMMANDS) | set(prompts.AGENTS_MD_HARNESSES) == {"claude", "codex", "opencode", "pi", "gemini", "agy"}
+    assert not set(prompts.NATIVE_COMMANDS) & set(prompts.AGENTS_MD_HARNESSES)
+
+
+def test_home_skill_points_at_the_source_and_carries_the_installer_mark():
+    cmd = prompts.load_commands()["jh-tailor"]
+    text = prompts.render_home_skill(cmd)
+    assert _front(text) == {"name": "jh-tailor", "description": "Tailor resume + cover letter for a job."}
+    assert prompts.HOME_SKILL_MARK in text and "`prompts/commands/jh-tailor.md`" in text

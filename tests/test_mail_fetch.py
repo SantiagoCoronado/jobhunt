@@ -658,6 +658,21 @@ def test_cli_show_limit_and_no_accounts(tmp_path, monkeypatch, capsys):
     assert mf.main(["manifest"]) == 0
 
 
+def test_cli_summary_prints_no_legend_and_no_manifest(tmp_path, monkeypatch, capsys):
+    """`--summary` is the /jh-gmail-sync session's view: the inbox-classifier agent reads the
+    legend and the manifest itself with `manifest --page N`, so the session never holds them."""
+    monkeypatch.setattr(mf, "INBOX_PATH", tmp_path / "inbox.json")
+    monkeypatch.setattr(mf, "SNIPPETS_PATH", tmp_path / "snips.jsonl")
+    monkeypatch.setattr(mf, "STATE_PATH", tmp_path / "state.json")
+    monkeypatch.setattr(mf, "connect", lambda: connect(tmp_path / "jobs.db"))
+    monkeypatch.setattr(mf, "get_secret", lambda k, default=None: None)
+    assert mf.main(["--summary"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("no mail accounts configured") or "sweep: " in out
+    assert "(no threads)" not in out and "0 threads on 1 manifest page(s) of 80" in out
+    assert mf.main(["manifest", "--page", "1"]) == 0 and "(no threads)" in capsys.readouterr().out
+
+
 def test_account_error_row_alongside_working(hints, tmp_path):
     jobs = [mf.job_keys(row(1, "Acme", "https://acme.com/jobs/1"), hints)]
     bad = mf.MailAccount("personal", "p@x.com", "pw", "imap.x.com")
