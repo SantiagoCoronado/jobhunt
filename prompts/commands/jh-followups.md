@@ -5,9 +5,9 @@ tools: [read, bash, write, gmail-read, gmail-draft]
 
 Help me stay on top of follow-ups.
 
-1. **Pull email reality first**: run the `/jh-gmail-sync` flow (`python -m src.mail_fetch`
-   over every configured mailbox, classify the printed manifest, propose the batch, apply
-   after my approval). That flow owns ALL email classification and status writes; do not
+1. **Pull email reality first**: run the `/jh-gmail-sync` flow (`python -m src.mail_fetch
+   --summary` over every configured mailbox, the inbox-classifier agent over the manifest,
+   the applier's dry run and apply). That flow owns ALL email classification and status writes; do not
    re-derive replies ad hoc here, and obey its token rules (never read `data/mail_*`, never
    `query crm` inside it). If no mailbox is configured and Gmail is unavailable, continue
    from DB state.

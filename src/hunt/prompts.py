@@ -259,7 +259,7 @@ _CLAUDE_COMMAND_TOOLS: dict[str, list[str]] = {
                    "mcp__claude_ai_Gmail__get_message"],
     "gmail-draft": ["mcp__claude_ai_Gmail__create_draft"],
 }
-_EM_DASH = "—"
+_EM_DASH = "\u2014"
 
 
 @dataclass(frozen=True)

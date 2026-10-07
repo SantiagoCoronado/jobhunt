@@ -19,7 +19,7 @@ Numbers come from deterministic SQL, never estimate them yourself.
 
 2. **Audit the drop sample**: read each sampled drop's company+title+reason. Any that a
    human would clearly have kept is a false drop; name it and say which rubric line
-   failed. The triage rubric lives in `.claude/commands/jh-triage.md`.
+   failed. The triage rubric lives in `prompts/agents/triager.md`.
 
 2b. **Quarterly**: check the newest `research/upskill/*-plan.md`. If it is 3+ months
    old (or absent), suggest running `/jh-upskill`; if newer, note whether the market
@@ -36,8 +36,8 @@ Numbers come from deterministic SQL, never estimate them yourself.
 
 5. **Propose concrete edits, as diffs I approve**, never self-applied:
    - `config/profile.yaml` (weights, titles, dealbreakers, threshold)
-   - `.claude/agents/job-matcher.md` rubric lines
-   - `.claude/commands/jh-triage.md` rubric lines
+   - `prompts/agents/job-matcher.md` rubric lines
+   - `prompts/agents/triager.md` rubric lines
    Each proposal: the evidence line it rests on, the exact edit, the expected effect.
 
 6. **Report**: one screen: funnel headline, calibration verdict, top 3 proposed edits,

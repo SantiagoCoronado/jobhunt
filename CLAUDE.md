@@ -26,14 +26,14 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    and discover prints one `off by region` line per skipped source. The European boards
    (jobtech, jobindex, berlinstartupjobs) and the ones verified but not wired are in `docs/sources-europe.md`.
 2. **Triage** (optional but recommended when the discovered pile is large; `/jh-triage` →
-   `src/triage.py`). Coarse Haiku junk-cut BEFORE the expensive matcher: `export --chunk` → fan Haiku
-   sub-agents (keep/drop vs the profile dealbreakers, keep-on-doubt) → `ingest`. Drops become
-   `status='irrelevant'` (out of every future stage); keepers get a 0-3 fit bucket in `match_verdict`.
-   Drives ~80 agents (100-row chunks, 8k-row pile) via a Workflow for a full sweep. See `docs/scaling-scoring.md`.
-3. **Match** (`/jh-match` → `job-matcher` agent), score jobs vs `config/profile.yaml`. Default
-   `export --limit N` scores the top N by fit bucket then keyword prescore. To score at scale,
-   `export --min-bucket 3 --chunk 60 --limit 0` → fan `job-matcher` over `data/match/chunk_*.json`
-   (each writes `scores_NNN.json`) → `ingest --dir data/match`.
+   `python -m src.hunt run --only triage` over `src/triage.py`). Coarse junk-cut BEFORE the expensive
+   matcher: `export --chunk` → one `triager` process per chunk (keep/drop vs the profile dealbreakers,
+   keep-on-doubt) → `ingest`. Drops become `status='irrelevant'` (out of every future stage); keepers
+   get a 0-3 fit bucket in `match_verdict`. See `docs/scaling-scoring.md`.
+3. **Match** (`/jh-match` → `python -m src.hunt run --only match`, one `job-matcher` process per
+   chunk), score jobs vs `config/profile.yaml`: `export --min-bucket N --chunk 60` → `scores_NNN.json`
+   per chunk → `ingest --dir data/match`. The commands are viewers of the orchestrator (decision 5,
+   `docs/spec-pre-release.md`); no command fans out agents itself.
 4. **Research** (optional; `/jh-research <company|id>` → `company-researcher` agent, runs on Sonnet),
    cited company dossier into `research/companies/<slug>.md`. `/jh-tailor` auto-weaves it into the cover letter.
 5. **Tailor** (`/jh-tailor <id>` → `resume-tailor` agent), per-job resume + cover letter into `applications/`.
@@ -60,9 +60,10 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    `python -m src.pick` (star rule, dream slots, skips companies already in play).
    `/jh-gmail-sync` reads every mailbox in `.env` (`MAIL_ACCOUNTS`, app passwords; STRICTLY
    read-only, IMAP EXAMINE + PEEK) via `python -m src.mail_fetch`, which prints a legend + a
-   one-line-per-thread manifest; the model classifies THAT (`show <id>` for unsettled lines,
-   never reads `data/mail_*`, never `query crm`/`query job` in that step), writes
-   `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
+   one-line-per-thread manifest (the session runs it with `--summary`); the `inbox-classifier`
+   agent classifies THAT (`manifest --page N`, `show <id>` for unsettled lines, never reads
+   `data/mail_*`, never `query crm`/`query job` in that step) and replies the proposals, the
+   session writes `data/gmail_pull.json`, then `python -m src.gmail_pull` validates and applies; since
    2026-09-04 the dry run is followed by `--apply` without a chat approval, the applier's
    guardrails are the gate (forward-only moves, never ghosted/withdrawn, `offer` only with full evidence and never
    accept/decline, evidence headers + signal only, bodies never enter the DB, applied ids recorded as seen). Gmail MCP is the
