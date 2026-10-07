@@ -84,6 +84,7 @@ jobs:
           # Login Cursor posts PR comments as. Check one of Cursor's comments.
           allowed_bots: "cursor,cursor[bot]"
           claude_args: |
+            --model opus
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer ${{ secrets.LINEAR_API_KEY }}"}}}}'
             --allowedTools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(git log:*),Bash(git diff:*),mcp__linear"
             --disallowedTools "Edit,Write,MultiEdit,NotebookEdit"
