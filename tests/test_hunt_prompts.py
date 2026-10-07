@@ -1,5 +1,6 @@
-"""prompts/agents/<role>.md and sync-agents: the role files parse, the generated
-.claude/agents files match them (the CI check), and drift is reported not silently fixed."""
+"""prompts/agents/<role>.md, prompts/commands/<name>.md and sync-agents: the role and command
+files parse, the generated files match them (the CI check), and drift is reported not silently
+fixed."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -24,8 +25,11 @@ def test_every_role_file_parses_and_matches_the_registry():
         assert role.body.strip() and role.output and "—" not in role.body
 
 
-# one file per role per harness, plus opencode's narrowed `hunt-<role>` files
-N_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
+# one file per role per harness, plus opencode's narrowed `hunt-<role>` files, plus one file
+# per command per harness that has a command format
+N_AGENT_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
+N_COMMAND_FILES = len(prompts.load_commands()) * len(prompts.NATIVE_COMMANDS)
+N_FILES = N_AGENT_FILES + N_COMMAND_FILES
 
 
 def test_generated_agents_are_in_sync_with_the_role_files_and_hunt_toml():
@@ -101,6 +105,8 @@ def test_sync_writes_then_check_reports_drift(tmp_path):
     for harness_name, (folder, suffix, _render) in prompts.NATIVE.items():
         extra = [f"hunt-{r}{suffix}" for r in prompts.hunt_grants(prompts.load_roles())] if harness_name == "opencode" else []
         assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted([*(f"{r}{suffix}" for r in prompts.ROLE_STAGE), *extra])
+    for folder, suffix, _render in prompts.NATIVE_COMMANDS.values():
+        assert sorted(p.name for p in (tmp_path / folder).iterdir()) == sorted(f"{c}{suffix}" for c in prompts.load_commands())
     changed, same = prompts.sync(cfg, check=True, root=tmp_path)
     assert changed == [] and sorted(same) == sorted(str(p) for p in tmp_path.rglob("*") if p.is_file())
     (out / "triager.md").write_text("edited by hand\n")
@@ -131,6 +137,56 @@ def test_cli_sync_agents_check_and_write(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert out.count("wrote    ") == N_FILES and out.endswith(f"{N_FILES} written, 0 unchanged\n")
     assert main(["sync-agents", "--check"]) == 0
-    assert capsys.readouterr().out.strip() == f"agents in sync ({N_FILES} files)"
+    assert capsys.readouterr().out.strip() == f"agents and commands in sync ({N_FILES} files)"
     assert (tmp_path / ".claude" / "agents" / "inbox-classifier.md").read_text().startswith("---\nname: inbox-classifier\n")
     assert Path(".claude/agents/triager.md").exists()
+
+
+# --- commands (docs/spec-pre-release.md decision 4) ---
+
+def test_every_command_source_parses_and_the_claude_render_is_the_committed_file():
+    """The claude render of each source is byte-identical to the committed `.claude/commands`
+    file (the proof story 1 rests on: the old hand-written files became renders unchanged)."""
+    commands = prompts.load_commands()
+    assert len(commands) >= 13 and all(name.startswith("jh-") for name in commands)
+    for cmd in commands.values():
+        committed = (prompts.AGENTS_ROOT / ".claude" / "commands" / f"{cmd.name}.md").read_text(encoding="utf-8")
+        assert prompts.render_claude_command(cmd) == committed, cmd.name
+
+
+def test_render_claude_command_maps_the_vocabulary_and_quotes_only_what_yaml_would_misread(tmp_path):
+    path = tmp_path / "jh-x.md"
+    path.write_text("---\ndescription: 'Do x: then y'\nargument-hint: '[job_id]'\n"
+                    "tools: [read, bash, glob, web, agent, gmail-read, gmail-draft]\n---\n\nBody $ARGUMENTS.\n")
+    text = prompts.render_claude_command(prompts.parse_command(path))
+    assert text == ("---\ndescription: Do x: then y\nargument-hint: \"[job_id]\"\n"
+                    "allowed-tools: Read, Bash, Glob, WebSearch, WebFetch, Task, mcp__claude_ai_Gmail__search_threads, "
+                    "mcp__claude_ai_Gmail__get_thread, mcp__claude_ai_Gmail__get_message, mcp__claude_ai_Gmail__create_draft\n"
+                    "---\n\nBody $ARGUMENTS.\n")
+    path.write_text("---\ndescription: d\nargument-hint: <job_id>\n---\nb\n")
+    assert prompts.render_claude_command(prompts.parse_command(path)) == "---\ndescription: d\nargument-hint: <job_id>\n---\nb\n"
+
+
+@pytest.mark.parametrize("name,text,needle", [
+    ("jh-x.md", "no frontmatter\n", "missing the --- frontmatter"),
+    ("x.md", "---\ndescription: d\n---\nb\n", "starts with jh-"),
+    ("jh-x.md", "---\ntools: [read]\n---\nb\n", "description is required"),
+    ("jh-x.md", "---\ndescription: d\ntools: [read, Bash]\n---\nb\n", "unknown tool(s) Bash"),
+    ("jh-x.md", "---\ndescription: d\ntools: [read, read]\n---\nb\n", "listed twice"),
+    ("jh-x.md", "---\ndescription: d\nallowed-tools: Read\n---\nb\n", "unknown frontmatter key(s) allowed-tools"),
+    ("jh-x.md", "---\ndescription: d\n---\nb \u2014 dash\n", "contains an em-dash"),
+])
+def test_command_file_validation(tmp_path, name, text, needle):
+    path = tmp_path / name
+    path.write_text(text)
+    with pytest.raises(ValueError, match=__import__("re").escape(needle)):
+        prompts.parse_command(path)
+
+
+def test_check_reports_a_hand_edited_command(tmp_path):
+    cfg = hc.load()
+    prompts.sync(cfg, root=tmp_path)
+    rendered = tmp_path / ".claude" / "commands" / "jh-hunt.md"
+    rendered.write_text(rendered.read_text() + "edited by hand\n")
+    changed, _same = prompts.sync(cfg, check=True, root=tmp_path)
+    assert changed == [str(rendered)]

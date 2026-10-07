@@ -94,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     models.add_argument("--grep")
     doctor = sub.add_parser("doctor", help="check the harness, the catalog and every stage's model")
     doctor.add_argument("--harness")
-    sync = sub.add_parser("sync-agents", help="generate every harness's native agent files")
+    sync = sub.add_parser("sync-agents", help="generate every harness's native agent and command files")
     sync.add_argument("--check", action="store_true")
     return p
 
@@ -242,7 +242,7 @@ def cmd_sync_agents(check: bool) -> int:
         if changed:
             print("out of sync (run `python -m src.hunt sync-agents`): " + ", ".join(changed))
             return 1
-        print(f"agents in sync ({len(same)} files)")
+        print(f"agents and commands in sync ({len(same)} files)")
         return 0
     for rel in changed:
         print(f"wrote    {rel}")

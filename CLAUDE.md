@@ -163,11 +163,12 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
   `design.page.*_margin` crashes its Typst template.
 
 ## Commands
-All commands are `jh-` prefixed; see `.claude/commands/`.
+All commands are `jh-` prefixed and live ONCE in `prompts/commands/<name>.md` (frontmatter: description,
+argument-hint, tools in the command vocabulary); `.claude/commands/` is a render of them.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
-`python -m src.hunt sync-agents` regenerates every harness's native files from them (`.claude/agents`,
-`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`; a file carries a stage's model only
-when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent file.
+`python -m src.hunt sync-agents` regenerates every harness's native files from both (`.claude/agents`,
+`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, `.claude/commands`; a file carries a stage's model only
+when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent or command file.
 Harnesses (`docs/hunt-harnesses.md`): adapters claude, codex, opencode, pi, agy in `src/hunt/harness/`, anything
 else a `[harness.<name>]` command template in `config/hunt.toml`; an adapter refuses a tool it cannot grant,
 and only opencode reads its generated file at run time (`--agent`). Real-CLI smoke: `HUNT_SMOKE=1 pytest -m harness_smoke`.

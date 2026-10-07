@@ -174,6 +174,11 @@ file.
 A generated file carries a stage's `model` only when that stage runs on that file's harness.
 agy has no generated file: its `agent.md` layout could not be confirmed.
 
+The `/jh-*` commands follow the same pattern: `prompts/commands/<name>.md` is the one source
+(`description`, optional `argument-hint`, `tools` from `read, write, edit, bash, web, glob,
+agent, gmail-read, gmail-draft`), `sync-agents` renders `.claude/commands/<name>.md` from it,
+and the same `--check` covers the renders.
+
 ## `web` and research
 
 Only `research` needs `web`. Of the shipped adapters claude grants it always and opencode with

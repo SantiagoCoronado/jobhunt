@@ -10,6 +10,10 @@ The generated files are committed so interactive use works after a clone, and `s
 
 A model id means something only to the harness whose catalog it came from, so a generated
 file carries the stage's `model` only when that stage runs on that file's harness.
+
+Commands follow the same pattern (docs/spec-pre-release.md decision 4): `prompts/commands/
+<name>.md` is the one source of a `/jh-*` command, `NATIVE_COMMANDS` renders it per harness
+beside the agent files, and the same `--check` covers them.
 """
 from __future__ import annotations
 
@@ -237,8 +241,109 @@ NATIVE: dict[str, tuple[str, str, Callable[[Role, HuntConfig], str]]] = {
 }
 
 
-def targets(cfg: HuntConfig, prompts_dir: Path | None = None, root: Path | None = None) -> dict[Path, str]:
-    """Every generated file and its expected content, for every harness in `NATIVE`."""
+# --- commands (docs/spec-pre-release.md decision 4) -------------------------------------------
+#
+# `prompts/commands/<name>.md` is the one place a `/jh-*` command lives: a small frontmatter
+# (`description`, optional `argument-hint`, `tools` in the command vocabulary below, in the order
+# the claude render lists them) and the body. `$ARGUMENTS` in the body is what the user typed
+# after the command. `sync-agents` renders every command beside the agent files and `--check`
+# covers both. Never edit a rendered command; edit its source.
+
+COMMANDS_DIR = ROOT / "prompts" / "commands"
+# the agent vocabulary plus what an interactive command may also use: `glob`, `agent` (the
+# harness's own subagent) and the claude.ai Gmail connector, read-only or with draft creation
+COMMAND_TOOLS: tuple[str, ...] = (*TOOL_ORDER, "glob", "agent", "gmail-read", "gmail-draft")
+_CLAUDE_COMMAND_TOOLS: dict[str, list[str]] = {
+    **_CLAUDE_TOOLS, "glob": ["Glob"], "agent": ["Task"],
+    "gmail-read": ["mcp__claude_ai_Gmail__search_threads", "mcp__claude_ai_Gmail__get_thread",
+                   "mcp__claude_ai_Gmail__get_message"],
+    "gmail-draft": ["mcp__claude_ai_Gmail__create_draft"],
+}
+_EM_DASH = "—"
+
+
+@dataclass(frozen=True)
+class Command:
+    name: str
+    description: str
+    argument_hint: str | None
+    tools: tuple[str, ...]
+    body: str
+    path: Path
+
+
+def parse_command(path: Path) -> Command:
+    text = path.read_text(encoding="utf-8")
+    m = _FRONT.match(text)
+    if not m:
+        raise ValueError(f"{path}: missing the --- frontmatter block")
+    try:
+        front = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError as e:
+        raise ValueError(f"{path}: bad frontmatter: {e}") from e
+    if not isinstance(front, dict):
+        raise ValueError(f"{path}: frontmatter must be a mapping")
+    unknown = sorted(set(front) - {"description", "argument-hint", "tools"})
+    if unknown:
+        raise ValueError(f"{path}: unknown frontmatter key(s) {', '.join(unknown)}")
+    if not path.stem.startswith("jh-"):
+        raise ValueError(f"{path}: a command's file name starts with jh-")
+    description = str(front.get("description") or "").strip()
+    if not description:
+        raise ValueError(f"{path}: description is required")
+    hint = front.get("argument-hint")
+    tools_raw = front.get("tools") or []
+    if not isinstance(tools_raw, list):
+        raise ValueError(f"{path}: tools must be a list from {', '.join(COMMAND_TOOLS)}")
+    tools = tuple(str(t) for t in tools_raw)
+    bad = sorted(set(tools) - set(COMMAND_TOOLS))
+    if bad:
+        raise ValueError(f"{path}: unknown tool(s) {', '.join(bad)} (known: {', '.join(COMMAND_TOOLS)})")
+    if len(set(tools)) != len(tools):
+        raise ValueError(f"{path}: a tool is listed twice")
+    body = text[m.end():]
+    if any(_EM_DASH in s for s in (body, description, str(hint or ""))):
+        raise ValueError(f"{path}: contains an em-dash")
+    return Command(path.stem, description, None if hint is None else str(hint), tools, body, path)
+
+
+def load_commands(commands_dir: Path | None = None) -> dict[str, Command]:
+    commands_dir = commands_dir or COMMANDS_DIR
+    return {p.stem: parse_command(p) for p in sorted(commands_dir.glob("*.md"))}
+
+
+def _plain_or_quoted(text: str) -> str:
+    """A frontmatter value written plain when YAML reads it back as the same string, else in
+    double quotes (`[job_id]` would read as a list)."""
+    try:
+        same = yaml.safe_load(text) == text
+    except yaml.YAMLError:
+        same = False
+    return text if same else '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def render_claude_command(cmd: Command) -> str:
+    """The `.claude/commands/<name>.md` text: claude's command frontmatter (`description`,
+    `argument-hint`, `allowed-tools` by their claude names) and the body as written."""
+    lines = ["---", f"description: {cmd.description}"]
+    if cmd.argument_hint is not None:
+        lines.append(f"argument-hint: {_plain_or_quoted(cmd.argument_hint)}")
+    if cmd.tools:
+        lines.append("allowed-tools: " + ", ".join(n for t in cmd.tools for n in _CLAUDE_COMMAND_TOOLS[t]))
+    lines.append("---")
+    return "\n".join(lines) + "\n" + cmd.body
+
+
+# harness: (folder under the repo root, file suffix, renderer)
+NATIVE_COMMANDS: dict[str, tuple[str, str, Callable[[Command], str]]] = {
+    "claude": (".claude/commands", ".md", render_claude_command),
+}
+
+
+def targets(cfg: HuntConfig, prompts_dir: Path | None = None, root: Path | None = None,
+            commands_dir: Path | None = None) -> dict[Path, str]:
+    """Every generated file and its expected content: each role for every harness in `NATIVE`,
+    each command for every harness in `NATIVE_COMMANDS`."""
     root = root or AGENTS_ROOT
     roles = load_roles(prompts_dir)
     out = {root / folder / f"{role.name}{suffix}": render(role, cfg)
@@ -246,16 +351,20 @@ def targets(cfg: HuntConfig, prompts_dir: Path | None = None, root: Path | None 
     folder, suffix, _render = NATIVE["opencode"]
     for name, tools in hunt_grants(roles).items():
         out[root / folder / f"{HUNT_PREFIX}{name}{suffix}"] = render_opencode(roles[name], cfg, tools)
+    commands = load_commands(commands_dir)
+    for folder, suffix, render_command in NATIVE_COMMANDS.values():
+        for cmd in commands.values():
+            out[root / folder / f"{cmd.name}{suffix}"] = render_command(cmd)
     return out
 
 
 def sync(cfg: HuntConfig, check: bool = False, prompts_dir: Path | None = None,
-         root: Path | None = None) -> tuple[list[str], list[str]]:
+         root: Path | None = None, commands_dir: Path | None = None) -> tuple[list[str], list[str]]:
     """(written or drifted paths, unchanged paths). With `check`, nothing is written and the
     first list is what would change."""
     changed: list[str] = []
     same: list[str] = []
-    for path, text in targets(cfg, prompts_dir, root).items():
+    for path, text in targets(cfg, prompts_dir, root, commands_dir).items():
         rel = str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
         current = path.read_text(encoding="utf-8") if path.exists() else None
         if current == text:
