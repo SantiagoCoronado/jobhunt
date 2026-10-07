@@ -166,8 +166,10 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 ## Commands
 All commands are `jh-` prefixed and live ONCE in `prompts/commands/<name>.md` (frontmatter: description,
 argument-hint, tools in the command vocabulary; the body in harness-neutral words); `.claude/commands/`,
-`.opencode/commands/`, `.gemini/commands/` (toml), `.pi/prompts/` and the `## Commands` list in `AGENTS.md`
-(codex, agy) are renders of them (`docs/hunt-harnesses.md`, "Commands on every harness").
+`.opencode/commands/`, `.gemini/commands/` (toml), `.pi/prompts/` and the flows list in `AGENTS.md`
+(codex, agy) are renders of them (`docs/hunt-harnesses.md`, "Commands on every harness"). `AGENTS.md` is
+the whole of this file plus that list, because opencode and pi read only the first of AGENTS.md /
+CLAUDE.md they find: edit this file, never `AGENTS.md`.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
 `python -m src.hunt sync-agents` regenerates every harness's native files from both (`.claude/agents`,
 `.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, the command renders; a file carries a stage's model only

@@ -98,6 +98,15 @@ def test_install_reuses_the_venv_and_skips_pip_offline_when_deps_are_there(tree,
     assert "pip skipped" in capsys.readouterr().out
 
 
+def test_install_refuses_a_venv_on_an_old_python_and_leaves_it(tree, capsys):
+    (tree / ".venv" / "bin").mkdir(parents=True)
+    (tree / ".venv" / "bin" / "python").write_text("")
+    rec = Recorder({"version_info": (1, "")})
+    assert setup.install([], ["pi"], False, root=tree, runner=rec) == 1
+    assert not rec.has("pip") and not rec.has("finish") and (tree / ".venv").is_dir()
+    assert "rm -rf .venv" in capsys.readouterr().out
+
+
 def test_install_stops_when_pip_fails(tree, capsys):
     rec = Recorder({"-c": (1, "missing: PyYAML"), "pip": (1, "ERROR: no network")})
     assert setup.install([], ["claude"], False, root=tree, runner=rec) == 1
@@ -187,6 +196,17 @@ def test_main_refuses_an_unknown_harness_and_parses_finish(monkeypatch, capsys):
     assert setup.main(["--harness", "codex"]) == 0 and calls == [(["codex"], False)]      # opt-in: never by default
     assert setup.main([], ask=lambda q: "codex" if "which" in q or "names" in q else "y") == 0
     assert calls[-1] == (["codex"], True)
+
+
+def test_main_takes_the_defaults_when_stdin_is_closed(monkeypatch, capsys):
+    def closed(question):
+        raise EOFError
+    monkeypatch.setattr(setup, "detect", lambda path=None: ["codex"])
+    calls = []
+    monkeypatch.setattr(setup, "install", lambda found, chosen, home: calls.append((chosen, home)) or 0)
+    assert setup.main([], ask=closed) == 0
+    assert calls == [(["codex"], False)]                     # the CLIs on PATH, no home skills
+    assert "taking the default" in capsys.readouterr().out
 
 
 def test_setup_sh_is_a_thin_wrapper():

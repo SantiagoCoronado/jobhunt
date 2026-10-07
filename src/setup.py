@@ -42,6 +42,8 @@ SLASH_COMMANDS: frozenset[str] = frozenset({"claude", "opencode", "gemini", "pi"
 HOME_SKILL_MARK = ("<!-- written by the jobhunt installer (python -m src.setup); "
                    "it updates or removes only files carrying this line -->")
 VENV_PYTHON = Path(".venv") / "bin" / "python"
+MIN_PYTHON = (3, 11)                     # setup.sh checks the system python against the same
+_VERSION_CHECK = f"import sys; sys.exit(0 if sys.version_info >= {MIN_PYTHON} else 1)"
 
 # argv, cwd, capture -> (exit code, captured output; "" when not captured)
 Runner = Callable[[Sequence[str], Path, bool], tuple[int, str]]
@@ -131,6 +133,11 @@ def install(found: list[str], chosen: list[str], home_skills: bool, root: Path =
     print(f"agent CLIs on PATH: {', '.join(found) or 'none'};  chosen: {', '.join(chosen) or 'none'}")
     venv_py = root / VENV_PYTHON
     if venv_py.exists():
+        rc, _ = runner([str(venv_py), "-c", _VERSION_CHECK], root, True)
+        if rc != 0:                      # an older clone's venv, or one whose python is gone
+            need = ".".join(map(str, MIN_PYTHON))
+            print(f"setup: .venv does not run python {need} or newer; remove it (rm -rf .venv) and re-run ./setup.sh")
+            return 1
         print("venv: .venv (kept)")
     else:
         print("venv: creating .venv")
@@ -283,14 +290,22 @@ def main(argv: list[str] | None = None, ask: Callable[[str], str] = input) -> in
     found = detect()
     if args.check:
         return check(found)
+
+    def asked(question: str) -> str:
+        try:
+            return ask(question)
+        except EOFError:                 # no one to answer (a pipe, CI, < /dev/null): the default
+            print("(no answer on stdin; taking the default)")
+            return ""
+
     try:
-        chosen = choose(found, args.harness, args.yes, ask)
+        chosen = choose(found, args.harness, args.yes, asked)
     except ValueError as e:
         print(f"setup: {e}")
         return 2
     home_skills = args.home_skills
     if "codex" in chosen and not home_skills and not args.yes and not args.harness:
-        answer = ask(f"codex: also copy the /jh-* commands into {codex_home() / 'skills'} as skills? [y/N] ")
+        answer = asked(f"codex: also copy the /jh-* commands into {codex_home() / 'skills'} as skills? [y/N] ")
         home_skills = answer.strip().lower() in ("y", "yes")
     return install(found, chosen, home_skills)
 

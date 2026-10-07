@@ -238,12 +238,22 @@ def test_gemini_render_is_toml_with_its_args_placeholder(tmp_path):
 def test_agents_md_lists_every_command_with_the_text_to_say():
     commands = prompts.load_commands()
     text = prompts.render_agents_md(commands)
-    assert "## Commands" in text and "prompts/commands/<name>.md" in text and "codex and agy" in text
+    assert f"## {prompts.FLOWS_HEADING}" in text and "prompts/commands/<name>.md" in text and "codex and agy" in text
     for cmd in commands.values():
         assert f"- `{prompts.command_say(cmd)}`: " in text, cmd.name
     assert "- `jh-tailor <job_id>`: Tailor resume + cover letter for a job." in text   # the Usage tail is dropped
     assert (prompts.AGENTS_ROOT / "AGENTS.md").read_text(encoding="utf-8") == text
     assert "\u2014" not in text
+
+
+def test_agents_md_carries_the_whole_project_guide():
+    """opencode and pi read the first of AGENTS.md / CLAUDE.md and stop, so AGENTS.md must hold the
+    guide itself, ahead of the flows, or those harnesses lose the hard rules."""
+    guide = prompts.GUIDE.read_text(encoding="utf-8")
+    text = prompts.render_agents_md(prompts.load_commands())
+    assert guide.rstrip("\n") in text
+    assert "## Hard rules" in text and text.index("## Hard rules") < text.index(f"## {prompts.FLOWS_HEADING}")
+    assert prompts.render_agents_md({}, guide="# g\n").splitlines()[2] == "# g"
 
 
 def test_every_harness_with_a_shipped_adapter_or_a_template_is_covered():
