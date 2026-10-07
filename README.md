@@ -38,7 +38,9 @@ verification record.
 
 ```bash
 cd ~/projects/jobhunt
-./setup.sh                       # one command: venv + deps + `python -m src.init` (your files from the examples)
+./setup.sh                       # asks which agent CLIs you use (claude, codex, opencode, pi, gemini, agy), then
+                                 # venv + deps + `python -m src.init` + the default harness + `hunt doctor` per CLI
+                                 # (--harness claude,pi or --yes for scripts; --check reports and writes nothing)
 # ...or manually:
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -93,7 +95,7 @@ machine that runs the hunt is the CRM.
 ```bash
 git clone https://github.com/<you>/jobhunt.git
 cd jobhunt
-./setup.sh                       # venv + deps + scaffolds config/notify.yaml
+./setup.sh --yes                 # venv + deps + your files from the examples, the CLIs on PATH
 # paste your Gmail app password into config/notify.yaml (git-ignored, never committed)
 python -m src.discover           # first discovery run on this machine
 ```

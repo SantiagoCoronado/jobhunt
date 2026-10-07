@@ -1,27 +1,19 @@
 #!/usr/bin/env bash
-# One-command setup for a fresh machine (macOS or Linux/WSL).
-# Usage:  ./setup.sh          (uses python3)
+# One-command setup (macOS or Linux/WSL): a python check, then the installer, `python -m src.setup`.
+# Usage:  ./setup.sh                       asks which agent CLIs you use
+#         ./setup.sh --harness claude,pi   no question;  --yes takes the CLIs on PATH
+#         ./setup.sh --check               report only, writes nothing
 #         PYTHON=python3.12 ./setup.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 
 PY="${PYTHON:-python3}"
-echo "== Creating virtualenv (.venv) with $("$PY" --version 2>&1) =="
-"$PY" -m venv .venv
-# shellcheck disable=SC1091
-source .venv/bin/activate
-
-echo "== Installing dependencies (this pulls the Typst renderer, give it a minute) =="
-pip install --upgrade pip >/dev/null
-pip install -r requirements.txt
-
-echo "== Creating your user files from the examples (git-ignored; existing files are kept) =="
-python -m src.init
-echo
-echo "Setup complete. Next:"
-echo "  source .venv/bin/activate"
-echo "  python -m src.discover  # first discovery run"
-echo "  # then, in Claude Code from this folder:  /jh-match  ->  /jh-tailor <id>  ->  /jh-followups"
-echo
-echo "To run it on a schedule:             docs/scheduling.md (cron or launchd, nothing installed)"
-echo "To open the TUI with one word:       scripts/install_launcher.sh   # then: jobhunt"
+if ! command -v "$PY" >/dev/null 2>&1; then
+  echo "setup: $PY not found; install Python 3.11 or newer, or point PYTHON at one" >&2
+  exit 1
+fi
+if ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+  echo "setup: jobhunt needs Python 3.11 or newer ($("$PY" --version 2>&1) found); set PYTHON=python3.12 or similar" >&2
+  exit 1
+fi
+exec "$PY" -m src.setup "$@"

@@ -184,6 +184,9 @@ over), `status [RUN]`, `report [RUN]`, `runs`, `models`, `doctor`. Nothing is sc
 shared `fan.py`. Tests must use a fake harness: `tests/conftest.py` refuses to start a real
 agent CLI, and a bare `hunt run` in a test IS a hunt (patch `connect` and the data dirs of
 every module a stage touches, as `tests/test_hunt_*.py` do).
+Setup: `./setup.sh` is a python check around `python -m src.setup` (stdlib-only first half: detect the agent CLIs,
+ask, venv, deps; then `finish` under the venv: init, default harness, `hunt doctor` per CLI, the next step; `--check`
+writes nothing; codex home skills are opt-in and only files carrying `HOME_SKILL_MARK` are ever rewritten).
 Helper queries: `python -m src.query {job <id>|crm|followups}`; hand-enter a board-less role with `python -m src.query add --company C --title T ...` (reuses a same company+title row when one exists; the only insert path outside discovery), `python -m src.research {path "<company>"|get <id>}`.
 Status transitions: `python -m src.query set-status <id> <status> [--note ...] [--followup YYYY-MM-DD]`
 (single write path: validates, stamps `applied_at`, auto-schedules the follow-up, moves the

@@ -25,6 +25,7 @@ from pathlib import Path
 import yaml
 
 from ..config import ROOT
+from ..setup import HOME_SKILL_MARK
 from .config import HuntConfig
 from .harness import TOOL_ORDER, TOOLS
 
@@ -429,7 +430,6 @@ def render_agents_md(commands: dict[str, Command]) -> str:
     return "\n".join(lines) + "\n"
 
 
-HOME_SKILL_MARK = "<!-- written by the jobhunt installer (python -m src.setup); it updates or removes only files carrying this line -->"
 
 
 def render_home_skill(cmd: Command) -> str:

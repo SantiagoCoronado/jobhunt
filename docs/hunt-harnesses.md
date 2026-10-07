@@ -196,6 +196,12 @@ command format, and the same `--check` covers the renders. Never edit a render.
 native commands. The hunt never runs a command: pi units start with `--no-prompt-templates`
 and `--no-context-files`.
 
+`./setup.sh` (`python -m src.setup`) asks which of claude, codex, opencode, pi, gemini and agy you
+run, writes the first one with a shipped adapter as `[harness] default`, runs `hunt doctor
+--harness H` for each, and ends with the next step in that harness's words: `/jh-setup` where
+there are slash commands, the name to say on codex and agy (`jh-discover` until the onboarding
+interview lands). It never renders a per-user file.
+
 Opt-in home copy (codex): `python -m src.setup` offers to write one skill per command into
 `~/.codex/skills/<name>/SKILL.md`, so `$jh-tailor 123` works in any codex session started in the
 checkout. Each skill only points at `prompts/commands/<name>.md`, so it never goes stale, and
