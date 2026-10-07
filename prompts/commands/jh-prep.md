@@ -5,7 +5,7 @@ tools: [read, write, bash, glob, web]
 
 Build me an interview prep brief for job **$ARGUMENTS**.
 
-1. **Load**: `python -m src.query job <id>` with Bash; the dossier via
+1. **Load**: `python -m src.query job <id>` with your shell tool; the dossier via
    `python -m src.research get <id>` (if `stale: True`, refresh the time-sensitive
    facts first, /jh-research flow, before citing news); the tailored resume + cover
    letter in `applications/*/<company>-<id>/`; `resume/master_resume.yaml`;

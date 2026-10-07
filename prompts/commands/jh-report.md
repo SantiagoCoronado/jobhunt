@@ -5,7 +5,7 @@ tools: [bash]
 
 Regenerate my job-hunt dashboard.
 
-1. Run `python -m src.report --open` with Bash (use `.venv/bin/python` if plain
+1. Run `python -m src.report --open` with your shell tool (use `.venv/bin/python` if plain
    `python` is not on PATH). The script writes `data/report.html` (self-contained,
    offline, gitignored) and opens it in the browser.
 2. Relay the headline line the script prints (applications, response rate, median

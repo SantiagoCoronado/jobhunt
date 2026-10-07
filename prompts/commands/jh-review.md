@@ -6,7 +6,7 @@ tools: [read, bash, glob]
 Review how the job hunt is actually converting and propose evidence-based tuning.
 Numbers come from deterministic SQL, never estimate them yourself.
 
-1. **Collect the numbers** with Bash:
+1. **Collect the numbers** with your shell tool:
    - `python -m src.stats funnel`        (conversion by stage, score band, title family, source)
    - `python -m src.stats calibration`   (do 90s convert better than 75s?)
    - `python -m src.stats latency`       (applied -> first response, from the event log)

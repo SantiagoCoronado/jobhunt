@@ -10,7 +10,7 @@ The first question for every gap is always: is this a REAL skill gap, or a
 PROFILE-VOCABULARY gap (a skill I have that `config/profile.yaml` does not list)?
 Vocabulary gaps become proposed profile diffs; only real gaps get a learning plan.
 
-1. **Extract the numbers** with Bash: `python -m src.gaps --json` (fleet) or
+1. **Extract the numbers** with your shell tool: `python -m src.gaps --json` (fleet) or
    `python -m src.gaps --job <id> --json`. Never estimate counts yourself; the
    ranked terms, job counts, and responded rates come from this output only.
 
@@ -24,7 +24,7 @@ Vocabulary gaps become proposed profile diffs; only real gaps get a learning pla
    - **real gap**: no defensible evidence -> candidate for the learning plan.
    - **noise**: irrelevant to my four title families -> discard with one line saying why.
 
-4. **For the top 5 real gaps**: WebSearch 2-3 current resources each, free first
+4. **For the top 5 real gaps**: search the web for 2-3 current resources each, free first
    (official docs, courses, build-a-thing projects), with an honest hours estimate
    and a "provable by" milestone (a repo, a cert, a demo). A gap counts as closed
    only when it is interview-defensible, not when a video was watched.
@@ -34,7 +34,7 @@ Vocabulary gaps become proposed profile diffs; only real gaps get a learning pla
      gap table with counts next to every rate, the vocabulary-gap diffs, the
      learning plan, Sources section with citations.
    - Per-job mode: `applications/<bucket>/<company>-<id>/upskill.md` (find the
-     folder with Glob `applications/*/<company>-<id>`; it is gitignored with the
+     folder matching `applications/*/<company>-<id>`; it is gitignored with the
      rest of applications/): that JD's gaps, honest bridge lines for each, and
      what to rehearse. `/jh-prep` folds this file into its Weak spots section.
 

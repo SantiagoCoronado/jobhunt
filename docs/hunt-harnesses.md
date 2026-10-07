@@ -174,10 +174,41 @@ file.
 A generated file carries a stage's `model` only when that stage runs on that file's harness.
 agy has no generated file: its `agent.md` layout could not be confirmed.
 
-The `/jh-*` commands follow the same pattern: `prompts/commands/<name>.md` is the one source
-(`description`, optional `argument-hint`, `tools` from `read, write, edit, bash, web, glob,
-agent, gmail-read, gmail-draft`), `sync-agents` renders `.claude/commands/<name>.md` from it,
-and the same `--check` covers the renders.
+## Commands on every harness (`sync-agents`)
+
+The `/jh-*` commands follow the same pattern (`docs/spec-pre-release.md` decision 4):
+`prompts/commands/<name>.md` is the one source (`description`, optional `argument-hint`,
+`tools` from `read, write, edit, bash, web, glob, agent, gmail-read, gmail-draft`; the body in
+harness-neutral words, "your shell tool", "the resume-tailor agent", `$ARGUMENTS` for what the
+user typed after the name). `sync-agents` renders it for every harness that has a project
+command format, and the same `--check` covers the renders. Never edit a render.
+
+| Harness | Render | Format | Checked against |
+|---|---|---|---|
+| claude | `.claude/commands/<name>.md` | `description`, `argument-hint`, `allowed-tools` by claude names | the files it replaced, byte for byte, before they became renders |
+| opencode | `.opencode/commands/<name>.md` | `description` only (no hint, no tool list: the session's permissions apply); `$ARGUMENTS` | `opencode debug config` on 1.18.29 lists all 13 under `command` |
+| gemini | `.gemini/commands/<name>.toml` | `description`, `prompt`; `$ARGUMENTS` becomes `{{args}}`; a body with `!{` or `@{` is refused (gemini would inject a shell or a file) | the loader source, `FileCommandLoader` in the 0.46.0 bundle (no list command); loaded only in a trusted folder when folder trust is on |
+| pi | `.pi/prompts/<name>.md` (prompt templates) | `description`, `argument-hint`; `$ARGUMENTS` | pi 0.85.1's own `loadPromptTemplates` and `substituteArgs`; project templates load once the project is trusted |
+| codex | `AGENTS.md` `## Commands` | say `jh-tailor 123`; the agent reads `prompts/commands/jh-tailor.md` | `codex debug prompt-input` on 0.153.4 carries `AGENTS.md` |
+| agy | `AGENTS.md` `## Commands` | as codex | agy 1.2.8 documents `AGENTS.md` as its rules file; not checked against a loader (no list command, a signed-out call waits on a login) |
+
+`AGENTS.md` is read by opencode and pi too, so it stays short and names the harnesses with
+native commands. The hunt never runs a command: pi units start with `--no-prompt-templates`
+and `--no-context-files`.
+
+Opt-in home copy (codex): `python -m src.setup` offers to write one skill per command into
+`~/.codex/skills/<name>/SKILL.md`, so `$jh-tailor 123` works in any codex session started in the
+checkout. Each skill only points at `prompts/commands/<name>.md`, so it never goes stale, and
+carries the installer's mark; the installer updates or removes only files with that mark and
+never touches a skill it did not write. Checked: `codex debug prompt-input` on 0.153.4 lists a
+skill in that folder; codex's older custom-prompts folder (`~/.codex/prompts/`) could not be
+found in that build.
+
+Not rendered, recorded for later: codex 0.153.4 also loads project skills from
+`.agents/skills/<name>/SKILL.md` (checked with `debug prompt-input`), and agy 1.2.8 documents
+the same folder with `/<name>` slash support and calls its older `.agents/workflows/` deprecated.
+Both are skills (a model may invoke one unasked), not commands, so the spec's `AGENTS.md` path
+stays the default for codex and agy.
 
 ## `web` and research
 

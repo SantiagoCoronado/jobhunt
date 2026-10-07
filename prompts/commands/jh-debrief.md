@@ -9,7 +9,7 @@ Transcript convention: I record the interview (checking consent/legality is MY j
 not yours; treat the transcript as lawfully obtained input) and drop the text at
 `interviews/<company>-<id>/<YYYY-MM-DD>-<round>.md` (e.g. `2026-07-20-screen.md`).
 
-1. **Load context**: `python -m src.query job <id>` with Bash; the transcript (the
+1. **Load context**: `python -m src.query job <id>` with your shell tool; the transcript (the
    path if given, else the newest `interviews/*-<id>/*.md` that has no matching
    `debrief-*` file); the tailored materials in `applications/*/<company>-<id>/`;
    the dossier via `python -m src.research get <id>`.

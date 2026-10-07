@@ -12,7 +12,8 @@ Help me stay on top of follow-ups.
    `query crm` inside it). If no mailbox is configured and Gmail is unavailable, continue
    from DB state.
 
-2. List active applications: run `python -m src.query followups` with Bash.
+2. List active applications: run `python -m src.query followups` with your
+   shell tool.
    After step 1 this reflects the inbox: replies already bumped
    `last_contact_at`, rejections already closed their rows.
 
@@ -27,8 +28,8 @@ Help me stay on top of follow-ups.
    import connect; import json; print(json.loads(connect().execute(\"SELECT payload FROM
    events WHERE job_id=? AND kind='email_signal' ORDER BY id DESC LIMIT 1\", (<id>,))
    .fetchone()[0]).get('account'))"`), or that account's `MAIL_<LABEL>_REPLY_AS` when set.
-   The Gmail MCP draft tool only reaches the connected account, so create a Gmail draft
-   only when that account is the one; otherwise write the draft to
+   A Gmail connector's draft tool (when your harness has one) only reaches the connected
+   account, so create a Gmail draft only when that account is the one; otherwise write the draft to
    `data/followups/<company>-<id>.md` and tell me which mailbox to paste it into. That file
    is never handed to any send tool. Relay reply addresses (Greenhouse `bf-j-...`, Lever,
    Ashby) make this mandatory: a reply from the wrong mailbox breaks the thread. After

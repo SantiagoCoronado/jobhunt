@@ -28,7 +28,7 @@ def test_every_role_file_parses_and_matches_the_registry():
 # one file per role per harness, plus opencode's narrowed `hunt-<role>` files, plus one file
 # per command per harness that has a command format
 N_AGENT_FILES = len(prompts.ROLE_STAGE) * len(prompts.NATIVE) + len(prompts.hunt_grants(prompts.load_roles()))
-N_COMMAND_FILES = len(prompts.load_commands()) * len(prompts.NATIVE_COMMANDS)
+N_COMMAND_FILES = len(prompts.load_commands()) * len(prompts.NATIVE_COMMANDS) + 1     # + AGENTS.md
 N_FILES = N_AGENT_FILES + N_COMMAND_FILES
 
 
@@ -145,8 +145,8 @@ def test_cli_sync_agents_check_and_write(tmp_path, monkeypatch, capsys):
 # --- commands (docs/spec-pre-release.md decision 4) ---
 
 def test_every_command_source_parses_and_the_claude_render_is_the_committed_file():
-    """The claude render of each source is byte-identical to the committed `.claude/commands`
-    file (the proof story 1 rests on: the old hand-written files became renders unchanged)."""
+    """The claude render of each source is the committed `.claude/commands` file (story 1 landed
+    it byte-identical to the hand-written files before they became renders)."""
     commands = prompts.load_commands()
     assert len(commands) >= 13 and all(name.startswith("jh-") for name in commands)
     for cmd in commands.values():
@@ -162,9 +162,10 @@ def test_render_claude_command_maps_the_vocabulary_and_quotes_only_what_yaml_wou
     assert text == ("---\ndescription: Do x: then y\nargument-hint: \"[job_id]\"\n"
                     "allowed-tools: Read, Bash, Glob, WebSearch, WebFetch, Task, mcp__claude_ai_Gmail__search_threads, "
                     "mcp__claude_ai_Gmail__get_thread, mcp__claude_ai_Gmail__get_message, mcp__claude_ai_Gmail__create_draft\n"
-                    "---\n\nBody $ARGUMENTS.\n")
+                    "---\n" + prompts.COMMAND_MARK.format(name="jh-x") + "\n\nBody $ARGUMENTS.\n")
     path.write_text("---\ndescription: d\nargument-hint: <job_id>\n---\nb\n")
-    assert prompts.render_claude_command(prompts.parse_command(path)) == "---\ndescription: d\nargument-hint: <job_id>\n---\nb\n"
+    assert prompts.render_claude_command(prompts.parse_command(path)) == (
+        "---\ndescription: d\nargument-hint: <job_id>\n---\n" + prompts.COMMAND_MARK.format(name="jh-x") + "\nb\n")
 
 
 @pytest.mark.parametrize("name,text,needle", [
@@ -190,3 +191,69 @@ def test_check_reports_a_hand_edited_command(tmp_path):
     rendered.write_text(rendered.read_text() + "edited by hand\n")
     changed, _same = prompts.sync(cfg, check=True, root=tmp_path)
     assert changed == [str(rendered)]
+
+
+# --- renders per harness (decision 4) ---
+
+_NEUTRAL_GONE = ("with Bash", "Bash tool", "Agent tool", "Task tool", "run_in_background", "CLAUDE_PROJECT_DIR",
+                 "subagent", "sub-agent", "Workflow", "MCP", "WebSearch", "Glob ")
+
+
+def test_command_sources_use_harness_neutral_wording():
+    for cmd in prompts.load_commands().values():
+        for gone in _NEUTRAL_GONE:
+            assert gone not in cmd.body, (cmd.name, gone)
+
+
+def _front(text: str) -> dict:
+    return __import__("yaml").safe_load(text.split("\n---\n", 1)[0].removeprefix("---\n"))
+
+
+def test_opencode_and_pi_renders_parse_and_carry_only_their_keys():
+    for cmd in prompts.load_commands().values():
+        oc = prompts.render_opencode_command(cmd)
+        assert _front(oc) == {"description": cmd.description}
+        pi = prompts.render_pi_command(cmd)
+        want = {"description": cmd.description} | ({"argument-hint": cmd.argument_hint} if cmd.argument_hint else {})
+        assert _front(pi) == want
+        for text in (oc, pi, prompts.render_claude_command(cmd)):
+            assert prompts.COMMAND_MARK.format(name=cmd.name) in text and text.endswith(cmd.body)
+
+
+def test_gemini_render_is_toml_with_its_args_placeholder(tmp_path):
+    import tomllib
+    for cmd in prompts.load_commands().values():
+        doc = tomllib.loads(prompts.render_gemini_command(cmd))
+        assert set(doc) == {"description", "prompt"} and doc["description"] == cmd.description
+        # TOML drops the newline right after the opening quotes, the body's leading blank line
+        assert doc["prompt"] == cmd.body.replace("$ARGUMENTS", "{{args}}").removeprefix("\n")
+        assert "$ARGUMENTS" not in doc["prompt"] and ("{{args}}" in doc["prompt"]) == ("$ARGUMENTS" in cmd.body)
+    for bad in ("run !{ls}", "read @{x.md}", "already {{args}}"):
+        path = tmp_path / "jh-bad.md"
+        path.write_text(f"---\ndescription: d\n---\n{bad}\n")
+        with pytest.raises(ValueError, match="injection"):
+            prompts.render_gemini_command(prompts.parse_command(path))
+
+
+def test_agents_md_lists_every_command_with_the_text_to_say():
+    commands = prompts.load_commands()
+    text = prompts.render_agents_md(commands)
+    assert "## Commands" in text and "prompts/commands/<name>.md" in text and "codex and agy" in text
+    for cmd in commands.values():
+        assert f"- `{prompts.command_say(cmd)}`: " in text, cmd.name
+    assert "- `jh-tailor <job_id>`: Tailor resume + cover letter for a job." in text   # the Usage tail is dropped
+    assert (prompts.AGENTS_ROOT / "AGENTS.md").read_text(encoding="utf-8") == text
+    assert "\u2014" not in text
+
+
+def test_every_harness_with_a_shipped_adapter_or_a_template_is_covered():
+    """Decision 4: each harness gets native commands or the AGENTS.md list, never neither."""
+    assert set(prompts.NATIVE_COMMANDS) | set(prompts.AGENTS_MD_HARNESSES) == {"claude", "codex", "opencode", "pi", "gemini", "agy"}
+    assert not set(prompts.NATIVE_COMMANDS) & set(prompts.AGENTS_MD_HARNESSES)
+
+
+def test_home_skill_points_at_the_source_and_carries_the_installer_mark():
+    cmd = prompts.load_commands()["jh-tailor"]
+    text = prompts.render_home_skill(cmd)
+    assert _front(text) == {"name": "jh-tailor", "description": "Tailor resume + cover letter for a job."}
+    assert prompts.HOME_SKILL_MARK in text and "`prompts/commands/jh-tailor.md`" in text

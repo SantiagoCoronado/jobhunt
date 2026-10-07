@@ -124,8 +124,9 @@ config/        profile.yaml (incl. location_rule + shortlist_threshold) · sourc
 resume/        master_resume.yaml   (single source of truth)
 src/           discover · triage · match · notify · query · research · reconcile · pick
                · maintain · render_docx · db · models · adapters/ · tui/
-.claude/       agents/ (job-matcher, resume-tailor, company-researcher)
-               commands/ (/jh-hunt /jh-discover /jh-triage /jh-match /jh-research /jh-tailor …)
+prompts/       agents/<role>.md and commands/<name>.md: the one source of every agent and /jh-* command
+.claude/ .opencode/ .gemini/ .pi/ .codex/ AGENTS.md
+               renders of prompts/ per harness (`python -m src.hunt sync-agents`; never edit them)
 research/      companies/<slug>.md   cited dossiers (committed, reusable)
 applications/  {pending,applied,other}/<company>-<id>/  tailored output (git-ignored)
 tests/         pytest suite (`.venv/bin/python -m pytest tests/`)

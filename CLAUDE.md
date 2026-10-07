@@ -165,10 +165,12 @@ python -m src.render_docx <resume.yaml> [--pdf] [--fit auto|0|1|2|3]
 
 ## Commands
 All commands are `jh-` prefixed and live ONCE in `prompts/commands/<name>.md` (frontmatter: description,
-argument-hint, tools in the command vocabulary); `.claude/commands/` is a render of them.
+argument-hint, tools in the command vocabulary; the body in harness-neutral words); `.claude/commands/`,
+`.opencode/commands/`, `.gemini/commands/` (toml), `.pi/prompts/` and the `## Commands` list in `AGENTS.md`
+(codex, agy) are renders of them (`docs/hunt-harnesses.md`, "Commands on every harness").
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
 `python -m src.hunt sync-agents` regenerates every harness's native files from both (`.claude/agents`,
-`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, `.claude/commands`; a file carries a stage's model only
+`.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, the command renders; a file carries a stage's model only
 when that stage runs on that file's harness), and CI runs `sync-agents --check`. Never edit a generated agent or command file.
 Harnesses (`docs/hunt-harnesses.md`): adapters claude, codex, opencode, pi, agy in `src/hunt/harness/`, anything
 else a `[harness.<name>]` command template in `config/hunt.toml`; an adapter refuses a tool it cannot grant,
