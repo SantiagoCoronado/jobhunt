@@ -39,6 +39,9 @@ def _user_files_from_fixtures(monkeypatch, tmp_path):
     # Anything that resolves db.DB_PATH at call time (src.dream after a reset, src.tui.data)
     # lands in this test's temp dir, never in the real data/jobs.db.
     monkeypatch.setattr(db, "DB_PATH", tmp_path / "jobs.db")
+    # .env holds real secrets: no test reads it, and the one-line editor writes a temp copy.
+    monkeypatch.setattr(config, "ENV_PATH", tmp_path / ".env")
+    monkeypatch.setattr(config, "_ENV_CACHE", None)
     dream.reset_cache()
     monkeypatch.setattr(dream, "_COMPANIES", [dream.normalize(d) for d in DREAM_FIXTURE])
     # The shared title gate caches a value derived from those files, so a test that touches

@@ -131,13 +131,12 @@ def profile_dream_list(root: Path = ROOT) -> list[dict]:
     return [d for d in (normalize(e) for e in entries) if d]
 
 
-def comment_out_key(text: str, key: str, note: list[str]) -> str:
-    """`text` with the top-level `key:` block (its line and every indented, list or blank line
-    under it) turned into comments, preceded by the `note` lines. Unchanged when the key is absent."""
-    lines = text.splitlines(keepends=True)
+def key_span(lines: list[str], key: str) -> tuple[int, int] | None:
+    """(start, end) of the top-level `key:` block in `lines`: its own line through its last
+    indented or list line. None when the key is absent. Shared with src.onboard's writers."""
     start = next((i for i, ln in enumerate(lines) if ln.startswith(f"{key}:")), None)
     if start is None:
-        return text
+        return None
     end = start + 1                       # one past the block's last indented or list line
     for i in range(start + 1, len(lines)):
         ln = lines[i]
@@ -147,6 +146,17 @@ def comment_out_key(text: str, key: str, note: list[str]) -> str:
             end = i + 1
             continue
         break                             # the next top-level key
+    return start, end
+
+
+def comment_out_key(text: str, key: str, note: list[str]) -> str:
+    """`text` with the top-level `key:` block (its line and every indented, list or blank line
+    under it) turned into comments, preceded by the `note` lines. Unchanged when the key is absent."""
+    lines = text.splitlines(keepends=True)
+    span = key_span(lines, key)
+    if span is None:
+        return text
+    start, end = span
     block = [("# " + ln if ln.strip() else ln) for ln in lines[start:end]]
     block = [b if b.endswith("\n") else b + "\n" for b in block]
     return "".join(lines[:start] + [n + "\n" for n in note] + block + lines[end:])

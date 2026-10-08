@@ -24,6 +24,7 @@ def main(tmp: Path, editor: str) -> int:
                       ("master_resume", "master_resume.yaml"), ("answers", "answers.yaml")):
         config.USER_FILES[key] = fixtures / name
     db.DB_PATH = tmp / "jobs.db"
+    config.ENV_PATH = tmp / ".env"
     reconcile.APPS_DIR = tmp / "applications"
     research.COMPANIES_DIR = tmp / "companies"
     settings.TUI_TOML = tmp / "config" / "tui.toml"

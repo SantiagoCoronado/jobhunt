@@ -3,6 +3,8 @@
     python -m src.onboard extract <files...>     text of each document into data/onboard/, one line of sizes each
     python -m src.onboard check resume [--file P]   validate a master resume (schema, dates, the renderer)
     python -m src.onboard check profile [--file P]  validate a profile (the prompt keys, the keys the pipeline reads)
+    python -m src.onboard write {resume|profile|sources|env|dream} <json | file | -> [--yes]
+                                                 validate, then write; a hand-edited file shows its diff and waits for --yes
 
 The agent runs the interview; this module does everything that has a right answer. `extract`
 reads PDF (pypdf), docx (python-docx), md, txt, csv and LinkedIn's data-export zip (only the
@@ -416,6 +418,321 @@ def check(what: str, path: Path | None = None) -> int:
     return 0
 
 
+# ---- write --------------------------------------------------------------------------------
+#
+# Every file the interview produces is written here, never by the agent's own edit tool. Each
+# writer validates first and writes nothing on a problem. The show-diff-and-ask rule: a file
+# that differs from both its tracked example (a fresh `src.init` copy) and the last version this
+# helper wrote was edited by hand, so the writer prints the diff and stops (exit 3) until the
+# call is repeated with `--yes` after the user agreed. The replaced version is kept under
+# data/onboard/backup/. `data/onboard/written.json` holds the hash of what was last written.
+
+WRITTEN = "written.json"
+PROVENANCE = "provenance.json"
+NEEDS_YES = 3
+DIFF_LINES = 120
+EXAMPLES = {
+    "profile": ROOT / "config" / "profile.example.yaml",
+    "master_resume": ROOT / "resume" / "master_resume.example.yaml",
+    "sources_local": ROOT / "config" / "sources.local.example.yaml",
+}
+
+
+class Refused(Exception):
+    """A write that did not happen: the message says why; `code` is the exit code."""
+
+    def __init__(self, message: str, code: int = 1) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _sha(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _written() -> dict[str, str]:
+    path = ONBOARD_DIR / WRITTEN
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def diff(old: str, new: str, name: str) -> str:
+    import difflib
+
+    lines = list(difflib.unified_diff(old.splitlines(), new.splitlines(), f"a/{name}", f"b/{name}", lineterm=""))
+    if len(lines) > DIFF_LINES:
+        lines = lines[:DIFF_LINES] + [f"... {len(lines) - DIFF_LINES} more diff lines"]
+    return "\n".join(lines)
+
+
+def hand_edited(path: Path, kind: str) -> bool:
+    """True when the file exists and is neither its example nor what this helper last wrote."""
+    if not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8")
+    example = EXAMPLES.get(kind)
+    if example is not None and example.exists() and example.read_text(encoding="utf-8") == text:
+        return False
+    return _written().get(_rel(path)) != _sha(text)
+
+
+def commit_file(path: Path, kind: str, text: str, yes: bool) -> str:
+    """Write `text` to `path` under the show-diff-and-ask rule. Returns "written" or
+    "unchanged"; raises Refused(code=3) with the diff when the user must be asked first."""
+    from datetime import datetime
+
+    old = path.read_text(encoding="utf-8") if path.exists() else None
+    if old == text:
+        return "unchanged"
+    if old is not None and hand_edited(path, kind) and not yes:
+        raise Refused(f"{diff(old, text, _rel(path))}\n  ! {_rel(path)} was edited since onboarding last wrote it; "
+                      "show the user this diff and repeat the call with --yes once they agree", NEEDS_YES)
+    if old is not None:
+        backup = ONBOARD_DIR / "backup" / f"{path.name}.{datetime.now():%Y%m%d-%H%M%S}"
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        backup.write_text(old, encoding="utf-8")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    hashes = _written()
+    hashes[_rel(path)] = _sha(text)
+    ONBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    (ONBOARD_DIR / WRITTEN).write_text(json.dumps(hashes, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return "written"
+
+
+def _dump(value) -> str:
+    import yaml
+
+    return yaml.safe_dump(value, sort_keys=False, allow_unicode=True, default_flow_style=False, width=100)
+
+
+def set_keys(text: str, values: dict) -> str:
+    """`text` (a YAML file) with each top-level key's block replaced by the new value, in place,
+    so every comment outside those blocks stays; a key the file lacks is appended."""
+    from .init import key_span
+
+    for key, value in values.items():
+        block = _dump({key: value})
+        lines = text.splitlines(keepends=True)
+        span = key_span(lines, key)
+        if span is None:
+            text = text.rstrip("\n") + "\n\n" + block if text.strip() else block
+        else:
+            start, end = span
+            text = "".join(lines[:start]) + block + "".join(lines[end:])
+    return text
+
+
+# --- the master resume, with provenance (decision 7)
+
+def _provenance_keys(data: dict) -> list[tuple[str, str]]:
+    """(kind, name) of every entry that needs a source: each role, project, school, skill
+    group, additional line, and the summary."""
+    sections = data["cv"].get("sections") or {}
+    keys: list[tuple[str, str]] = [("summary", "summary")] if sections.get("summary") else []
+    for kind, field in (("experience", "company"), ("projects", "name"), ("education", "institution"),
+                        ("skills", "label"), ("additional", "label")):
+        keys += [(kind, str(e.get(field))) for e in sections.get(kind) or [] if isinstance(e, dict)]
+    return keys
+
+
+def provenance_errors(data: dict, prov) -> list[str]:
+    """Every entry must be traced to a document in the manifest or to the interview."""
+    if not isinstance(prov, list) or not prov:
+        return ["`provenance` is required: a list of {what, from} naming where each entry came from"]
+    known = set(document_ids()) | {INTERVIEW}
+    errors = []
+    for i, p in enumerate(prov):
+        if not isinstance(p, dict) or not str(p.get("what") or "").strip():
+            errors.append(f"provenance[{i}] needs `what` (the entry) and `from` (document ids or {INTERVIEW!r})")
+            continue
+        src = p.get("from")
+        src = [src] if isinstance(src, str) else src
+        if not isinstance(src, list) or not src:
+            errors.append(f"provenance[{i}] ({p['what']}) needs `from`")
+            continue
+        unknown = [s for s in src if s not in known]
+        if unknown:
+            errors.append(f"provenance[{i}] ({p['what']}) cites {', '.join(map(str, unknown))}, which is not an "
+                          f"extracted document (known: {', '.join(sorted(known))})")
+    whats = [str(p.get("what") or "").lower() for p in prov if isinstance(p, dict)]
+    for kind, name in _provenance_keys(data):
+        if not any(name.lower() in w for w in whats):
+            errors.append(f"no provenance for {kind} {name!r}: ask the user where it comes from, or leave it out")
+    return errors
+
+
+def write_resume(payload, yes: bool = False, path: Path | None = None) -> str:
+    from datetime import date
+
+    if not isinstance(payload, dict):
+        raise Refused("the resume payload is a mapping with `cv` and `provenance`")
+    prov = payload.get("provenance")
+    data = {k: v for k, v in payload.items() if k != "provenance"}
+    errors = resume_errors(data) or provenance_errors(data, prov)
+    if errors:
+        raise Refused("\n".join(f"  ! {e}" for e in errors))
+    path = path or user_file("master_resume")
+    sources = sorted({s for p in prov or [] for s in ([p["from"]] if isinstance(p["from"], str) else p["from"])})
+    head = (f"# MASTER RESUME, written by `python -m src.onboard` on {date.today().isoformat()} from: "
+            f"{', '.join(sources)}.\n# Every entry is traced in data/onboard/{PROVENANCE}. Everything in it "
+            "must be TRUE; edit freely.\n\n")
+    state = commit_file(path, "master_resume", head + _dump(data), yes)
+    ONBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    (ONBOARD_DIR / PROVENANCE).write_text(json.dumps(prov, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    c = resume_counts(data)
+    return (f"  {state:8s} {_rel(path)}: {c['roles']} roles, {c['projects']} projects, {c['skills']} skills, "
+            f"{c['education']} education; provenance in {_rel(ONBOARD_DIR / PROVENANCE)}")
+
+
+# --- the profile, one section at a time
+
+PROFILE_EXTRA_KEYS = ("resume_basename",)        # optional keys the example only mentions in a comment
+
+
+def write_profile(payload, yes: bool = False, path: Path | None = None) -> str:
+    import yaml
+
+    if not isinstance(payload, dict) or not payload:
+        raise Refused("the profile payload is a mapping of top-level keys to set")
+    if "dream_companies" in payload:
+        raise Refused("dream companies are data, not profile keys: use `write dream`")
+    example = EXAMPLES["profile"]
+    allowed = set(yaml.safe_load(example.read_text(encoding="utf-8")) or {}) | set(PROFILE_EXTRA_KEYS)
+    unknown = sorted(set(payload) - allowed)
+    if unknown:
+        raise Refused(f"  ! unknown profile key(s) {', '.join(unknown)} (known: {', '.join(sorted(allowed))})")
+    path = path or user_file("profile")
+    base = path.read_text(encoding="utf-8") if path.exists() else example.read_text(encoding="utf-8")
+    text = set_keys(base, payload)
+    errors = profile_errors(yaml.safe_load(text))
+    if errors:
+        raise Refused("\n".join(f"  ! {e}" for e in errors))
+    state = commit_file(path, "profile", text, yes)
+    return f"  {state:8s} {_rel(path)}: {', '.join(payload)}"
+
+
+# --- sources.local.yaml, one block per source
+
+def write_sources(payload, yes: bool = False, path: Path | None = None) -> str:
+    from .config import sources
+
+    if not isinstance(payload, dict) or not payload:
+        raise Refused("the sources payload is a mapping of source name to its block")
+    known = set(sources())
+    errors = [f"unknown source {name!r} (config/sources.yaml has no such block)" for name in payload
+              if name not in known]
+    errors += [f"{name}: the block must be a mapping" for name, block in payload.items() if not isinstance(block, dict)]
+    if errors:
+        raise Refused("\n".join(f"  ! {e}" for e in errors))
+    path = path or user_file("sources_local")
+    base = path.read_text(encoding="utf-8") if path.exists() else EXAMPLES["sources_local"].read_text(encoding="utf-8")
+    state = commit_file(path, "sources_local", set_keys(base, payload), yes)
+    return f"  {state:8s} {_rel(path)}: {', '.join(payload)}"
+
+
+# --- .env, one line per key (config.set_env, shared with the TUI's Keys tab)
+
+_MAIL_KEY = re.compile(r"^MAIL_[A-Z0-9]+_(USER|PASS|HOST|FOLDERS|ALIASES|REPLY_AS)$")
+
+
+def env_keys_known() -> list[str]:
+    """Every key .env.example names, set or commented out."""
+    from .config import ENV_EXAMPLE
+
+    if not ENV_EXAMPLE.exists():
+        return []
+    found = re.findall(r"^\s*#?\s*([A-Z][A-Z0-9_]*)\s*=", ENV_EXAMPLE.read_text(encoding="utf-8"), re.M)
+    return list(dict.fromkeys(found))
+
+
+def write_env(payload, yes: bool = False) -> str:
+    """Set keys in .env. A key that already holds a different value is replaced only with
+    `--yes`. The output names keys, never values."""
+    from .config import env_value, set_env
+
+    if not isinstance(payload, dict) or not payload:
+        raise Refused("the env payload is a mapping of KEY to value (\"\" leaves a key empty)")
+    known = set(env_keys_known())
+    errors = [f"{k}: not a key .env.example knows (nor a MAIL_<LABEL>_* key)" for k in payload
+              if k not in known and not _MAIL_KEY.match(str(k))]
+    errors += [f"{k}: the value must be a string" for k, v in payload.items() if not isinstance(v, str)]
+    errors += [f"{k}: the value must be one line" for k, v in payload.items() if isinstance(v, str) and "\n" in v]
+    if errors:
+        raise Refused("\n".join(f"  ! {e}" for e in errors))
+    replacing = [k for k, v in payload.items() if env_value(k) and env_value(k) != v]
+    if replacing and not yes:
+        raise Refused(f"  ! {', '.join(replacing)} already set in .env; ask before replacing "
+                      "(repeat with --yes), or leave it out", NEEDS_YES)
+    lines = [f"  {set_env(k, v):8s} .env {k}" for k, v in payload.items()]
+    return "\n".join(lines)
+
+
+# --- dream companies (the dream_companies table)
+
+def write_dream(payload) -> str:
+    from . import db, dream
+
+    entries = payload.get("companies") if isinstance(payload, dict) else payload
+    if not isinstance(entries, list) or not entries:
+        raise Refused("the dream payload is a list of companies: a name, or {name, match, careers_url, note}")
+    rows = [dream.normalize(e) for e in entries]
+    if any(r is None for r in rows):
+        raise Refused("  ! every dream company needs a name")
+    added, kept = [], []
+    conn = db.connect(db.DB_PATH)
+    try:
+        for d in rows:
+            assert d is not None
+            if db.get_dream(conn, d["name"]):
+                kept.append(d["name"])
+                continue
+            db.add_dream(conn, d["name"], d["match"], d["careers_url"] or None, d["note"] or None)
+            added.append(d["name"])
+        conn.commit()
+    finally:
+        conn.close()
+    dream.reset_cache()
+    out = [f"  added    dream {name}" for name in added] + [f"  kept     dream {name} (already in the table)"
+                                                             for name in kept]
+    return "\n".join(out)
+
+
+def read_payload(arg: str):
+    """A payload given inline (JSON), as a .json/.yaml file, or `-` for stdin."""
+    import yaml
+
+    if arg == "-":
+        text = sys.stdin.read()
+    elif len(arg) < 4096 and not arg.lstrip().startswith(("{", "[")) and Path(arg).is_file():
+        text = Path(arg).read_text(encoding="utf-8")
+    else:
+        text = arg
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            return yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            raise Refused(f"  ! the payload is neither JSON nor YAML: {e}") from None
+
+
+WRITERS = ("resume", "profile", "sources", "env", "dream")
+
+
+def write(what: str, payload, yes: bool = False) -> str:
+    if what == "resume":
+        return write_resume(payload, yes)
+    if what == "profile":
+        return write_profile(payload, yes)
+    if what == "sources":
+        return write_sources(payload, yes)
+    if what == "env":
+        return write_env(payload, yes)
+    return write_dream(payload)
+
+
 # ---- CLI ----------------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
@@ -426,14 +743,29 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("check", help="validate the master resume or the profile")
     p.add_argument("what", choices=("resume", "profile"))
     p.add_argument("--file", type=Path, help="check this file instead of the real one")
+    p = sub.add_parser("write", help="validate and write one file (show-diff-and-ask for a hand-edited one)")
+    p.add_argument("what", choices=WRITERS)
+    p.add_argument("payload", help="JSON inline, a .json/.yaml file, or - for stdin")
+    p.add_argument("--yes", action="store_true", help="the user saw the diff and agreed")
     args = ap.parse_args(argv)
+
+    if args.cmd == "write":
+        try:
+            print(write(args.what, read_payload(args.payload), args.yes))
+        except Refused as refused:
+            print(refused)
+            return refused.code
+        except ValueError as bad:
+            print(f"  ! {bad}")
+            return 1
+        return 0
 
     if args.cmd == "extract":
         docs, errors = extract(args.files)
         for doc in docs:
             print(size_line(doc))
-        for e in errors:
-            print(f"  ! {e}")
+        for line in errors:
+            print(f"  ! {line}")
         total = sum(d.tokens for d in docs)
         print(f"extracted {len(docs)} of {len(args.files)} document{'s' if len(args.files) != 1 else ''}, "
               f"~{total:,} tokens in all; read each text file once")
