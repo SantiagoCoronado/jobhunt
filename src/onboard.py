@@ -5,6 +5,8 @@
     python -m src.onboard check profile [--file P]  validate a profile (the prompt keys, the keys the pipeline reads)
     python -m src.onboard write {resume|profile|sources|env|dream} <json | file | -> [--yes]
                                                  validate, then write; a hand-edited file shows its diff and waits for --yes
+    python -m src.onboard sources                the sources the profile's regions turn on, their keys and targeting
+    python -m src.onboard verify-token <source> <token>   one live request: 200 and a non-empty board
 
 The agent runs the interview; this module does everything that has a right answer. `extract`
 reads PDF (pypdf), docx (python-docx), md, txt, csv and LinkedIn's data-export zip (only the
@@ -624,12 +626,187 @@ def write_sources(payload, yes: bool = False, path: Path | None = None) -> str:
     errors = [f"unknown source {name!r} (config/sources.yaml has no such block)" for name in payload
               if name not in known]
     errors += [f"{name}: the block must be a mapping" for name, block in payload.items() if not isinstance(block, dict)]
+    errors += token_errors(payload)
     if errors:
         raise Refused("\n".join(f"  ! {e}" for e in errors))
     path = path or user_file("sources_local")
     base = path.read_text(encoding="utf-8") if path.exists() else EXAMPLES["sources_local"].read_text(encoding="utf-8")
     state = commit_file(path, "sources_local", set_keys(base, payload), yes)
     return f"  {state:8s} {_rel(path)}: {', '.join(payload)}"
+
+
+# ---- sources: the proposal from coverage, and ATS tokens verified live ----------------------
+#
+# `sources` lists every block of the merged source config as the region gate leaves it for the
+# profile (config.sources(), decision 10): on or off, the regions, the keys a keyed source needs
+# with set/unset and the signup URL from .env.example, and the targeting still missing. The ATS
+# families take the tokens of companies the user follows; `verify-token` makes ONE request per
+# token (no retry) and records 200-and-non-empty in data/onboard/verified.json, and
+# `write sources` refuses a token that is not recorded there.
+
+VERIFIED = "verified.json"
+# source -> the env keys it reads, and whether it runs without them
+KEYED: dict[str, tuple[tuple[str, ...], bool]] = {
+    "adzuna": (("ADZUNA_APP_ID", "ADZUNA_APP_KEY"), False),
+    "careerjet": (("CAREERJET_AFFID",), False),
+    "findwork": (("FINDWORK_TOKEN",), False),
+    "themuse": (("THEMUSE_API_KEY",), True),
+}
+
+
+@dataclass(frozen=True)
+class Board:
+    """How one ATS family's public board is asked for its open roles."""
+    url: str                       # `{t}` is the token
+    count: str                     # the list's key in the JSON, "" when the body is the list
+    params: tuple[tuple[str, str], ...] = ()
+
+
+# The ATS families whose board one GET can count. Workday (a POST per site) and Personio (XML)
+# are not verified here; their tokens are written as given.
+BOARDS: dict[str, Board] = {
+    "greenhouse": Board("https://boards-api.greenhouse.io/v1/boards/{t}/jobs", "jobs"),
+    "lever": Board("https://api.lever.co/v0/postings/{t}", "", (("mode", "json"),)),
+    "ashby": Board("https://api.ashbyhq.com/posting-api/job-board/{t}", "jobs"),
+    "smartrecruiters": Board("https://api.smartrecruiters.com/v1/companies/{t}/postings", "content",
+                             (("limit", "100"),)),
+    "recruitee": Board("https://{t}.recruitee.com/api/offers/", "offers"),
+    "teamtailor": Board("https://{t}.teamtailor.com/jobs.json", "items"),
+    "pinpoint": Board("https://{t}.pinpointhq.com/postings.json", "data"),
+    "rippling": Board("https://api.rippling.com/platform/api/ats/v1/board/{t}/jobs", "items"),
+    "bamboohr": Board("https://{t}.bamboohr.com/careers/list", "result"),
+}
+_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+
+
+def token_key(source: str) -> str:
+    """The block key an ATS family lists its tokens under (`tokens`, `companies`, `clients`)."""
+    from .config import TARGETING_KEYS
+
+    return TARGETING_KEYS[source][0][0]
+
+
+def _verified() -> dict[str, dict[str, dict]]:
+    path = ONBOARD_DIR / VERIFIED
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+
+def _get(url: str, params: dict[str, str]):
+    """The one live request a verification makes (tests replace this)."""
+    import requests
+
+    from .adapters import UA
+
+    return requests.get(url, params=params, timeout=20, headers={"User-Agent": UA, "Accept": "application/json"})
+
+
+def verify_token(source: str, token: str) -> dict:
+    """One GET to the board; {ok, jobs, status, note}. ok = HTTP 200 and at least one open role.
+    The result is recorded either way."""
+    from datetime import date
+
+    if source not in BOARDS:
+        raise ValueError(f"{source}: not a board verify-token can count (it knows {', '.join(BOARDS)})")
+    if not _TOKEN.match(token):
+        raise ValueError(f"{token!r}: a board token is letters, digits, dot, dash or underscore")
+    board = BOARDS[source]
+    result: dict = {"ok": False, "jobs": 0, "status": None, "note": "", "at": date.today().isoformat()}
+    try:
+        resp = _get(board.url.format(t=token), dict(board.params))
+        result["status"] = resp.status_code
+        if resp.status_code != 200:
+            result["note"] = f"HTTP {resp.status_code}"
+        else:
+            body = resp.json()
+            items = body if not board.count else (body.get(board.count) if isinstance(body, dict) else None)
+            if not isinstance(items, list):
+                result["note"] = "the answer is not a job board (wrong token?)"
+            else:
+                result["jobs"] = len(items)
+                result["ok"] = bool(items)
+                result["note"] = "" if items else "0 open roles"
+    except ValueError:
+        result["note"] = "the answer is not JSON (wrong token?)"
+    except Exception as e:  # noqa: BLE001, a network failure is a result to report, not a crash
+        result["note"] = f"request failed: {type(e).__name__}"
+    done = _verified()
+    done.setdefault(source, {})[token] = result
+    ONBOARD_DIR.mkdir(parents=True, exist_ok=True)
+    (ONBOARD_DIR / VERIFIED).write_text(json.dumps(done, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return result
+
+
+def token_errors(payload: dict) -> list[str]:
+    """A token for a countable board must have been verified live with open roles."""
+    done = _verified()
+    errors = []
+    for source, block in payload.items():
+        if source not in BOARDS or not isinstance(block, dict):
+            continue
+        tokens = block.get(token_key(source)) or []
+        if not isinstance(tokens, list):
+            errors.append(f"{source}.{token_key(source)} must be a list")
+            continue
+        for t in tokens:
+            res = done.get(source, {}).get(str(t))
+            if res is None:
+                errors.append(f"{source} {t}: not verified; run python -m src.onboard verify-token {source} {t}")
+            elif not res.get("ok"):
+                errors.append(f"{source} {t}: {res.get('note') or 'failed'} on {res.get('at')}; leave it out "
+                              "(the summary keeps it as a note)")
+    return errors
+
+
+def proposal(prof: dict | None = None) -> list[str]:
+    """The lines `sources` prints: the coverage, one line per source, the totals."""
+    from .config import (
+        REGION_GATED, coverage, env_catalog, env_value, get_secret, load_profile, missing_targeting,
+        source_regions, sources,
+    )
+
+    if prof is None:
+        try:
+            prof = load_profile()
+        except FileNotFoundError:
+            prof = {}
+    cover = sorted(coverage(prof))
+    merged = sources(prof)
+    urls = {e["name"]: e["url"] for e in env_catalog()}
+    lines = [f"coverage: {', '.join(cover) or 'none (no location in the profile resolves; every source stays as configured)'}"]
+    on: list[str] = []
+    need_key: list[str] = []
+    ats: list[str] = []
+    for name, block in merged.items():
+        if name == "title_filter" or not isinstance(block, dict):
+            continue
+        regions = ", ".join(source_regions(block))
+        if name in BOARDS or name in ("workday", "personio"):
+            if block.get("enabled") or block.get(REGION_GATED):
+                listed = block.get(token_key(name)) or []
+                ats.append(f"{name} ({token_key(name)}: {len(listed)} listed)")
+            continue
+        if not block.get("enabled"):
+            why = "off by region" if block.get(REGION_GATED) else "off in config/sources.yaml"
+            lines.append(f"  off  {name:18s} [{regions}]  {why}")
+            continue
+        notes = []
+        keys, optional = KEYED.get(name, ((), True))
+        unset = [k for k in keys if not (env_value(k) or get_secret(k))]
+        if unset:
+            url = urls.get(keys[0], "")
+            notes.append(f"{'optional key' if optional else 'needs'} {', '.join(unset)} (unset){': ' + url if url else ''}")
+            if not optional:
+                need_key.append(name)
+        missing = missing_targeting(name, block)
+        if missing:
+            notes.append(f"targeting: {', '.join(missing)}")
+        on.append(name)
+        lines.append(f"  on   {name:18s} [{regions}]" + (f"  {'; '.join(notes)}" if notes else ""))
+    if ats:
+        lines.append(f"  ats  {'; '.join(ats)}: ask for the companies the user follows, "
+                     "verify each token, then write sources")
+    lines.append(f"{len(on)} on" + (f", {len(need_key)} need a key ({', '.join(need_key)})" if need_key else ""))
+    return lines
 
 
 # --- .env, one line per key (config.set_env, shared with the TUI's Keys tab)
@@ -639,12 +816,9 @@ _MAIL_KEY = re.compile(r"^MAIL_[A-Z0-9]+_(USER|PASS|HOST|FOLDERS|ALIASES|REPLY_A
 
 def env_keys_known() -> list[str]:
     """Every key .env.example names, set or commented out."""
-    from .config import ENV_EXAMPLE
+    from .config import env_catalog
 
-    if not ENV_EXAMPLE.exists():
-        return []
-    found = re.findall(r"^\s*#?\s*([A-Z][A-Z0-9_]*)\s*=", ENV_EXAMPLE.read_text(encoding="utf-8"), re.M)
-    return list(dict.fromkeys(found))
+    return [e["name"] for e in env_catalog()]
 
 
 def write_env(payload, yes: bool = False) -> str:
@@ -747,7 +921,26 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("what", choices=WRITERS)
     p.add_argument("payload", help="JSON inline, a .json/.yaml file, or - for stdin")
     p.add_argument("--yes", action="store_true", help="the user saw the diff and agreed")
+    sub.add_parser("sources", help="the sources the profile's regions turn on, keys and targeting they need")
+    p = sub.add_parser("verify-token", help="one live request: does this ATS board answer with open roles?")
+    p.add_argument("source", choices=tuple(BOARDS))
+    p.add_argument("token")
     args = ap.parse_args(argv)
+
+    if args.cmd == "sources":
+        print("\n".join(proposal()))
+        return 0
+    if args.cmd == "verify-token":
+        try:
+            res = verify_token(args.source, args.token)
+        except ValueError as bad:
+            print(f"  ! {bad}")
+            return 1
+        if res["ok"]:
+            print(f"  ok       {args.source} {args.token}: {res['jobs']} open roles")
+            return 0
+        print(f"  ! {args.source} {args.token}: {res['note']}")
+        return 1
 
     if args.cmd == "write":
         try:

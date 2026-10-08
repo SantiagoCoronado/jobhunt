@@ -601,6 +601,42 @@ def env_value(key: str, path: Path | None = None) -> str:
     return val
 
 
+def env_catalog(example: Path | None = None) -> list[dict]:
+    """Every key .env.example names, in file order: {name, hint, url, optional}. The hint is
+    the comment block over the key (keys under one block share it), the url the first link in
+    it, `optional` true for a key the example leaves commented out (a per-label mail setting)
+    or calls OPTIONAL. The Keys tab and `python -m src.onboard sources` both read this."""
+    import re
+
+    path = example or ENV_EXAMPLE
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    block: list[str] = []
+    after_key = False
+    key_re = re.compile(r"^(#\s*)?([A-Z][A-Z0-9_]*)\s*=")
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        m = key_re.match(line)
+        if m:
+            name = m.group(2)
+            if name not in seen:
+                seen.add(name)
+                hint = " ".join(block)
+                url = re.search(r"https?://[^\s,;)]+", hint)
+                out.append({"name": name, "hint": hint, "url": url.group(0).rstrip(".") if url else "",
+                            "optional": bool(m.group(1)) or "OPTIONAL" in hint})
+            after_key = True
+        elif line.startswith("#"):
+            if after_key:                       # prose after a key starts the next block
+                block, after_key = [], False
+            block.append(line.lstrip("#").strip())
+        elif not line:
+            block, after_key = [], False
+    return out
+
+
 def set_env(key: str, value: str, path: Path | None = None) -> str:
     """Set `key` to `value` in .env with a one-line edit; "" leaves the key present and empty.
     Returns what happened ("set", "changed", "cleared", "unchanged"), never the value. A missing

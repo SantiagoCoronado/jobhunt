@@ -143,7 +143,18 @@ def test_a_missing_profile_starts_from_the_example(tree):
 
 # ---- sources ----------------------------------------------------------------------------------
 
-def test_write_sources_adds_blocks_the_merge_reads(tree):
+class _Board:
+    status_code = 200
+
+    @staticmethod
+    def json():
+        return {"jobs": [{"id": 1}]}
+
+
+def test_write_sources_adds_blocks_the_merge_reads(tree, monkeypatch):
+    monkeypatch.setattr(onboard, "_get", lambda url, params: _Board())    # story 3: tokens are verified first
+    for token in ("examplecorp", "ledgerly"):
+        assert onboard.verify_token("greenhouse", token)["ok"]
     onboard.write("sources", {"greenhouse": {"tokens": ["examplecorp"]}, "adzuna": {"countries": ["pt"],
                                                                                     "queries": ["frontend"]}})
     text = (tree / "sources.local.yaml").read_text()
