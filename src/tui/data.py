@@ -923,7 +923,7 @@ class ScoreBand:
 
     @property
     def rate(self) -> int:
-        return 100 * self.replied // self.n if self.n else 0
+        return round(100 * self.replied / self.n) if self.n else 0
 
 
 @dataclass(frozen=True)
@@ -938,7 +938,7 @@ class SourceStat:
 
     @property
     def rate(self) -> int | None:
-        return 100 * self.replied // self.applied if self.applied else None
+        return round(100 * self.replied / self.applied) if self.applied else None
 
 
 @dataclass(frozen=True)
@@ -968,7 +968,7 @@ class StatsSnapshot:
 
     @property
     def reply_rate(self) -> int | None:
-        return 100 * self.replied // self.applications if self.applications else None
+        return round(100 * self.replied / self.applications) if self.applications else None
 
     @property
     def median_reply(self) -> float | None:
