@@ -172,7 +172,7 @@ argument-hint, tools in the command vocabulary; the body in harness-neutral word
 (codex, agy) are renders of them (`docs/hunt-harnesses.md`, "Commands on every harness"). `AGENTS.md` is
 the whole of this file plus that list, because opencode and pi read only the first of AGENTS.md /
 CLAUDE.md they find: edit this file, never `AGENTS.md`.
-Onboarding: `/jh-setup` interviews a new user over `python -m src.onboard {extract|check|write|sources|verify-token|linkedin|summary}` (`docs/spec-pre-release.md` decisions 6 to 8, 14); every user file it writes goes through `write` (validated, provenance per resume entry, show-diff-and-ask for a hand-edited file), `.env` through `config.set_env`.
+Onboarding: `/jh-setup` interviews a new user over `python -m src.onboard {extract|check|write|sources|verify-token|linkedin|summary}` (`docs/spec-pre-release.md` decisions 6 to 8, 14); every user file it writes goes through `write` (validated, provenance per resume entry, show-diff-and-ask for a hand-edited file), `.env` through `config.set_env` (shared with the settings modal's keys tab, which never shows a value).
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
 `python -m src.hunt sync-agents` regenerates every harness's native files from both (`.claude/agents`,
 `.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, the command renders; a file carries a stage's model only
