@@ -890,6 +890,158 @@ def source_runs() -> list[SourceRun]:
     return sorted(out, key=lambda r: (r.ok, r.source))
 
 
+# The stats screen (pre-release spec decision 15): "is my search working, and where is it
+# leaking?" from one snapshot, read in-process over the functions `src.stats` and `src.report`
+# already have, plus the few counts they lack (found, scored, shortlisted, the 7 and 28 day
+# applications, the last discover). Nothing here runs a process.
+
+FUNNEL = ("found", "scored", "shortlisted", "applied", "replied", "screen", "interview", "offer")
+FIRST_APPLIED = FUNNEL.index("applied")        # the bars from here on are drawn against `applied`
+CALIBRATION_FROM = 20                          # score vs reply shows from this many applications
+SMALL_BAND = 5                                 # a band under this many applications is dimmed
+STALE_DISCOVER = 7                             # days: past this the discover age is a warning
+SOURCE_WINDOW = 5                              # pulled and new over each source's last N runs
+INTERVIEWING = ("screen", "interview")         # the "in interviews" tile: live conversations
+
+
+@dataclass(frozen=True)
+class HuntLine:
+    """The newest hunt ledger, as `stats hunts` counts it. None usage: the harness reported none."""
+    run_id: str
+    state: str
+    units: int
+    failed: int
+    context: int | None
+    cost_usd: float | None
+
+
+@dataclass(frozen=True)
+class ScoreBand:
+    band: str                      # 90+ | 80-89 | 70-79 | <70 | unscored
+    n: int
+    replied: int
+
+    @property
+    def rate(self) -> int:
+        return 100 * self.replied // self.n if self.n else 0
+
+
+@dataclass(frozen=True)
+class SourceStat:
+    source: str
+    runs: int                      # discover runs counted (at most SOURCE_WINDOW); 0: none recorded
+    pulled: int
+    new: int
+    applied: int
+    replied: int
+    dead: bool                     # report.source_health: >= 2 runs, every one empty or failed
+
+    @property
+    def rate(self) -> int | None:
+        return 100 * self.replied // self.applied if self.applied else None
+
+
+@dataclass(frozen=True)
+class StatsSnapshot:
+    today: date
+    last_discover: str | None      # YYYY-MM-DD of the newest `runs` row
+    hunt: HuntLine | None          # the newest ledger under data/hunt/
+    applications: int              # ever reached applied (stats.funnel_data)
+    replied: int                   # screen or later, or rejected: a rejection is a reply
+    waiting: int                   # applied, no signal yet
+    interviewing: int              # current status in INTERVIEWING
+    applied_7d: int
+    applied_28d: int
+    reply_days: tuple[int, ...]    # applied to first reply, one per cycle (stats.latency_data)
+    funnel: tuple[tuple[str, int], ...]   # FUNNEL order
+    bands: tuple[ScoreBand, ...]
+    sources: tuple[SourceStat, ...]       # dead first, then by applied, then by pulled
+
+    @property
+    def discover_age(self) -> int | None:
+        if not self.last_discover:
+            return None
+        try:
+            return (self.today - date.fromisoformat(self.last_discover)).days
+        except ValueError:
+            return None
+
+    @property
+    def reply_rate(self) -> int | None:
+        return 100 * self.replied // self.applications if self.applications else None
+
+    @property
+    def median_reply(self) -> float | None:
+        from statistics import median
+        return float(median(self.reply_days)) if self.reply_days else None
+
+    def count(self, step: str) -> int:
+        return dict(self.funnel)[step]
+
+
+def _last_hunt() -> HuntLine | None:
+    from .. import stats as pipeline_stats
+    runs = pipeline_stats.hunts_data(hunt_ledger.HUNT_DIR, last=1)
+    if not runs:
+        return None
+    r = runs[0]
+    return HuntLine(r["run_id"], r["state"], int(r["units"]), int(r["failed"]), r["context"], r["cost_usd"])
+
+
+def _shortlisted(conn: sqlite3.Connection) -> int:
+    """Rows that ever reached the shortlist: shortlisted or held in backlog now, any application,
+    or a status change to shortlisted in the log (match ingest shortlists without an event)."""
+    return int(conn.execute(
+        "SELECT COUNT(*) FROM jobs WHERE status IN ('shortlisted','backlog','applied','screen','interview','offer') "
+        "OR applied_at IS NOT NULL OR id IN (SELECT job_id FROM events WHERE kind='status_change' "
+        "AND payload LIKE '%\"to\": \"shortlisted\"%')").fetchone()[0])
+
+
+def _sources(conn: sqlite3.Connection, per_source: list[tuple[str, int, int]]) -> tuple[SourceStat, ...]:
+    from .. import report
+    health = {h["source"]: h for h in report.source_health(conn, SOURCE_WINDOW)}
+    applied = {src: (n, resp) for src, n, resp in per_source}
+    out = []
+    for src in sorted(set(health) | set(applied)):
+        h = health.get(src) or {"runs": 0, "pulled": 0, "new": 0, "dead": False}
+        n, resp = applied.get(src, (0, 0))
+        out.append(SourceStat(src, int(h["runs"]), int(h["pulled"]), int(h["new"]), n, resp, bool(h["dead"])))
+    return tuple(sorted(out, key=lambda s: (not s.dead, -s.applied, -s.pulled, s.source)))
+
+
+def stats(today: date | None = None) -> StatsSnapshot:
+    """One frozen snapshot for the stats screen. An empty DB is a snapshot of zeros."""
+    from .. import report
+    from .. import stats as pipeline_stats
+
+    today = today or date.today()
+    with _conn() as conn:
+        fd = pipeline_stats.funnel_data(conn)
+        reached = report.reached_stages(conn)
+        cal = pipeline_stats.calibration_data(conn)
+        days = pipeline_stats.latency_data(conn)["days"]
+        found, scored = conn.execute("SELECT COUNT(*), COUNT(match_score) FROM jobs").fetchone()
+        shortlisted = _shortlisted(conn)
+        interviewing = conn.execute(
+            f"SELECT COUNT(*) FROM jobs WHERE status IN ({','.join('?' for _ in INTERVIEWING)})",
+            INTERVIEWING).fetchone()[0]
+        windows = conn.execute(
+            "SELECT SUM(substr(applied_at,1,10) >= ?), SUM(substr(applied_at,1,10) >= ?) FROM jobs "
+            "WHERE applied_at IS NOT NULL",
+            ((today - timedelta(days=6)).isoformat(), (today - timedelta(days=27)).isoformat())).fetchone()
+        last = conn.execute("SELECT MAX(ts) FROM runs").fetchone()[0]
+        sources = _sources(conn, fd["segments"]["source"])
+    funnel = (("found", int(found)), ("scored", int(scored)), ("shortlisted", shortlisted),
+              ("applied", reached["applied"]), ("replied", int(fd["responded"])),
+              ("screen", reached["screen"]), ("interview", reached["interview"]), ("offer", reached["offer"]))
+    bands = tuple(ScoreBand(b, resp + sil, resp) for b, resp, sil in cal["bands"])
+    return StatsSnapshot(
+        today=today, last_discover=str(last)[:10] if last else None, hunt=_last_hunt(),
+        applications=int(fd["total"]), replied=int(fd["responded"]), waiting=int(fd["by_stage"]["waiting"]),
+        interviewing=int(interviewing), applied_7d=int(windows[0] or 0), applied_28d=int(windows[1] or 0),
+        reply_days=tuple(int(d) for d in days if d is not None), funnel=funnel, bands=bands, sources=sources)
+
+
 # The config view (spec decision 13): read-only, with open-in-editor. No forms over YAML.
 
 @dataclass(frozen=True)
