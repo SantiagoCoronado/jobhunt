@@ -7,6 +7,7 @@
                                                  validate, then write; a hand-edited file shows its diff and waits for --yes
     python -m src.onboard sources                the sources the profile's regions turn on, their keys and targeting
     python -m src.onboard verify-token <source> <token>   one live request: 200 and a non-empty board
+    python -m src.onboard linkedin <url>         opt-in: the public profile page, one GET, no login (fragile)
     python -m src.onboard summary                what was read and written where, the interview's closing facts
 
 The agent runs the interview; this module does everything that has a right answer. `extract`
@@ -893,6 +894,119 @@ def read_payload(arg: str):
             raise Refused(f"  ! the payload is neither JSON nor YAML: {e}") from None
 
 
+# ---- the public LinkedIn page (decision 7): opt-in, fragile, never logged in ------------------
+#
+# Off unless the user passes their own profile URL. One plain GET with no cookies and no
+# session; LinkedIn answers most such requests with a login wall (HTTP 999 or a redirect to
+# /authwall), and its terms discourage automated reads, so the warning is printed before the
+# request and a wall is reported, never worked around. What the public page carries is the
+# schema.org Person in its JSON-LD: name, headline, location, the roles (worksFor), the schools
+# (alumniOf), languages, awards. It is recorded as one more document, so provenance can cite it.
+
+LINKEDIN_WARNING = ("  note: this reads the public LinkedIn page only, with no login; LinkedIn often answers "
+                    "with a login wall, and its terms discourage automated reads. LinkedIn's \"Save to PDF\" "
+                    "or the data-export zip is the reliable route.")
+_LINKEDIN_URL = re.compile(r"^https?://(?:[a-z]{2,3}\.|www\.)?linkedin\.com/in/([A-Za-z0-9%_-]{2,100})/?(?:[?#].*)?$")
+_LD_JSON = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S | re.I)
+
+
+def linkedin_slug(url: str) -> str:
+    m = _LINKEDIN_URL.match(url.strip())
+    if not m:
+        raise ValueError(f"{url!r} is not a public profile URL (https://www.linkedin.com/in/<name>)")
+    return m.group(1)
+
+
+def _get_page(url: str):
+    """The one GET the LinkedIn read makes (tests replace this). No cookies, no session."""
+    import requests
+
+    from .adapters import UA
+
+    return requests.get(url, timeout=20, headers={"User-Agent": UA, "Accept": "text/html"})
+
+
+def _person(html: str) -> dict | None:
+    """The schema.org Person in the page's JSON-LD (top level or inside @graph)."""
+    for block in _LD_JSON.findall(html):
+        try:
+            data = json.loads(block)
+        except json.JSONDecodeError:
+            continue
+        nodes = data.get("@graph", [data]) if isinstance(data, dict) else data
+        for node in nodes if isinstance(nodes, list) else []:
+            if isinstance(node, dict) and node.get("@type") == "Person":
+                return node
+    return None
+
+
+def _names(value) -> list[str]:
+    items = value if isinstance(value, list) else [value] if value else []
+    return [str(i.get("name") if isinstance(i, dict) else i).strip() for i in items
+            if (i.get("name") if isinstance(i, dict) else i)]
+
+
+def _org_lines(orgs) -> list[str]:
+    out = []
+    for org in orgs if isinstance(orgs, list) else [orgs] if orgs else []:
+        if not isinstance(org, dict) or not org.get("name"):
+            continue
+        member = org.get("member")
+        member = member if isinstance(member, dict) else {}
+        dates = " to ".join(str(member[k]) for k in ("startDate", "endDate") if member.get(k))
+        line = f"- {org['name']}" + (f" ({dates})" if dates else "")
+        if member.get("description"):
+            line += f": {' '.join(str(member['description']).split())}"
+        out.append(line)
+    return out
+
+
+def linkedin_text(person: dict, url: str) -> str:
+    """The Person as the plain text a resume reader expects, every line from the page."""
+    lines = [f"Public LinkedIn profile: {url}", f"Name: {person.get('name', '')}"]
+    titles = person.get("jobTitle")
+    if titles:
+        lines.append(f"Headline: {'; '.join(titles if isinstance(titles, list) else [titles])}")
+    addr = person.get("address")
+    addr = addr if isinstance(addr, dict) else {}
+    where = ", ".join(str(addr[k]) for k in ("addressLocality", "addressCountry") if addr.get(k))
+    if where:
+        lines.append(f"Location: {where}")
+    if person.get("description"):
+        lines += ["", "About:", " ".join(str(person["description"]).split())]
+    for title, key in (("Experience", "worksFor"), ("Education", "alumniOf")):
+        body = _org_lines(person.get(key))
+        if body:
+            lines += ["", f"{title}:", *body]
+    for title, key in (("Languages", "knowsLanguage"), ("Awards", "awards")):
+        names = _names(person.get(key))
+        if names:
+            lines.append(f"{title}: {', '.join(names)}")
+    return "\n".join(lines)
+
+
+def linkedin(url: str) -> Document:
+    """Read the public page once and record it as a document. Raises ValueError on a bad URL,
+    a login wall, or a page with no public profile data."""
+    slug = linkedin_slug(url)
+    clean = f"https://www.linkedin.com/in/{slug}/"
+    try:
+        resp = _get_page(clean)
+    except Exception as e:  # noqa: BLE001, a network failure is an answer to report
+        raise ValueError(f"the request failed ({type(e).__name__}); use the PDF or the data export") from None
+    final = str(getattr(resp, "url", "") or "")
+    if resp.status_code == 999 or "authwall" in final or "/login" in final or "/signup" in final:
+        raise ValueError("LinkedIn answered with a login wall; nothing was read. Use \"Save to PDF\" on the "
+                         "profile or the data-export zip instead")
+    if resp.status_code != 200:
+        raise ValueError(f"LinkedIn answered HTTP {resp.status_code}; nothing was read")
+    person = _person(resp.text)
+    if person is None:
+        raise ValueError("the page carries no public profile data (a login wall or a private profile); "
+                         "use the PDF or the data export")
+    return record(f"linkedin-{slug}", clean, "linkedin-public", linkedin_text(person, clean))
+
+
 # ---- summary ------------------------------------------------------------------------------
 
 def _yaml_or_none(path: Path):
@@ -1002,6 +1116,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("what", choices=WRITERS)
     p.add_argument("payload", help="JSON inline, a .json/.yaml file, or - for stdin")
     p.add_argument("--yes", action="store_true", help="the user saw the diff and agreed")
+    p = sub.add_parser("linkedin", help="opt-in: read a public LinkedIn profile page once (no login)")
+    p.add_argument("url")
     sub.add_parser("summary", help="what the interview read and wrote, one line per file")
     sub.add_parser("sources", help="the sources the profile's regions turn on, keys and targeting they need")
     p = sub.add_parser("verify-token", help="one live request: does this ATS board answer with open roles?")
@@ -1014,6 +1130,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "summary":
         print("\n".join(summary()))
+        return 0
+    if args.cmd == "linkedin":
+        print(LINKEDIN_WARNING)
+        try:
+            print(size_line(linkedin(args.url)))
+        except ValueError as bad:
+            print(f"  ! {bad}")
+            return 1
         return 0
     if args.cmd == "verify-token":
         try:

@@ -42,6 +42,16 @@ It prints one line per document with its size in tokens. A document marked `! la
 read: ask me for the pages that matter (or a shorter export) and extract that instead. A PDF
 with no text layer needs a text export or pasted text.
 
+A public LinkedIn profile URL is an opt-in, only when I give my own URL. Tell me first that it
+reads the public page only, without a login, that LinkedIn often answers with a login wall, and
+that its terms discourage automated reads; run it only if I still want it:
+
+```
+python -m src.onboard linkedin <url>
+```
+
+A login wall reads nothing: ask for the PDF or the export instead, never retry around it.
+
 Then read each text file the extract printed, once.
 
 ## 2. Master resume
