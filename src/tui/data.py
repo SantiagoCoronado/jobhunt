@@ -1031,8 +1031,10 @@ def stats(today: date | None = None) -> StatsSnapshot:
             ((today - timedelta(days=6)).isoformat(), (today - timedelta(days=27)).isoformat())).fetchone()
         last = conn.execute("SELECT MAX(ts) FROM runs").fetchone()[0]
         sources = _sources(conn, fd["segments"]["source"])
+    # applied is the tile's set (stats._applications), so applied, replied and the reply rate share one
+    # denominator; reached_stages also counts a row that reached screen with no applied_at.
     funnel = (("found", int(found)), ("scored", int(scored)), ("shortlisted", shortlisted),
-              ("applied", reached["applied"]), ("replied", int(fd["responded"])),
+              ("applied", int(fd["total"])), ("replied", int(fd["responded"])),
               ("screen", reached["screen"]), ("interview", reached["interview"]), ("offer", reached["offer"]))
     bands = tuple(ScoreBand(b, resp + sil, resp) for b, resp, sil in cal["bands"])
     return StatsSnapshot(

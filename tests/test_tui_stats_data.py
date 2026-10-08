@@ -109,3 +109,14 @@ def test_a_hunt_with_no_usage_reports_none_not_zero(tmp_db):
     hunt_ledger.Ledger.create("20261001-0900", "pi", {}, ["discover"], tmp_db / "hunt")
     hunt = data.stats(TODAY).hunt
     assert hunt is not None and (hunt.units, hunt.failed, hunt.context, hunt.cost_usd) == (0, 0, None, None)
+
+
+def test_the_applied_bar_counts_the_applications_the_tile_counts():
+    """A row moved shortlisted -> screen with no applied_at, then rejected: reached_stages calls
+    it applied, the tile does not. The bar follows the tile (tui-stats review)."""
+    _add(status="applied", applied_at="2026-09-01")
+    odd = _add(status="rejected")
+    _event(odd, "2026-09-02T09:00:00+00:00", "screen")
+    _event(odd, "2026-09-10T09:00:00+00:00", "rejected")
+    s = data.stats(TODAY)
+    assert s.count("applied") == s.applications == 1
