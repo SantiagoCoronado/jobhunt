@@ -7,6 +7,7 @@
                                                  validate, then write; a hand-edited file shows its diff and waits for --yes
     python -m src.onboard sources                the sources the profile's regions turn on, their keys and targeting
     python -m src.onboard verify-token <source> <token>   one live request: 200 and a non-empty board
+    python -m src.onboard summary                what was read and written where, the interview's closing facts
 
 The agent runs the interview; this module does everything that has a right answer. `extract`
 reads PDF (pypdf), docx (python-docx), md, txt, csv and LinkedIn's data-export zip (only the
@@ -892,6 +893,86 @@ def read_payload(arg: str):
             raise Refused(f"  ! the payload is neither JSON nor YAML: {e}") from None
 
 
+# ---- summary ------------------------------------------------------------------------------
+
+def _yaml_or_none(path: Path):
+    try:
+        return _load(path)
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def summary() -> list[str]:
+    """What the interview read and wrote, one line per file: the closing message's facts."""
+    from collections import Counter
+
+    from . import db
+    from .config import env_value
+
+    lines = []
+    docs = load_manifest()
+    lines.append(f"documents ({len(docs)}): " + (", ".join(f"{d.id} ~{d.tokens:,} tokens" for d in docs) or "none")
+                 + (f"; ~{sum(d.tokens for d in docs):,} tokens in all" if docs else ""))
+    resume_path = user_file("master_resume")
+    data = _yaml_or_none(resume_path)
+    if isinstance(data, dict) and not resume_errors(data):
+        c = resume_counts(data)
+        prov_path = ONBOARD_DIR / PROVENANCE
+        prov = json.loads(prov_path.read_text(encoding="utf-8")) if prov_path.exists() else []
+        cited = Counter(s for p in prov for s in ([p["from"]] if isinstance(p["from"], str) else p["from"]))
+        traced = (f"; {len(prov)} entries traced ({', '.join(f'{k}: {v}' for k, v in sorted(cited.items()))})"
+                  if prov else "; no provenance recorded (not written by the interview)")
+        lines.append(f"{_rel(resume_path)}: {c['roles']} roles, {c['projects']} projects, {c['skills']} skills, "
+                     f"{c['education']} education{traced}")
+    else:
+        lines.append(f"{_rel(resume_path)}: missing or invalid (python -m src.onboard check resume)")
+    prof_path = user_file("profile")
+    prof = _yaml_or_none(prof_path)
+    if isinstance(prof, dict) and not profile_errors(prof):
+        left = example_keys(prof)
+        lines.append(f"{_rel(prof_path)}: ok" + (f"; still the example's value: {', '.join(left)}" if left else ""))
+    else:
+        lines.append(f"{_rel(prof_path)}: missing or invalid (python -m src.onboard check profile)")
+    local_path = user_file("sources_local")
+    local = _yaml_or_none(local_path) or {}
+    blocks = []
+    for name, block in local.items() if isinstance(local, dict) else []:
+        if name in BOARDS and isinstance(block, dict):
+            n = len(block.get(token_key(name)) or [])
+            blocks.append(f"{name} ({n} token{'s' if n != 1 else ''})")
+        else:
+            blocks.append(name)
+    lines.append(f"{_rel(local_path)}: {', '.join(blocks) or 'no targeting yet'}")
+    checked = [(s, t, r) for s, toks in _verified().items() for t, r in toks.items()]
+    if checked:
+        notes = [f"{s} {t}: {r.get('note')}" for s, t, r in checked if not r.get("ok")]
+        lines.append(f"tokens verified: {sum(1 for _s, _t, r in checked if r.get('ok'))} of {len(checked)}"
+                     + (f"; not written, kept as notes: {'; '.join(notes)}" if notes else ""))
+    keyed = [k for keys, _opt in KEYED.values() for k in keys]
+    set_keys_ = [k for k in keyed if env_value(k)]
+    lines.append(f".env: {len(set_keys_)} of {len(keyed)} source keys set"
+                 + (f" ({', '.join(set_keys_)})" if set_keys_ else "")
+                 + (f"; unset: {', '.join(k for k in keyed if k not in set_keys_)}" if len(set_keys_) < len(keyed) else ""))
+    labels = [lab.strip() for lab in env_value("MAIL_ACCOUNTS").split(",") if lab.strip()]
+    if labels:
+        no_pass = [lab for lab in labels if not env_value(f"MAIL_{lab.upper()}_PASS")]
+        lines.append(f"mail: {', '.join(labels)}"
+                     + (f"; no app password for {', '.join(no_pass)}" if no_pass else "; app passwords set"))
+    else:
+        lines.append("mail: skipped (docs/mail-setup.md when you want the inbox pull)")
+    names: list[str] = []
+    if db.DB_PATH.exists():
+        conn = db.connect(db.DB_PATH)
+        try:
+            names = [d["name"] for d in db.list_dream(conn)]
+        finally:
+            conn.close()
+    lines.append(f"dream companies: {len(names)}" + (f" ({', '.join(names)})" if names else ""))
+    written = sorted(_written())
+    lines.append(f"written by onboarding: {', '.join(written) or 'nothing yet'}")
+    return lines
+
+
 WRITERS = ("resume", "profile", "sources", "env", "dream")
 
 
@@ -921,6 +1002,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("what", choices=WRITERS)
     p.add_argument("payload", help="JSON inline, a .json/.yaml file, or - for stdin")
     p.add_argument("--yes", action="store_true", help="the user saw the diff and agreed")
+    sub.add_parser("summary", help="what the interview read and wrote, one line per file")
     sub.add_parser("sources", help="the sources the profile's regions turn on, keys and targeting they need")
     p = sub.add_parser("verify-token", help="one live request: does this ATS board answer with open roles?")
     p.add_argument("source", choices=tuple(BOARDS))
@@ -929,6 +1011,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "sources":
         print("\n".join(proposal()))
+        return 0
+    if args.cmd == "summary":
+        print("\n".join(summary()))
         return 0
     if args.cmd == "verify-token":
         try:

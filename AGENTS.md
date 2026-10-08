@@ -172,6 +172,7 @@ argument-hint, tools in the command vocabulary; the body in harness-neutral word
 (codex, agy) are renders of them (`docs/hunt-harnesses.md`, "Commands on every harness"). `AGENTS.md` is
 the whole of this file plus that list, because opencode and pi read only the first of AGENTS.md /
 CLAUDE.md they find: edit this file, never `AGENTS.md`.
+Onboarding: `/jh-setup` interviews a new user over `python -m src.onboard {extract|check|write|sources|verify-token|summary}` (`docs/spec-pre-release.md` decisions 6 to 8, 14); every user file it writes goes through `write` (validated, provenance per resume entry, show-diff-and-ask for a hand-edited file), `.env` through `config.set_env`.
 Agent system prompts live ONCE in `prompts/agents/<role>.md` (frontmatter: tools, output contract);
 `python -m src.hunt sync-agents` regenerates every harness's native files from both (`.claude/agents`,
 `.opencode/agents`, `.pi/agents`, `.gemini/agents`, `.codex/agents`, the command renders; a file carries a stage's model only
@@ -227,6 +228,7 @@ the flow needs (`bash` is your shell tool).
 - `jh-report`: Generate and open the offline HTML dashboard from the pipeline DB.
 - `jh-research <company | job_id>`: Research a company into a reusable, cited dossier.
 - `jh-review`: Monthly feedback loop: measure conversion, audit triage, propose profile/rubric tweaks
+- `jh-setup [files...]`: Onboarding interview: read your documents, write the master resume, the profile, the sources, the keys.
 - `jh-tailor <job_id>`: Tailor resume + cover letter for a job.
 - `jh-triage`: Coarse junk-cut of discovered jobs before the expensive matcher, run by the hunt orchestrator
 - `jh-upskill [job_id]`: Skill-gap analysis vs the market being applied to; learning plan for real gaps, profile diffs for vocabulary gaps.
