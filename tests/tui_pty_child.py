@@ -5,6 +5,8 @@ app starts: nothing in this process reads the real DB, config or clipboard.
 
     python tests/tui_pty_child.py <tmp dir> <editor command>
 """
+import faulthandler
+import signal
 import sys
 from pathlib import Path
 
@@ -19,6 +21,10 @@ from src.tui.app import JobhuntApp  # noqa: E402
 
 
 def main(tmp: Path, editor: str) -> int:
+    # SIGUSR1 writes every thread's stack to stacks.txt: the test asks for it when the app
+    # stops answering, so a hang on a CI runner says where it is stuck.
+    stacks = open(tmp / "stacks.txt", "w")  # noqa: SIM115, kept open for faulthandler
+    faulthandler.register(signal.SIGUSR1, file=stacks, all_threads=True)
     fixtures = ROOT / "tests" / "fixtures"
     for key, name in (("profile", "profile.yaml"), ("notify", "notify.yaml"), ("sources_local", "sources.local.yaml"),
                       ("master_resume", "master_resume.yaml"), ("answers", "answers.yaml")):
