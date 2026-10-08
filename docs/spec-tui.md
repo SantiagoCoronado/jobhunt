@@ -23,7 +23,7 @@ while running the hunt. That place is a terminal app, because the hunt itself ru
 | 1 | Framework | Textual (Python), with `src/tui/data.py` as the only module touching SQLite so a ratatui front end could replace the view later | Same venv, imports the existing write paths, no second implementation of `set_status`. A fast TUI never blocks on I/O, stays alive between uses and draws only dirty cells; Textual gives the last one, the first two are architecture and apply regardless of language. No Rust or Go toolchain on the machine. |
 | 2 | Notion | Full delete: `src/notion_pull.py`, its test, `/jh-notion-sync`, `query crm`, hints in run.sh, setup.sh, notify footer, docs wording. History docs keep past-tense mentions. Santiago disconnects the claude.ai Notion connector himself (it is not configured in the repo). | Half-killed code gets picked up by an agent one day. |
 | 3 | What it replaces | The Flask viewer and the Flask dependency. `report.html` stays as the offline, shareable dashboard. | A TUI cannot be opened on a phone or sent to someone. |
-| 4 | Sections | 1 board, 2 follow-ups, 3 apps, 4 stats (placeholder only), 5 run, 6 settings. (Amended 2026-09-20: the shortlist section, once `2`, is gone; it showed the board's `shortlisted` rows under a left pane with nothing to pick. The board's `shortlisted` view took over its one rule, the hunt's picks leading the list.) | Board and follow-ups are presets on one shared three-pane screen. |
+| 4 | Sections | 1 board, 2 follow-ups, 3 apps, 4 stats, 5 run, 6 settings. (Amended 2026-09-20: the shortlist section, once `2`, is gone; it showed the board's `shortlisted` rows under a left pane with nothing to pick. The board's `shortlisted` view took over its one rule, the hunt's picks leading the list.) (Amended 2026-10-08: the stats placeholder is gone; section 4 is the stats screen of `docs/spec-pre-release.md` decision 15, drawn in-process from one `data.stats()` snapshot: the header with the discover age and the last hunt, six tiles, the funnel on two scales with a next step on every zero bar, score vs reply from 20 applications with a band under 5 dimmed, and the sources table.) | Board and follow-ups are presets on one shared three-pane screen. |
 | 5 | Claude Code | The TUI runs no model itself. LLM stages run through the hunt orchestrator (`docs/spec-hunt-orchestrator.md`): `python -m src.hunt run --only <stage>` or a full `run`, as a subprocess exactly like a Python stage, stdout tailed in the log pane. The harness behind it is chosen in `config/hunt.toml`, never in the TUI code. Copy-to-clipboard of the slash command stays as the secondary verb. (Amended 2026-09-07; before that, v1 was copy-only and harness execution was deferred.) | Shelling an interactive agent out of Textual is a terminal-ownership rabbit hole; a headless orchestrator with log files is not. |
 | 6 | Phone access | Lost, accepted. `textual serve` is the one-line escape hatch later. | The hunt stopped pushing to Notion on 2026-09-02 anyway. |
 | 7 | Process | Spec first, review in a separate session, one PR per phase, several commits per PR (one story each). | House workflow. |
@@ -111,7 +111,7 @@ the slash command (the shell line when there is none), `R` resumes the highlight
 `report.html`, `tab` walks stages, runs, units and the log, `ctrl+c` stops the running stage
 (SIGTERM; a second one kills the process group). `q` asks first while a stage is running.
 
-Stats (4): `j`/`k`/`g` scroll, `r` runs the command again.
+Stats (4): `j`/`k`/`g` scroll, `r` reads the numbers again.
 
 Config files (6): `tab` / `h` / `l` walk the files, `j`/`k`/`g` scroll, `e` opens the file in
 the configured editor, `r` reads it again.
@@ -137,7 +137,7 @@ src/tui/
   screens/
     jobs.py          three-pane screen (board and follow-ups)
     apps.py          the apps section
-    stats.py         the stats placeholder
+    stats.py         the stats screen (pre-release decision 15)
     run.py           the runner
     config_view.py   read-only config + open in editor
   widgets/
@@ -146,6 +146,7 @@ src/tui/
     detail.py        right pane
     modals.py        status picker, notes editor, follow-up prompt, confirm, help, picker, output
     settings_modal.py  the tabbed settings modal
+    stats_view.py    the stats screen's pure renderers (bar, tile, table, the parts)
 tests/test_tui_data.py, tests/test_tui_app.py (Textual pilot, headless), tests/tui_fakes.py (the
 shared pilot fixture), one tests/test_tui_<area>.py per PR 5 area
 config/tui.toml
@@ -157,6 +158,7 @@ config/tui.toml
 - `rows(preset, status, query) -> list[JobRow]` (never `irrelevant`/`expired`; `discovered` only for the `all` view, capped and searchable)
 - `detail(id) -> JobDetail` (row + parsed verdict + events + dossier path via `research.path` + folder via `reconcile`)
 - `picks() -> list[int]` (delegates to `pick`, in pick order)
+- `stats(today) -> StatsSnapshot` (one frozen snapshot for the stats screen, over `src.stats` and `src.report`)
 - `set_status(id, status, note, followup)`, `set_notes`, `set_followup`, `touch(id, bump)`: thin wrappers over `db` + `reconcile.sync_folder`
 - `apps() -> list[AppRow]`, `db_mtime() -> float`
 
@@ -372,8 +374,9 @@ Target: the test under 2 s, measured with `--durations`, and ten runs in a row g
 
 ## 9. Later (not scheduled)
 
-Unit-level rows in the runner (one row per unit with attempts and usage). Stats widgets over
-`stats.py` (funnel, calibration, latency, comp, source health).
+Unit-level rows in the runner (one row per unit with attempts and usage). A weekly activity
+chart and comp in the stats screen (the screen itself moved to `docs/spec-pre-release.md`,
+decision 15 and PR 6, on 2026-10-06).
 `textual serve` for phone access. Suite time: profile the pilot tests (each starts the app, and
 some wait on fixed `pause()` calls) and check whether `pytest-xdist` is safe with the tests that
 patch the DB. (Harness execution moved into scope on 2026-09-07 through

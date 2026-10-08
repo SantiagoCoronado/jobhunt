@@ -46,7 +46,7 @@ A DIY, $0 job-search copilot. Engine = Claude Code. Deterministic plumbing = Pyt
    company and `x` removes one through `data.add_dream` / `remove_dream`); the rows `src.pick` would choose arrive pre-selected (`data.picks()`, computed, never
    stored, feeds `c` and the runner only), `space`/`v` select by hand for bulk status (the marks are the app's,
    `src/tui/selection.py`, shared by every section), `c` copies `/jh-tailor` lines; section 3 lists `applications/` beside the DB
-   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 4 prints `stats funnel`; section 5 is the
+   (`data.apps()`, `R` = reconcile through `reconcile.apply`); section 4 is the stats screen (`data.stats()`, one snapshot drawn in-process: discover age and last hunt, tiles, the funnel with a next step on every zero bar, score vs reply from 20 applications, sources); section 5 is the
    runner (`data.stages()` = the full hunt, the `src.hunt` registry, reconcile, stats; `enter` spawns the stage
    through `commands.spawn`, one at a time, `tailor` and `research` on the marked rows through `hunt run --ids`, `ctrl+c` = SIGTERM so `--resume` works, `R` resumes a run; runs and
    units come from `data.hunt_runs()` / `hunt_status()` over the ledgers); section 6 shows the config files

@@ -1,5 +1,7 @@
-"""Section 5, a placeholder (spec decision 4): the plain output of `python -m src.stats funnel`.
-Real widgets over `stats.py` (funnel, calibration, latency, comp, source health) come later."""
+"""Section 4, stats (pre-release spec decision 15): "is my search working, and where is it
+leaking?" on one screen, drawn in-process from one `data.stats()` snapshot. One column in the
+scroll pane: the header, the tiles, the funnel, score vs reply, the sources. No drill-down, no
+subprocess; `r` reads the snapshot again."""
 from __future__ import annotations
 
 from rich.text import Text
@@ -7,23 +9,20 @@ from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.widgets import Label, Static
+from textual.widgets import Static
+from textual.worker import get_current_worker
 
-from .. import commands
+from .. import data
+from ..widgets.stats_view import render
 from .base import SectionScreen
-
-STATS_ARGV = ("src.stats", "funnel")
-NOTE = ("python -m src.stats funnel, as printed. Real widgets (funnel, calibration, latency, comp, "
-        "source health) come later; /jh-review reads the rest today.")
 
 
 class StatsScreen(SectionScreen):
     DEFAULT_CSS = """
-    StatsScreen #stats-note { height: auto; padding: 0 1; color: $text-muted; }
-    StatsScreen #stats-scroll { height: 1fr; padding: 0 1; }
+    StatsScreen #stats-scroll { height: 1fr; padding: 1 1 0 1; }
     """
     BINDINGS = [
-        Binding("r", "refresh", "again", tooltip="run the command again"),
+        Binding("r", "refresh", "again", tooltip="read the numbers again"),
         Binding("j", "scroll(1)", "down", show=False),
         Binding("k", "scroll(-1)", "up", show=False),
         Binding("g", "scroll(0)", "top", show=False),
@@ -33,16 +32,15 @@ class StatsScreen(SectionScreen):
         super().__init__("stats")
 
     def body(self) -> ComposeResult:
-        yield Label(Text(NOTE), id="stats-note")
         with VerticalScroll(id="stats-scroll"):
-            yield Static(Text("running python -m src.stats funnel ...", style="dim"), id="stats-text")
+            yield Static(Text(""), id="stats-text")
 
     def on_mount(self) -> None:
         self.query_one("#stats-scroll").focus()
 
     def on_screen_resume(self) -> None:
-        """Every time the section comes up, the first included: one run of the command each
-        (ScreenResume comes twice on the first show; a run already on its way is the run)."""
+        """Every time the section comes up, the first included: a hunt may have moved the numbers
+        meanwhile (ScreenResume comes twice on the first show; a load on its way is the load)."""
         if not self.busy.running("stats"):
             self.reload()
 
@@ -57,18 +55,16 @@ class StatsScreen(SectionScreen):
             pane.scroll_relative(y=step * 3, animate=False)
 
     def reload(self) -> None:
-        self.load_stats(self.busy.start("stats", self.query_one("#stats-scroll")))
+        self.load_stats(self.busy.start("stats", self.query_one("#stats-text")))
 
     @work(thread=True, group="stats", exclusive=True)
     def load_stats(self, token: int) -> None:
+        worker = get_current_worker()
         try:
-            rc, text = commands.capture(commands.module_argv(*STATS_ARGV), timeout=60)
-            shown = text or "stats printed nothing"
-            if rc != 0:
-                shown = f"python -m src.stats funnel: exit {rc}\n\n{shown}"
-            # the funnel names companies and sources from scraped postings: text, never markup
-            self.app.call_from_thread(self.query_one("#stats-text", Static).update, Text(shown))
-        except Exception as e:  # noqa: BLE001
+            shown = render(data.stats())
+            if not worker.is_cancelled:
+                self.app.call_from_thread(self.query_one("#stats-text", Static).update, shown)
+        except Exception as e:  # noqa: BLE001, a load that fails says why and never leaves the indicator on
             self.load_failed("stats", e)
         finally:
             self.busy.done_from_thread(self.app, "stats", token)

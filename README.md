@@ -75,7 +75,7 @@ Local CRM, a terminal UI (`docs/spec-tui.md`): board and follow-ups over one
 three-pane screen, `s` status, `n` notes, `f` follow-up, `/` search, `>` `<` `-` sort, `?` every key;
 the `dream list` entry shows the rows at your dream companies (`a` adds one, `x` removes one;
 `python -m src.query dream {list|add|rm}` does the same from a shell);
-`3` the application folders, `4` the funnel, `5` runs a stage or the whole hunt with its log beside it,
+`3` the application folders, `4` the stats (discover age, last hunt, reply rate, the funnel with the next step on every empty bar, score vs reply, sources), `5` runs a stage or the whole hunt with its log beside it,
 `6` the config files (`e` edits one), `,` the settings (theme, launch section, harness and models, editor):
 ```bash
 python -m src.tui
