@@ -271,6 +271,20 @@ def test_write_env_leaves_a_payload_file_outside_data_onboard(tree):
     assert mine.exists() and config.env_value("FINDWORK_TOKEN") == "one"
 
 
+def test_an_env_payload_that_does_not_parse_never_prints_its_values(tree, capsys):
+    # Review of PR #41: PyYAML's error quotes the offending line, so an unescaped `"` in a
+    # password used to print the password.
+    payload = onboard.ONBOARD_DIR / "payload-env.json"
+    payload.write_text('{"MAIL_APPS_PASS": "hunter"2-secret"}')
+    assert onboard.main(["write", "env", str(payload)]) == 1
+    out = capsys.readouterr().out
+    assert "hunter" not in out and "2-secret" not in out
+    assert "line 1, column" in out and "not shown" in out
+    assert not payload.exists() and not config.ENV_PATH.exists()
+    with pytest.raises(onboard.Refused, match="neither JSON nor YAML: "):   # other payloads keep the detail
+        onboard.read_payload('{"name": "a"b"}')
+
+
 def test_a_carriage_return_is_refused_before_any_key_is_written(tree):
     with pytest.raises(onboard.Refused, match="FINDWORK_TOKEN: the value must be one line"):
         onboard.write("env", {"ADZUNA_APP_ID": "ok", "FINDWORK_TOKEN": "a\rb"})

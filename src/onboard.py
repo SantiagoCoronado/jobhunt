@@ -896,8 +896,10 @@ def _drop_payload(arg: str) -> None:
     print(f"  removed  {arg} (it held the values)")
 
 
-def read_payload(arg: str):
-    """A payload given inline (JSON), as a .json/.yaml file, or `-` for stdin."""
+def read_payload(arg: str, secret: bool = False):
+    """A payload given inline (JSON), as a .json/.yaml file, or `-` for stdin. A `secret` payload
+    (`write env`) holds values: a parse error then names the line and column only, because
+    PyYAML's own message quotes the offending line, value included."""
     import yaml
 
     if arg == "-":
@@ -912,6 +914,11 @@ def read_payload(arg: str):
         try:
             return yaml.safe_load(text)
         except yaml.YAMLError as e:
+            if secret:
+                mark = getattr(e, "problem_mark", None)
+                where = f" at line {mark.line + 1}, column {mark.column + 1}" if mark is not None else ""
+                raise Refused(f"  ! the payload is neither JSON nor YAML{where}; its text is not shown, it holds "
+                              "values (a quote inside a value needs a backslash in JSON)") from None
             raise Refused(f"  ! the payload is neither JSON nor YAML: {e}") from None
 
 
@@ -1174,7 +1181,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "write":
         try:
-            print(write(args.what, read_payload(args.payload), args.yes))
+            print(write(args.what, read_payload(args.payload, secret=args.what == "env"), args.yes))
         except Refused as refused:
             print(refused)
             return refused.code
