@@ -134,7 +134,8 @@ python -m src.onboard write env data/onboard/payload-env.json
 ```
 
 (`{"ADZUNA_APP_ID": "...", "MAIL_ACCOUNTS": "apps", "MAIL_APPS_USER": "...", "MAIL_APPS_PASS": "..."}`).
-Delete `data/onboard/payload-env.json` right after the write succeeds.
+The helper deletes `data/onboard/payload-env.json` after the call, whatever its outcome; write it
+again if the call has to be repeated.
 
 ## 6. Check and first run
 

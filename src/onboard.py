@@ -541,6 +541,12 @@ def _provenance_keys(data: dict) -> list[tuple[str, str]]:
     return keys
 
 
+def _traces(what: str, name: str) -> bool:
+    """`name` as a whole word or phrase in a provenance `what`, so a skill group "Go" is not
+    traced by "experience Google" and "C" not by any line with a c in it."""
+    return re.search(rf"(?<!\w){re.escape(name.lower())}(?!\w)", what) is not None
+
+
 def provenance_errors(data: dict, prov) -> list[str]:
     """Every entry must be traced to a document in the manifest or to the interview."""
     if not isinstance(prov, list) or not prov:
@@ -562,7 +568,7 @@ def provenance_errors(data: dict, prov) -> list[str]:
                           f"extracted document (known: {', '.join(sorted(known))})")
     whats = [str(p.get("what") or "").lower() for p in prov if isinstance(p, dict)]
     for kind, name in _provenance_keys(data):
-        if not any(name.lower() in w for w in whats):
+        if not any(_traces(w, name) for w in whats):
             errors.append(f"no provenance for {kind} {name!r}: ask the user where it comes from, or leave it out")
     return errors
 
@@ -834,13 +840,14 @@ def write_env(payload, yes: bool = False) -> str:
     errors = [f"{k}: not a key .env.example knows (nor a MAIL_<LABEL>_* key)" for k in payload
               if k not in known and not _MAIL_KEY.match(str(k))]
     errors += [f"{k}: the value must be a string" for k, v in payload.items() if not isinstance(v, str)]
-    errors += [f"{k}: the value must be one line" for k, v in payload.items() if isinstance(v, str) and "\n" in v]
+    errors += [f"{k}: the value must be one line" for k, v in payload.items()
+               if isinstance(v, str) and ("\n" in v or "\r" in v)]
     if errors:
         raise Refused("\n".join(f"  ! {e}" for e in errors))
     replacing = [k for k, v in payload.items() if env_value(k) and env_value(k) != v]
     if replacing and not yes:
         raise Refused(f"  ! {', '.join(replacing)} already set in .env; ask before replacing "
-                      "(repeat with --yes), or leave it out", NEEDS_YES)
+                      "(write the payload again and repeat with --yes), or leave it out", NEEDS_YES)
     lines = [f"  {set_env(k, v):8s} .env {k}" for k, v in payload.items()]
     return "\n".join(lines)
 
@@ -873,6 +880,20 @@ def write_dream(payload) -> str:
     out = [f"  added    dream {name}" for name in added] + [f"  kept     dream {name} (already in the table)"
                                                              for name in kept]
     return "\n".join(out)
+
+
+def _drop_payload(arg: str) -> None:
+    """An env payload file holds the values in plain text: `write env` deletes it after the call,
+    whatever the outcome, when it lies under data/onboard/ (a file anywhere else is the user's)."""
+    path = Path(arg)
+    if arg == "-" or len(arg) >= 4096 or not path.is_file():
+        return
+    try:
+        path.resolve().relative_to(ONBOARD_DIR.resolve())
+    except ValueError:
+        return
+    path.unlink(missing_ok=True)
+    print(f"  removed  {arg} (it held the values)")
 
 
 def read_payload(arg: str):
@@ -1160,6 +1181,9 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as bad:
             print(f"  ! {bad}")
             return 1
+        finally:
+            if args.what == "env":
+                _drop_payload(args.payload)
         return 0
 
     if args.cmd == "extract":

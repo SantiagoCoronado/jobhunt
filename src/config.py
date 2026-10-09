@@ -543,9 +543,8 @@ def load_env() -> dict:
                 line = line[len("export "):]
             key, _, val = line.partition("=")
             key = key.strip()
-            val = val.strip().strip('"').strip("'")
             if key:
-                env[key] = val
+                env[key] = env_unquote(val)
     _ENV_CACHE = env
     return env
 
@@ -585,6 +584,27 @@ def _env_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def env_unquote(raw: str) -> str:
+    """One .env value as every reader sees it (`load_env`, so `get_secret`, and `env_value`): a
+    double-quoted value with `\\"` and `\\\\` unescaped, which is what `_env_quote` writes; a
+    single-quoted one as it stands; anything else stripped of the spaces around it. Only a
+    matching pair is a quote, so a value that merely starts or ends with `'` keeps it."""
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        out: list[str] = []
+        chars = iter(raw[1:-1])
+        for c in chars:
+            if c == "\\":
+                nxt = next(chars, "")
+                out.append(nxt if nxt in ('"', "\\") else c + nxt)
+            else:
+                out.append(c)
+        return "".join(out)
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        return raw[1:-1]
+    return raw
+
+
 def env_value(key: str, path: Path | None = None) -> str:
     """The value .env gives `key` ("" when absent or empty); the last line wins, as in load_env."""
     path = path or ENV_PATH
@@ -594,10 +614,7 @@ def env_value(key: str, path: Path | None = None) -> str:
     val = ""
     for ln in path.read_text(encoding="utf-8").splitlines():
         if line.match(ln):
-            raw = ln.split("=", 1)[1].strip()
-            if len(raw) >= 2 and raw[0] == raw[-1] == '"':
-                raw = raw[1:-1].replace('\\"', '"').replace("\\\\", "\\")
-            val = raw.strip("'")
+            val = env_unquote(ln.split("=", 1)[1])
     return val
 
 
@@ -640,7 +657,8 @@ def env_catalog(example: Path | None = None) -> list[dict]:
 def set_env(key: str, value: str, path: Path | None = None) -> str:
     """Set `key` to `value` in .env with a one-line edit; "" leaves the key present and empty.
     Returns what happened ("set", "changed", "cleared", "unchanged"), never the value. A missing
-    .env starts as a copy of .env.example. Raises ValueError on a bad key or a multi-line value."""
+    .env starts as a copy of .env.example, readable by its owner only. Raises ValueError on a
+    bad key or a multi-line value."""
     global _ENV_CACHE
     if not _env_key_ok(key):
         raise ValueError(f"{key!r} is not an environment variable name (A-Z, 0-9, _)")
@@ -650,6 +668,10 @@ def set_env(key: str, value: str, path: Path | None = None) -> str:
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(ENV_EXAMPLE.read_text(encoding="utf-8") if ENV_EXAMPLE.exists() else "", encoding="utf-8")
+        try:
+            path.chmod(0o600)                   # it is about to hold secrets: the owner reads it, nobody else
+        except OSError:
+            pass
     before = env_value(key, path)
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     new = f"{key}={_env_quote(value)}\n"

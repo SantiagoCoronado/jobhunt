@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -218,6 +219,71 @@ def test_a_missing_env_starts_from_the_example(tree):
     assert not config.ENV_PATH.exists()
     config.set_env("CAREERJET_AFFID", "aff")
     assert config.ENV_PATH.read_text().startswith("# jobhunt secrets")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")
+def test_a_new_env_is_readable_by_its_owner_only(tree):
+    config.set_env("CAREERJET_AFFID", "aff")
+    assert config.ENV_PATH.stat().st_mode & 0o777 == 0o600
+
+
+# What set_env writes, every reader reads back: get_secret (so every adapter and the mail pull)
+# as well as env_value (the Keys tab and write env). Review of PR #41: load_env only stripped
+# quotes, so `pa"ss word` came back as `pa\"ss word` and a value lost a leading or trailing `'`.
+TRICKY = {"K_DQUOTE": 'pa"ss word', "K_BACKSLASH": "back\\slash", "K_TRAIL_BS": "end\\",
+          "K_ESCAPED": 'a\\"b', "K_LEAD_SQ": "'lead", "K_TRAIL_SQ": "trail'", "K_BOTH_SQ": "'both'",
+          "K_WRAPPED": '"wrapped"', "K_HASH": "has # hash", "K_SPACES": "  spaced  ", "K_PLAIN": "plain"}
+
+
+def test_get_secret_reads_back_every_value_set_env_writes(tree, monkeypatch):
+    for key, value in TRICKY.items():
+        monkeypatch.delenv(key, raising=False)
+        config.set_env(key, value)
+    for key, value in TRICKY.items():
+        assert config.get_secret(key) == value, key
+        assert config.env_value(key) == value, key
+
+
+def test_hand_written_quotes_read_the_same_in_both_readers(monkeypatch):
+    config.ENV_PATH.write_text("export A=\"x y\"\nB='single # kept'\nC= plain \nD=\"unbalanced\nE=it's\nF=''\n")
+    monkeypatch.setattr(config, "_ENV_CACHE", None)
+    want = {"A": "x y", "B": "single # kept", "C": "plain", "D": '"unbalanced', "E": "it's", "F": ""}
+    for key, value in want.items():
+        assert config.load_env()[key] == value, key
+        assert config.env_value(key) == value, key
+
+
+def test_write_env_deletes_its_payload_file_whatever_the_outcome(tree, capsys):
+    payload = onboard.ONBOARD_DIR / "payload-env.json"
+    payload.write_text('{"FINDWORK_TOKEN": "one"}')
+    assert onboard.main(["write", "env", str(payload)]) == 0
+    assert not payload.exists() and "removed" in capsys.readouterr().out
+    payload.write_text('{"FINDWORK_TOKEN": "two"}')             # already set: refused until --yes
+    assert onboard.main(["write", "env", str(payload)]) == onboard.NEEDS_YES
+    assert not payload.exists() and "write the payload again" in capsys.readouterr().out
+    assert config.env_value("FINDWORK_TOKEN") == "one"
+
+
+def test_write_env_leaves_a_payload_file_outside_data_onboard(tree):
+    mine = tree / "my-keys.json"
+    mine.write_text('{"FINDWORK_TOKEN": "one"}')
+    assert onboard.main(["write", "env", str(mine)]) == 0
+    assert mine.exists() and config.env_value("FINDWORK_TOKEN") == "one"
+
+
+def test_a_carriage_return_is_refused_before_any_key_is_written(tree):
+    with pytest.raises(onboard.Refused, match="FINDWORK_TOKEN: the value must be one line"):
+        onboard.write("env", {"ADZUNA_APP_ID": "ok", "FINDWORK_TOKEN": "a\rb"})
+    assert not config.ENV_PATH.exists()
+
+
+def test_provenance_matches_whole_names_not_letters(tree):
+    data = {"cv": {"sections": {"skills": [{"label": "Go"}, {"label": "C++"}], "experience": [{"company": "Google"}]}}}
+    prov = [{"what": "experience Google", "from": ["interview"]}]
+    errors = onboard.provenance_errors(data, prov)
+    assert [e.split(":")[0] for e in errors] == ["no provenance for skills 'Go'", "no provenance for skills 'C++'"]
+    prov.append({"what": "skills Go, C++", "from": ["interview"]})
+    assert onboard.provenance_errors(data, prov) == []
 
 
 # ---- dream ------------------------------------------------------------------------------------
