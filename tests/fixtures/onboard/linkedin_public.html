@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!-- A public LinkedIn profile page for the invented candidate Alex Example, written by hand in the
+     shape the public (logged-out) page has: Open Graph meta in the head, one JSON-LD block whose
+     @graph holds a schema.org Person and a WebPage, and server-rendered sections in the body.
+     Every fact matches resume/master_resume.example.yaml. Used by tests/test_onboard_linkedin.py. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Alex Example - Ledgerly | LinkedIn</title>
+  <meta name="description" content="Full-stack engineer, strongest on the frontend. Experience: Ledgerly. Education: Universidade de Lisboa. Location: Lisbon.">
+  <meta property="og:title" content="Alex Example - Ledgerly | LinkedIn">
+  <meta property="og:type" content="profile">
+  <meta property="og:url" content="https://www.linkedin.com/in/alexexample">
+  <link rel="canonical" href="https://www.linkedin.com/in/alexexample">
+  <script type="application/ld+json">
+  {"@context": "http://schema.org", "@graph": [
+    {"@type": "Person",
+     "@id": "https://www.linkedin.com/in/alexexample",
+     "name": "Alex Example",
+     "url": "https://www.linkedin.com/in/alexexample",
+     "jobTitle": ["Software Engineer at Ledgerly"],
+     "address": {"@type": "PostalAddress", "addressLocality": "Lisbon", "addressCountry": "PT"},
+     "description": "Full-stack engineer with five years shipping web products in TypeScript, strongest on the frontend.",
+     "worksFor": [
+       {"@type": "Organization", "name": "Ledgerly", "url": "https://www.linkedin.com/company/ledgerly-example",
+        "member": {"@type": "OrganizationRole", "startDate": "2023-04",
+                   "description": "Built the merchant checkout flow (React 18, TypeScript, Node.js on PostgreSQL) used by 400+ merchants."}},
+       {"@type": "Organization", "name": "Brightpath Studio",
+        "member": {"@type": "OrganizationRole", "startDate": "2021-02", "endDate": "2023-03"}},
+       {"@type": "Organization", "name": "Universidade de Lisboa",
+        "member": {"@type": "OrganizationRole", "startDate": "2019-09", "endDate": "2021-01"}}
+     ],
+     "alumniOf": [
+       {"@type": "EducationalOrganization", "name": "Universidade de Lisboa",
+        "member": {"@type": "OrganizationRole", "startDate": 2017, "endDate": 2020}}
+     ],
+     "knowsLanguage": [{"@type": "Language", "name": "Portuguese"}, {"@type": "Language", "name": "English"},
+                       {"@type": "Language", "name": "Spanish"}],
+     "awards": [],
+     "interactionStatistic": {"@type": "InteractionCounter", "interactionType": "https://schema.org/FollowAction",
+                              "name": "Follows", "userInteractionCount": 312}},
+    {"@type": "WebPage", "url": "https://www.linkedin.com/in/alexexample",
+     "reviewedBy": {"@type": "Person", "name": "Alex Example"}}
+  ]}
+  </script>
+</head>
+<body>
+  <main class="main">
+    <section class="top-card-layout">
+      <h1 class="top-card-layout__title">Alex Example</h1>
+      <h2 class="top-card-layout__headline">Software Engineer at Ledgerly</h2>
+      <div class="top-card__subline-item">Lisbon, Lisbon, Portugal</div>
+    </section>
+    <section class="core-section-container" data-section="summary">
+      <h2 class="core-section-container__title">About</h2>
+      <p>Full-stack engineer with five years shipping web products in TypeScript, strongest on the frontend.</p>
+    </section>
+    <section class="core-section-container" data-section="experience">
+      <h2 class="core-section-container__title">Experience</h2>
+      <ul class="experience__list">
+        <li class="profile-section-card"><h3>Software Engineer</h3><h4>Ledgerly</h4><span class="date-range">Apr 2023 - Present</span></li>
+        <li class="profile-section-card"><h3>Frontend Developer</h3><h4>Brightpath Studio</h4><span class="date-range">Feb 2021 - Mar 2023</span></li>
+      </ul>
+    </section>
+    <section class="core-section-container" data-section="educationsDetails">
+      <h2 class="core-section-container__title">Education</h2>
+      <ul class="education__list"><li><h3>Universidade de Lisboa</h3><h4>BSc, Computer Science</h4><span class="date-range">2017 - 2020</span></li></ul>
+    </section>
+  </main>
+</body>
+</html>

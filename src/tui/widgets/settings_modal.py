@@ -1,5 +1,7 @@
 """The settings modal (spec decision 13): `,` opens it, `tab` walks the tabs, `enter` applies the
-highlighted line and saves, `esc` closes. One list per tab, every line a value to choose."""
+highlighted line and saves, `esc` closes. One list per tab, every line a value to choose. The keys
+tab (docs/spec-pre-release.md decision 8) lists `.env.example`'s keys as set or unset and never
+shows a value."""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -23,13 +25,14 @@ from ..settings import Settings
 from .modals import OutputModal, Picker, Prompt
 
 TABS: tuple[tuple[str, str], ...] = (
-    ("theme", "theme"), ("sections", "sections"), ("harness", "harness"),
+    ("theme", "theme"), ("sections", "sections"), ("harness", "harness"), ("keys", "keys"),
     ("followups", "follow-ups"), ("editor", "editor"),
 )
 FOLLOWUP_DAYS: tuple[int, ...] = (3, 5, 7, 10, 14)
 CHECK = " ✓"
 KEYS_HINT = "↑↓ select   tab section          ↵ apply   esc close"
 CUSTOM = "custom"
+CLEAR = "-"                                          # typed in the key prompt: empty the key
 
 
 @dataclass(frozen=True)
@@ -51,7 +54,7 @@ class SettingsModal(ModalScreen[None]):
     /* One size for every tab: the box is as tall as the longest list needs (22 lines, plus the
        title, the tabs, the hint and the border) and a longer list scrolls inside it, so `tab`
        never moves an edge. On a short terminal the 90% cap wins and the list gives way. */
-    SettingsModal #settings-box { width: 64; height: 29; max-height: 90%; border: round $primary;
+    SettingsModal #settings-box { width: 72; height: 29; max-height: 90%; border: round $primary;
                                   background: $surface; padding: 0 1; }
     SettingsModal #settings-tabs { height: 1; margin-bottom: 1; }
     SettingsModal OptionList, SettingsModal OptionList:focus { height: 1fr; border: none; background: $surface; }
@@ -135,7 +138,7 @@ class SettingsModal(ModalScreen[None]):
 
     def build(self, tab: str) -> list[Line]:
         return {"theme": self.theme_lines, "sections": self.section_lines, "harness": self.harness_lines,
-                "followups": self.followup_lines, "editor": self.editor_lines}[tab]()
+                "followups": self.followup_lines, "editor": self.editor_lines, "keys": self.key_lines}[tab]()
 
     def choice(self, label: str | Text, field: str, value: Any) -> Line:
         text = label if isinstance(label, Text) else Text(f"  {label}")
@@ -318,3 +321,28 @@ class SettingsModal(ModalScreen[None]):
 
         self.app.push_screen(Prompt("editor command", "e.g. code -w, or nvim +1 {file}", parse,
                                     self.current.editor), entered)
+
+    # Keys tab: .env through data.set_key (config.set_env); a value is typed as dots, never read back.
+
+    def key_lines(self) -> list[Line]:
+        lines = [heading(".env (enter sets a key; a value is never shown)")]
+        for k in data.keys_view():
+            state = ("set", "green") if k.set else ("unset", "dim" if k.optional else "yellow")
+            lines.append(Line(Text.assemble(f"  {k.name:<20}", state,
+                                            ("  from the environment" if k.environ else "", "dim"),
+                                            ("  optional" if k.optional and not k.set else "", "dim")),
+                              f"key={k.name}", partial(self.ask_key, k)))
+        if len(lines) == 1:
+            lines.append(heading("  .env.example lists no keys"))
+        return lines
+
+    def ask_key(self, k: data.KeyState) -> None:
+        def entered(value: str | None) -> None:
+            if not value:                            # esc, or enter on an empty box: nothing changes
+                return
+            self.hunt_write(lambda: data.set_key(k.name, "" if value == CLEAR else value))
+
+        where = k.url or k.hint[:44]
+        hint = f"{where}; {CLEAR} clears it" if where else f"the value; {CLEAR} clears it"
+        self.app.push_screen(Prompt(f"{k.name} ({'set, typing replaces it' if k.set else 'unset'})", hint,
+                                    str.strip, password=True), entered)

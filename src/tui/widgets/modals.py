@@ -271,17 +271,19 @@ class Prompt(ModalScreen[str | None]):
     """
     BINDINGS = [Binding("escape", "dismiss(None)", "cancel")]
 
-    def __init__(self, title: str, hint: str, parse: Callable[[str], str], value: str = "") -> None:
+    def __init__(self, title: str, hint: str, parse: Callable[[str], str], value: str = "",
+                 password: bool = False) -> None:
         super().__init__()
         self.heading = title
         self.hint = hint
         self.parse = parse
         self.value = value
+        self.password = password                     # a secret: typed as dots, never prefilled
 
     def compose(self) -> ComposeResult:
         with Vertical(id="prompt-box"):
             yield Label(Text(self.heading, style="bold"))
-            yield Input(value=self.value, placeholder=self.hint, id="prompt-input")
+            yield Input(value=self.value, placeholder=self.hint, id="prompt-input", password=self.password)
             yield Label("", id="prompt-error")
 
     def on_mount(self) -> None:

@@ -41,6 +41,8 @@ cd ~/projects/jobhunt
 ./setup.sh                       # asks which agent CLIs you use (claude, codex, opencode, pi, gemini, agy), then
                                  # venv + deps + `python -m src.init` + the default harness + `hunt doctor` per CLI
                                  # (--harness claude,pi or --yes for scripts; --check reports and writes nothing)
+# then open your agent CLI here and run /jh-setup: it reads your resumes and LinkedIn export,
+# asks what it cannot find, and writes the files below for you (every resume fact traced to a document)
 # ...or manually:
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

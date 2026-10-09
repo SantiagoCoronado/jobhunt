@@ -1,0 +1,92 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Length 3705 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+54 738 Td
+(Alex Example) Tj T*
+(Lisbon, Portugal | alex@example.com | +351-900-000-000 | linkedin.com/in/alexexample) Tj T*
+() Tj T*
+(SUMMARY) Tj T*
+(Full-stack engineer with five years shipping web products in TypeScript, strongest on the) Tj T*
+(  frontend: owned a React design system used by three product teams, built the checkout flow of) Tj T*
+(  a payments startup from the first commit, and pairs hands-on engineering with close work with) Tj T*
+(  designers and product managers.) Tj T*
+() Tj T*
+(EXPERIENCE) Tj T*
+(Software Engineer, Ledgerly, Lisbon, PT \(2023-04 to present\)) Tj T*
+(- Built the merchant checkout flow \(React 18, TypeScript, Node.js on PostgreSQL\) used by 400+) Tj T*
+(  merchants, taking it from prototype to production in four months with a 99.9% monthly) Tj T*
+(  availability target met every quarter since.) Tj T*
+(- Owned the component library \(Radix UI primitives, CSS-variable tokens, light and dark themes\)) Tj T*
+(  adopted by three product teams, cutting new-screen delivery time from about a week to two) Tj T*
+(  days.) Tj T*
+(- Introduced Playwright end-to-end tests for the five revenue-critical flows and a Vitest suite) Tj T*
+(  of 300+ unit tests, which caught two regressions before release in the first quarter.) Tj T*
+(- Worked directly with two designers and a product manager in weekly discovery sessions, turning) Tj T*
+(  customer interviews into shipped features within the same sprint.) Tj T*
+(Frontend Developer, Brightpath Studio, Remote \(EU\) \(2021-02 to 2023-03\)) Tj T*
+(- Delivered eleven client websites and two web apps in React and Next.js for an agency of eight,) Tj T*
+(  including a booking platform handling 2,000 reservations a month.) Tj T*
+(- Raised Lighthouse performance scores from the 50s to 90+ on the agency's template through code) Tj T*
+(  splitting, image optimization and font loading fixes.) Tj T*
+(- Set up the agency's shared ESLint, Prettier and CI configuration, removing a recurring class) Tj T*
+(  of merge conflicts.) Tj T*
+(Web Developer, Universidade de Lisboa \(student job\), Lisbon, PT \(2019-09 to 2021-01\)) Tj T*
+(- Maintained the faculty's internal course-registration site \(PHP, JavaScript, MySQL\) and) Tj T*
+(  rebuilt its schedule view in React, used by 3,000 students each semester.) Tj T*
+() Tj T*
+(PROJECTS) Tj T*
+(Shelfmate \(open-source reading tracker\) \(2025\)) Tj T*
+(- Built and open-sourced a reading tracker with a Next.js frontend, a Node.js API and) Tj T*
+(  PostgreSQL, with OAuth sign-in, offline-first syncing through a service worker, and 120 Vitest) Tj T*
+(  tests; 80 GitHub stars.) Tj T*
+(Lisbon Transit Widget \(2024\)) Tj T*
+(- Shipped a macOS menu-bar widget in Electron and TypeScript showing live departures from the) Tj T*
+(  city transit API, with a 2,000-download first month.) Tj T*
+() Tj T*
+(SKILLS) Tj T*
+(Frontend: React 18, TypeScript, Next.js, Vite, Tailwind CSS, Radix UI, Design Systems and Design) Tj T*
+(  Tokens, Accessibility \(WCAG 2.1\), Responsive Design; Testing: Playwright \(E2E\), Vitest,) Tj T*
+(  Testing Library) Tj T*
+(Backend & Cloud: Node.js, Express, PostgreSQL, Prisma, REST APIs, GraphQL, Docker, AWS \(ECS,) Tj T*
+(  RDS\), Vercel, GitHub Actions) Tj T*
+(Product & Collaboration: Discovery with designers and product managers, Agile delivery, Code) Tj T*
+(  review, Technical writing, Mentoring juniors) Tj T*
+() Tj T*
+(EDUCATION) Tj T*
+(BSc Computer Science, Universidade de Lisboa \(2017-09 to 2020-07\)) Tj T*
+() Tj T*
+(ADDITIONAL) Tj T*
+(Languages: Portuguese \(Native\), English \(Fluent\), Spanish \(Conversational\)) Tj T*
+(Work Authorization: EU citizen \(Portugal\), no sponsorship needed in the EU) Tj T*
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000212 00000 n 
+0000003969 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+4095
+%%EOF

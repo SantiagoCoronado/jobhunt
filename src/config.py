@@ -519,10 +519,12 @@ def shortlist_threshold() -> int:
 
 
 _ENV_CACHE: dict | None = None
+ENV_PATH = ROOT / ".env"                    # resolved at call time; tests point it at a temp file
+ENV_EXAMPLE = ROOT / ".env.example"
 
 
 def load_env() -> dict:
-    """Parse ROOT/.env into a dict (cached). Blanks and `# comments` skipped.
+    """Parse ENV_PATH (.env) into a dict (cached). Blanks and `# comments` skipped.
 
     Supports optional `export ` prefix and single/double-quoted values. Does NOT
     mutate os.environ, so real environment variables always win in get_secret().
@@ -531,7 +533,7 @@ def load_env() -> dict:
     if _ENV_CACHE is not None:
         return _ENV_CACHE
     env: dict[str, str] = {}
-    path = ROOT / ".env"
+    path = ENV_PATH
     if path.exists():
         for line in path.read_text().splitlines():
             line = line.strip()
@@ -541,9 +543,8 @@ def load_env() -> dict:
                 line = line[len("export "):]
             key, _, val = line.partition("=")
             key = key.strip()
-            val = val.strip().strip('"').strip("'")
             if key:
-                env[key] = val
+                env[key] = env_unquote(val)
     _ENV_CACHE = env
     return env
 
@@ -554,6 +555,146 @@ def get_secret(key: str, default: str | None = None) -> str | None:
     if val:
         return val
     return load_env().get(key, default)
+
+
+# ---- the .env one-line editor (docs/spec-pre-release.md decision 8) ---------------------
+#
+# Shared by the onboarding helper (`python -m src.onboard write env`) and the TUI's Keys tab.
+# One key is one line: an existing `KEY=` line is rewritten in place (its `export ` kept), a
+# commented `# KEY=` placeholder from the example is uncommented, and only a key the file has
+# never mentioned is appended. Every other line, comments included, stays as it was. Nothing
+# here prints or returns a value except `env_value`, which the editor's own checks use.
+
+def _env_key_ok(key: str) -> bool:
+    import re
+
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9_]*", key))
+
+
+def _env_line(key: str, commented: bool = False):
+    import re
+
+    hash_ = r"\s*#\s*" if commented else r"(\s*)(export\s+)?"
+    return re.compile(rf"^{hash_}{re.escape(key)}\s*=")
+
+
+def _env_quote(value: str) -> str:
+    if not any(c in value for c in " #'\"\t"):
+        return value
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def env_unquote(raw: str) -> str:
+    """One .env value as every reader sees it (`load_env`, so `get_secret`, and `env_value`): a
+    double-quoted value with `\\"` and `\\\\` unescaped, which is what `_env_quote` writes; a
+    single-quoted one as it stands; anything else stripped of the spaces around it. Only a
+    matching pair is a quote, so a value that merely starts or ends with `'` keeps it."""
+    raw = raw.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        out: list[str] = []
+        chars = iter(raw[1:-1])
+        for c in chars:
+            if c == "\\":
+                nxt = next(chars, "")
+                out.append(nxt if nxt in ('"', "\\") else c + nxt)
+            else:
+                out.append(c)
+        return "".join(out)
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        return raw[1:-1]
+    return raw
+
+
+def env_value(key: str, path: Path | None = None) -> str:
+    """The value .env gives `key` ("" when absent or empty); the last line wins, as in load_env."""
+    path = path or ENV_PATH
+    if not path.exists():
+        return ""
+    line = _env_line(key)
+    val = ""
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        if line.match(ln):
+            val = env_unquote(ln.split("=", 1)[1])
+    return val
+
+
+def env_catalog(example: Path | None = None) -> list[dict]:
+    """Every key .env.example names, in file order: {name, hint, url, optional}. The hint is
+    the comment block over the key (keys under one block share it), the url the first link in
+    it, `optional` true for a key the example leaves commented out (a per-label mail setting)
+    or calls OPTIONAL. The Keys tab and `python -m src.onboard sources` both read this."""
+    import re
+
+    path = example or ENV_EXAMPLE
+    if not path.exists():
+        return []
+    out: list[dict] = []
+    seen: set[str] = set()
+    block: list[str] = []
+    after_key = False
+    key_re = re.compile(r"^(#\s*)?([A-Z][A-Z0-9_]*)\s*=")
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        m = key_re.match(line)
+        if m:
+            name = m.group(2)
+            if name not in seen:
+                seen.add(name)
+                hint = " ".join(block)
+                url = re.search(r"https?://[^\s,;)]+", hint)
+                out.append({"name": name, "hint": hint, "url": url.group(0).rstrip(".") if url else "",
+                            "optional": bool(m.group(1)) or "OPTIONAL" in hint})
+            after_key = True
+        elif line.startswith("#"):
+            if after_key:                       # prose after a key starts the next block
+                block, after_key = [], False
+            block.append(line.lstrip("#").strip())
+        elif not line:
+            block, after_key = [], False
+    return out
+
+
+def set_env(key: str, value: str, path: Path | None = None) -> str:
+    """Set `key` to `value` in .env with a one-line edit; "" leaves the key present and empty.
+    Returns what happened ("set", "changed", "cleared", "unchanged"), never the value. A missing
+    .env starts as a copy of .env.example, readable by its owner only. Raises ValueError on a
+    bad key or a multi-line value."""
+    global _ENV_CACHE
+    if not _env_key_ok(key):
+        raise ValueError(f"{key!r} is not an environment variable name (A-Z, 0-9, _)")
+    if "\n" in value or "\r" in value:
+        raise ValueError(f"{key}: the value must be one line")
+    path = path or ENV_PATH
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(ENV_EXAMPLE.read_text(encoding="utf-8") if ENV_EXAMPLE.exists() else "", encoding="utf-8")
+        try:
+            path.chmod(0o600)                   # it is about to hold secrets: the owner reads it, nobody else
+        except OSError:
+            pass
+    before = env_value(key, path)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    new = f"{key}={_env_quote(value)}\n"
+    live = _env_line(key)
+    hits = [i for i, ln in enumerate(lines) if live.match(ln)]
+    if hits:
+        m = live.match(lines[hits[-1]])
+        assert m is not None
+        lines[hits[-1]] = f"{m.group(1)}{m.group(2) or ''}{new}"
+    else:
+        placeholder = _env_line(key, commented=True)
+        at = next((i for i, ln in enumerate(lines) if placeholder.match(ln)), None)
+        if at is not None:
+            lines[at] = new
+        else:
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            lines.append(new)
+    path.write_text("".join(lines), encoding="utf-8")
+    _ENV_CACHE = None
+    if before == value:
+        return "unchanged"
+    return "cleared" if value == "" else ("set" if not before else "changed")
 
 
 def main(argv: list[str] | None = None) -> int:

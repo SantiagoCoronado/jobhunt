@@ -26,17 +26,17 @@ async def _open(app, pilot) -> SettingsModal:
     return app.screen
 
 
-def test_comma_opens_tab_walks_the_five_tabs_and_esc_closes():
+def test_comma_opens_tab_walks_the_six_tabs_and_esc_closes():
     async def scenario():
         app = JobhuntApp()
         async with app.run_test(size=(140, 40)) as pilot:
             modal = await _open(app, pilot)
-            assert [label for _k, label in TABS] == ["theme", "sections", "harness", "follow-ups", "editor"]
+            assert [label for _k, label in TABS] == ["theme", "sections", "harness", "keys", "follow-ups", "editor"]
             seen = [modal.tab]
             for _ in TABS:
                 await pilot.press("tab")
                 seen.append(modal.tab)
-            assert seen == ["theme", "sections", "harness", "followups", "editor", "theme"]
+            assert seen == ["theme", "sections", "harness", "keys", "followups", "editor", "theme"]
             await pilot.press("shift+tab")
             assert modal.tab == "editor"
             await pilot.press("comma")                       # a second `,` does not stack a second modal
@@ -125,7 +125,7 @@ def test_overdue_style_and_the_followup_hint_come_from_the_settings():
             table = app.screen.query_one(JobsTable)
             assert str(table.get_row_at(0)[-1].style) == "red"
             modal = await _open(app, pilot)
-            for _ in range(3):
+            for _ in range(4):                               # theme -> follow-ups
                 await pilot.press("tab")
             lines = _labels(modal)
             ol = modal.query_one("#settings-list")

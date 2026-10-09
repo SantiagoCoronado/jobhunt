@@ -1,0 +1,94 @@
+# The golden transcript of /jh-setup (prompts/commands/jh-setup.md) on Alex Example's documents:
+# every helper call the interview makes, in order, with its payload and what its output must
+# say. tests/test_onboard_interview.py replays it against src.onboard in a temp tree. `boards`
+# is what the fake ATS answers (open roles per token); no request leaves the test.
+boards: {ledgerly: 3, quietco: 0}
+steps:
+  - say: extract
+    args: [extract, "{fixtures}/onboard/alex-example-resume.pdf", "{fixtures}/onboard/alex-example-resume.docx"]
+    out: ["alex-example-resume.pdf", "1 page", "extracted 2 of 2 documents"]
+
+  - say: write resume
+    args: [write, resume, "{onboard}/payload-resume.json"]
+    payload:
+      resume_from: master_resume.yaml
+      provenance:
+        - {what: summary, from: [alex-example-resume.pdf]}
+        - {what: experience Ledgerly, from: [alex-example-resume.pdf, alex-example-resume.docx]}
+        - {what: experience Brightpath Studio, from: [alex-example-resume.pdf]}
+        - {what: experience Universidade de Lisboa (student job), from: [alex-example-resume.pdf]}
+        - {what: projects Shelfmate (open-source reading tracker), from: [alex-example-resume.pdf]}
+        - {what: projects Lisbon Transit Widget, from: [alex-example-resume.pdf]}
+        - {what: education Universidade de Lisboa, from: [alex-example-resume.pdf]}
+        - {what: skills Frontend, from: [alex-example-resume.pdf]}
+        - {what: skills Backend & Cloud, from: [alex-example-resume.pdf]}
+        - {what: skills Product & Collaboration, from: [alex-example-resume.pdf, interview]}
+        - {what: additional Languages, from: [alex-example-resume.pdf]}
+        - {what: additional Work Authorization, from: [interview]}
+    out: ["written", "3 roles, 2 projects, 28 skills, 1 education", "provenance in"]
+
+  - say: check resume
+    args: [check, resume]
+    out: ["resume ok: 3 roles, 2 projects"]
+
+  - say: write profile
+    args: [write, profile, "{onboard}/payload-profile.json"]
+    payload:
+      candidate_line: Alex, frontend-leaning full-stack engineer in Lisbon, EU work authorization.
+      seniority: mid
+      target_titles: [Frontend Engineer, Full-Stack Engineer, Product Engineer]
+      locations: [Remote (EU), Lisbon, Portugal]
+      dealbreakers: ["on-site or hybrid required anywhere outside Portugal", "unpaid"]
+      notes: Mid-level engineer in Lisbon, strongest on React and TypeScript, five years in production.
+    out: ["written", "profile.yaml: candidate_line, seniority, target_titles"]
+
+  - say: write dream
+    args: [write, dream, "{onboard}/payload-dream.json"]
+    payload:
+      - {name: Example Robotics, careers_url: "https://example.com/careers", note: builds robot arms}
+    out: ["added    dream Example Robotics"]
+
+  - say: check profile
+    args: [check, profile]
+    out: ["profile ok"]
+
+  - say: sources
+    args: [sources]
+    out: ["coverage: ", "europe", "off  getonbrd", "need a key (adzuna, findwork, careerjet)"]
+
+  - say: verify a token
+    args: [verify-token, greenhouse, ledgerly]
+    out: ["ok       greenhouse ledgerly: 3 open roles"]
+
+  - say: verify an empty board
+    args: [verify-token, greenhouse, quietco]
+    rc: 1
+    out: ["greenhouse quietco: 0 open roles"]
+
+  - say: write sources
+    args: [write, sources, "{onboard}/payload-sources.json"]
+    payload:
+      greenhouse: {tokens: [ledgerly]}
+      adzuna: {countries: [pt, es], queries: [frontend engineer, react developer]}
+      jobicy: {tags: [react, typescript]}
+    out: ["written", "greenhouse, adzuna, jobicy"]
+
+  - say: write env
+    args: [write, env, "{onboard}/payload-env.json"]
+    payload: {ADZUNA_APP_ID: alex-app-id, ADZUNA_APP_KEY: alex-app-key}
+    out: ["set      .env ADZUNA_APP_ID", "set      .env ADZUNA_APP_KEY"]
+    never: [alex-app-id, alex-app-key]
+
+  - say: summary
+    args: [summary]
+    out:
+      - "documents (2): alex-example-resume.pdf"
+      - "3 roles, 2 projects, 28 skills, 1 education; 12 entries traced"
+      - "interview: 2"
+      - "profile.yaml: ok; still the example's value: name,"
+      - "greenhouse (1 token), adzuna, jobicy"
+      - "tokens verified: 1 of 2; not written, kept as notes: greenhouse quietco: 0 open roles"
+      - ".env: 2 of 5 source keys set (ADZUNA_APP_ID, ADZUNA_APP_KEY)"
+      - "mail: skipped"
+      - "dream companies: 1 (Example Robotics)"
+    never: [alex-app-id]

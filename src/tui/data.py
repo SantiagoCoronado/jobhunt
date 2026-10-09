@@ -691,6 +691,32 @@ def set_stage_model(stage: str, model: str | None) -> str:
     return f"hunt.toml: {stage} runs on {model or 'the harness default'}"
 
 
+# The keys tab (docs/spec-pre-release.md decision 8): `.env` through `config.set_env`, the
+# one-line editor the onboarding helper uses too. The catalog is `.env.example`. Whether a key
+# is set is the only thing about a value that ever leaves here.
+
+@dataclass(frozen=True)
+class KeyState:
+    name: str
+    hint: str                  # the example's comment over the key
+    url: str                   # where to get one, "" when the comment names none
+    optional: bool
+    set: bool                  # .env gives it a value
+    environ: bool              # the real environment sets it (and wins over .env)
+
+
+def keys_view() -> tuple[KeyState, ...]:
+    import os
+
+    return tuple(KeyState(e["name"], e["hint"], e["url"], e["optional"], bool(config.env_value(e["name"])),
+                          bool(os.environ.get(e["name"]))) for e in config.env_catalog())
+
+
+def set_key(name: str, value: str) -> str:
+    what = config.set_env(name, value)
+    return f".env: {name} {what}"
+
+
 # The runner (spec decision 12): what can be run, what has run. The stage list is the `src.hunt`
 # registry plus the full hunt and the two Python extras; a run is a ledger folder under
 # `data/hunt/`. Nothing here starts a process: a stage carries its argv, the screen runs it.
