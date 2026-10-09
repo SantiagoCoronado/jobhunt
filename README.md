@@ -56,19 +56,22 @@ python -m src.init               # creates profile.yaml, master_resume.yaml, ans
 
 ## Daily use
 
-```bash
-python -m src.discover   # pull fresh jobs into data/jobs.db
-python -m src.notify     # optional digest of already-scored matches (config/notify.yaml)
+The `/jh-*` commands are the same in every agent CLI `./setup.sh` set up, opened in this folder:
+type them as shown in claude, opencode, gemini and pi; in codex and agy, say the name
+(`jh-tailor 42`) and the agent finds the flow in `AGENTS.md`.
 ```
-Then, in Claude Code from this folder:
+/jh-hunt                 # the whole loop: discover, triage, match, inbox, pick 5, research, tailor, report
 ```
-/jh-triage               # Haiku junk-cut when the discovered pile is large
-/jh-match                # score newly discovered jobs
+Or one stage at a time, in this order:
+```
+/jh-discover             # pull fresh jobs into data/jobs.db (or: python -m src.discover)
+/jh-triage               # cheap keep/drop cut of the new pile; match scores only the rows it keeps
+/jh-match                # score the kept jobs against your profile
 /jh-research 42          # cited company dossier (reused by tailor)
 /jh-tailor 42            # tailor resume + cover letter for job id 42 (review before sending!)
 /jh-followups            # draft nudges for applications due a follow-up
-/jh-hunt                 # or run the whole loop end to end
 ```
+An optional digest of already-scored matches (`config/notify.yaml`): `python -m src.notify`.
 Record a submission (moves the folder AND schedules the follow-up):
 ```bash
 python -m src.query set-status 42 applied
