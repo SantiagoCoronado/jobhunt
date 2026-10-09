@@ -410,6 +410,27 @@ def test_header_work_auth_item_comes_from_the_profile_and_is_not_duplicated():
     assert "EU Work Authorization" not in [t for t, _ in _contact_items({"location": "X", "work_auth_item": ""})]
 
 
+def test_header_prints_every_social_network_and_the_website():
+    # only LinkedIn used to reach the header; a GitHub entry was dropped without a word
+    from src.render_docx import _contact_items, build
+    cv = {"name": "Alex Example", "email": "a@b.c", "location": "Lisbon, Portugal",
+          "website": "https://alex.example.com/",
+          "social_networks": [{"network": "LinkedIn", "username": "alexexample"},
+                              {"network": "GitHub", "username": "alexexample"},
+                              {"network": "Hugging Face", "username": "@alexexample"},
+                              {"network": "Personal website", "username": "https://alex.example.com"},
+                              {"network": "Mastodon", "username": "@alex@hachyderm.io"},
+                              {"network": "GitHub", "username": ""}],
+          "sections": {}}
+    assert _contact_items(cv, header_item="") == [
+        ("a@b.c", "email"), ("linkedin.com/in/alexexample", "link"), ("github.com/alexexample", "link"),
+        ("huggingface.co/alexexample", "link"), ("alex.example.com", "link"),   # cv.website = the same site
+        ("Mastodon: @alex@hachyderm.io", "handle"), ("Lisbon, Portugal", "text")]
+    links = {r.target_ref for r in build({"cv": cv}, 0).part.rels.values() if r.is_external}
+    assert links == {"mailto:a@b.c", "https://www.linkedin.com/in/alexexample", "https://github.com/alexexample",
+                     "https://huggingface.co/alexexample", "https://alex.example.com"}
+
+
 def test_fill_failure_only_at_fit_level_0(folder, monkeypatch):
     monkeypatch.setattr(tb.rd, "pick_fit_level", lambda data: 2)
     monkeypatch.setattr(tb.rd, "estimate_height_pts", lambda data, level: tb.rd.PAGE_AVAIL_PTS * 0.94)

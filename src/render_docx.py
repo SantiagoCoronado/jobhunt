@@ -334,8 +334,49 @@ def _header_already_says(items: list, header_item: str) -> bool:
     """One plain-text item (the location note, a contact extra) already STATES the item: it
     carries the item's distinctive words AND a work-status word. "(open to US relocation, TN
     eligible)" states "TN Visa Eligible"; a location "Austin, TX, US" or an extra "Open to EU
-    roles" does not, and an email or LinkedIn handle never counts."""
+    roles" does not, and an email, a profile link or a handle never counts."""
     return any(kind == "text" and _AUTH_WORDS.search(t) and _says(t, header_item) for t, kind in items)
+
+
+# where a `social_networks` username lives (RenderCV's network names, matched without case,
+# spaces, hyphens or underscores); a network not listed prints as "Network: username"
+SOCIAL_URLS = {
+    "linkedin": "linkedin.com/in/{}",
+    "github": "github.com/{}",
+    "gitlab": "gitlab.com/{}",
+    "huggingface": "huggingface.co/{}",
+    "kaggle": "kaggle.com/{}",
+    "stackoverflow": "stackoverflow.com/users/{}",
+    "orcid": "orcid.org/{}",
+    "researchgate": "researchgate.net/profile/{}",
+    "medium": "medium.com/@{}",
+    "x": "x.com/{}",
+    "twitter": "x.com/{}",
+    "behance": "behance.net/{}",
+    "dribbble": "dribbble.com/{}",
+}
+# networks whose "username" is the site itself
+WEBSITE_NETWORKS = frozenset({"website", "personalwebsite", "portfolio", "blog", "homepage"})
+
+
+def _bare_url(url: str) -> str:
+    """A URL as the header shows it: no scheme, no trailing slash."""
+    return re.sub(r"^https?://", "", url.strip(), flags=re.I).rstrip("/")
+
+
+def _social_item(sn: dict) -> tuple[str, str] | None:
+    """One `social_networks` entry as a header item: a link for a known network, a website or
+    a username that is already a URL, else plain "Network: username"; None when it is empty."""
+    network = str(sn.get("network") or "").strip()
+    user = str(sn.get("username") or "").strip()
+    if not user:
+        return None
+    key = re.sub(r"[\s_-]", "", network.lower())
+    if key in WEBSITE_NETWORKS or re.match(r"https?://", user, re.I):
+        return _bare_url(user), "link"
+    if key in SOCIAL_URLS:
+        return SOCIAL_URLS[key].format(user.lstrip("@")), "link"
+    return (f"{network}: {user}" if network else user), "handle"
 
 
 def contact_line(cv, header_item: str | None = None) -> tuple[list, str]:
@@ -348,14 +389,17 @@ def contact_line(cv, header_item: str | None = None) -> tuple[list, str]:
 
 
 def _contact_items(cv, header_item: str | None = None):
-    items = []  # (text, kind) kind: text|email|linkedin
+    items = []  # (text, kind) kind: text|email|link|handle
     if cv.get("phone"):
         items.append((str(cv["phone"]).replace("-", " "), "text"))
     if cv.get("email"):
         items.append((cv["email"], "email"))
     for sn in cv.get("social_networks", []) or []:
-        if sn.get("network", "").lower() == "linkedin":
-            items.append((f"linkedin.com/in/{sn['username']}", "linkedin"))
+        social = _social_item(sn) if isinstance(sn, dict) else None
+        if social and social not in items:
+            items.append(social)
+    if cv.get("website") and (_bare_url(str(cv["website"])), "link") not in items:
+        items.append((_bare_url(str(cv["website"])), "link"))
     if cv.get("location"):
         items.append((cv["location"], "text"))
     for extra in cv.get("contact_extras", []) or []:
@@ -413,8 +457,10 @@ def build(data: dict, level: int, lang: str = "en") -> DocumentType:
             _run(p, "  |  ", FS["contact"][L], LIGHT)
         if kind == "email":
             _hyperlink(p, text, f"mailto:{text}", FS["contact"][L])
-        elif kind == "linkedin":
-            _hyperlink(p, text, f"https://www.{text}", FS["contact"][L])
+        elif kind == "link":
+            # LinkedIn keeps the www. its links always carried
+            href = f"https://www.{text}" if text.startswith("linkedin.com/") else f"https://{text}"
+            _hyperlink(p, text, href, FS["contact"][L])
         else:
             _run(p, text, FS["contact"][L], GRAY)
 
