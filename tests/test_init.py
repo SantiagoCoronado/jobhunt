@@ -28,6 +28,9 @@ def test_run_copies_once_keeps_edits_and_skips_identity(tmp_path, capsys):
     assert init.run(root) == 0
     out = capsys.readouterr().out
     assert "created  config/profile.yaml" in out and "created  .env" in out
+    # the first step a fresh user hears is the interview, the same one the installer names
+    assert "Next: run /jh-setup" in out and "an invented person until /jh-setup" in out
+    assert "(from .env.example; empty keys; /jh-setup or the TUI keys tab sets them)" in out
     assert "skipped  config/identity.local.example.yaml" in out
     assert not (root / "config" / "identity.local.yaml").exists()
     for d in init.DATA_DIRS:

@@ -50,6 +50,7 @@ Runner = Callable[[Sequence[str], Path, bool], tuple[int, str]]
 
 
 def run_command(argv: Sequence[str], cwd: Path, capture: bool = True) -> tuple[int, str]:
+    sys.stdout.flush()      # through a pipe (an agent running setup) our lines would land after the child's
     if not capture:
         return subprocess.run(list(argv), cwd=cwd, check=False).returncode, ""
     done = subprocess.run(list(argv), cwd=cwd, capture_output=True, text=True, check=False)

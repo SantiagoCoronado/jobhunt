@@ -244,7 +244,9 @@ def run(root: Path = ROOT, check: bool = False) -> int:
         if real in p["copy"]:
             (root / real).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(root / ex, root / real)
-            print(f"  created  {real}  (from {ex}; edit it, the person in it is invented)")
+            note = ("empty keys; /jh-setup or the TUI keys tab sets them" if real == ".env"
+                    else "an invented person until /jh-setup or your edits replace it")
+            print(f"  created  {real}  (from {ex}; {note})")
     for real in p["keep"]:
         print(f"  kept     {real}")
     for ex in p["missing_example"]:
@@ -262,8 +264,9 @@ def run(root: Path = ROOT, check: bool = False) -> int:
               "out under a dated note; edit it with `python -m src.query dream` or the TUI")
     for ex in SKIPPED_EXAMPLES:
         print(f"  skipped  {ex}  (documentation; write {real_name(ex)} by hand to enable the identity guard)")
-    print("Next: edit config/profile.yaml, resume/master_resume.yaml and resume/answers.yaml, "
-          "then uncomment your targeting in config/sources.local.yaml.")
+    print("Next: run /jh-setup in your agent CLI (it writes the master resume, the profile and the "
+          "sources from your documents), or edit config/profile.yaml, resume/master_resume.yaml and "
+          "resume/answers.yaml by hand, then uncomment your targeting in config/sources.local.yaml.")
     return 0
 
 

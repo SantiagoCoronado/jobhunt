@@ -94,7 +94,7 @@ def main() -> None:
 
     if untargeted:
         print(f"  - skipped, no targeting in config/sources.local.yaml: {'; '.join(untargeted)}"
-              "\n    (copy config/sources.local.example.yaml and fill in the keys named above)")
+              "\n    (fill in the keys named above there, or let /jh-setup ask for them)")
     print(f"\nDone. {total_new} new jobs added, {total_seen} already known, "
           f"{total_dropped} dropped by the role-family title gate.")
 
@@ -102,7 +102,8 @@ def main() -> None:
     m = maintain(conn)
     print(f"Maintenance: {m['expired']} expired, {m['pruned']} descriptions pruned"
           f"{', VACUUMed' if m['vacuumed'] else ''}.")
-    print("Next:  python -m src.match export   then run /jh-match in Claude Code.")
+    print("Next:  /jh-hunt in your agent CLI runs the whole loop; /jh-triage then /jh-match score "
+          "only (or `python -m src.hunt run --from triage --to match`).")
 
 
 def _upsert(conn, job, now) -> str:

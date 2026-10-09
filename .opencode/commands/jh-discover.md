@@ -17,5 +17,6 @@ shell tool cannot background a command), from the repo root:
 
 When it finishes, read the output and tell me how many new jobs
 landed per source and in total, flag any source line marked FAILED, and remind me to run
-`/jh-match` next. Partial progress is safe: discover commits after each source, so a killed
-run keeps what it already pulled.
+`/jh-triage` then `/jh-match` next (match scores only the rows triage bucketed), or
+`/jh-hunt` for the whole loop. Partial progress is safe: discover commits after each source,
+so a killed run keeps what it already pulled.

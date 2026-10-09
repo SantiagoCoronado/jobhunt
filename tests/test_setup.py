@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -214,6 +215,15 @@ def test_setup_sh_is_a_thin_wrapper():
     assert 'exec "$PY" -m src.setup "$@"' in text and "sys.version_info >= (3, 11)" in text
     assert "pip install" not in text and "venv" not in text
     assert subprocess.run(["bash", "-n", str(ROOT / "setup.sh")], check=False).returncode == 0
+
+
+def test_run_command_keeps_the_order_through_a_pipe():
+    """An agent runs ./setup.sh through a pipe, where print is block-buffered: without the
+    flush the venv and deps lines printed after the child's whole output (full-flow run)."""
+    code = ("import sys; from pathlib import Path; from src import setup; print('parent first'); "
+            "setup.run_command([sys.executable, '-c', 'print(\"child\")'], Path('.'), False)")
+    done = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, check=False)
+    assert done.stdout.splitlines() == ["parent first", "child"]
 
 
 def test_setup_imports_only_the_standard_library_at_the_top():
