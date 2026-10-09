@@ -36,23 +36,43 @@ verification record.
 
 ## Setup
 
-```bash
-cd ~/projects/jobhunt
-./setup.sh                       # asks which agent CLIs you use (claude, codex, opencode, pi, gemini, agy), then
-                                 # venv + deps + `python -m src.init` + the default harness + `hunt doctor` per CLI
-                                 # (--harness claude,pi or --yes for scripts; --check reports and writes nothing)
-# then open your agent CLI here and run /jh-setup: it reads your resumes and LinkedIn export,
-# asks what it cannot find, and writes the files below for you (every resume fact traced to a document)
-# ...or manually:
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+You need Python 3.11 or newer, git, at least one agent CLI you are signed in to (claude, codex,
+opencode, pi, gemini or agy), and LibreOffice for the tailored PDFs (macOS:
+`brew install --cask libreoffice`; Linux: your package manager's `libreoffice`).
 
-# 1. Edit your yardstick + resume (keep everything true):
-#    config/profile.yaml, target roles, real skills, locations, salary floor
-#    resume/master_resume.yaml, your master resume (RenderCV schema)
-#    config/sources.local.yaml, your Greenhouse/Lever/Ashby tokens and countries (see the .example)
-python -m src.init               # creates profile.yaml, master_resume.yaml, answers.yaml, sources.local.yaml, notify.yaml, .env from the examples
+**1. Install.**
+```bash
+git clone <this repo's URL> jobhunt && cd jobhunt
+./setup.sh
 ```
+It asks which agent CLIs you use, then makes the venv, installs the dependencies, creates your
+config files from the examples, sets the default harness, runs `hunt doctor` for each CLI and
+names the next step in your CLI's own words. `--harness claude,pi` skips the question, `--yes`
+takes the CLIs on your PATH, `--check` reports and writes nothing.
+
+**2. Onboard.** Open your agent CLI in this folder and run the interview on your documents:
+```
+/jh-setup ~/cvs/resume.pdf ~/cvs/linkedin-profile.pdf
+```
+(codex and agy: say `jh-setup` with the same files.) It reads resumes, cover letters and
+LinkedIn's "Save to PDF" or data-export zip (PDF, docx, md, txt, csv), asks what it cannot find,
+and writes your master resume, profile, sources and keys, every resume fact traced to a
+document. It ends with a first discover.
+
+**3. Hunt.** `/jh-hunt` (see Daily use below).
+
+<details>
+<summary>By hand instead of the interview</summary>
+
+`./setup.sh` already copied every example to its real name (`python -m src.init` does it again
+safely). Edit them yourself, keeping everything true:
+
+- `config/profile.yaml`: target roles, real skills, locations, salary floor
+- `resume/master_resume.yaml`: your master resume (RenderCV schema)
+- `config/sources.local.yaml`: your Greenhouse/Lever/Ashby tokens and countries
+- `.env`: the optional source keys (`.env.example` says where to get each)
+
+</details>
 
 ## Daily use
 
