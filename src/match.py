@@ -193,7 +193,8 @@ def export(limit: int, min_bucket: int | None = None, chunk: int | None = None,
     PENDING.parent.mkdir(exist_ok=True)
     PENDING.write_text(json.dumps(out, indent=2))
     print(f"Exported {len(out)} jobs -> {PENDING}  (dream={sum(1 for it in sel if it[3])})")
-    print("Now run /jh-match in Claude Code to score them.")
+    print(f"Now have the job-matcher agent in your agent CLI score them into {SCORES}, "
+          "then `python -m src.match ingest`.")
 
 
 def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
@@ -213,7 +214,7 @@ def ingest(threshold: int | None = None, scores_dir: str | None = None) -> None:
                 print(f"  ! skip {f.name}: {e}")
     else:
         if not SCORES.exists():
-            raise SystemExit(f"No scores file at {SCORES}. Run /jh-match in Claude Code first.")
+            raise SystemExit(f"No scores file at {SCORES}. Have the job-matcher agent score {PENDING} first.")
         data = json.loads(SCORES.read_text())
     conn = connect()
     now = now_iso()

@@ -119,6 +119,9 @@ def test_discover_skips_untargeted_sources_with_one_hint(tmp_path, monkeypatch, 
     assert "config/sources.local.yaml" in out
     assert "greenhouse (tokens)" in out and "careerjet (locale_code)" in out
     assert "FAILED" not in out
+    # init already made the local file, and the next step names no single harness (full-flow run)
+    assert "copy config/sources.local.example.yaml" not in out and "/jh-setup" in out
+    assert "Next:  /jh-hunt in your agent CLI" in out and "Claude Code" not in out
 
 
 # ---- the loader rule: no module reaches around config for a user-owned file ----
